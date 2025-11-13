@@ -15,6 +15,13 @@
       "when": 1762986028479,
       "tag": "0001_light_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1763048200265,
+      "tag": "0002_ambiguous_micromacro",
+      "breakpoints": true
     }
   ]
 }
