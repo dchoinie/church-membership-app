@@ -5,7 +5,24 @@ import {
   uuid,
   date,
   index,
+  foreignKey,
+  pgEnum,
 } from "drizzle-orm/pg-core";
+
+export const membershipStatusEnum = pgEnum("membership_status_enum", [
+  "active",
+  "inactive",
+  "pending",
+  "transferred",
+  "deceased",
+]);
+
+export const familyRoleEnum = pgEnum("family_role_enum", [
+  "father",
+  "mother",
+  "son",
+  "daughter",
+]);
 
 export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -19,22 +36,20 @@ export const families = pgTable(
   "families",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    familyName: text("family_name"),
-    addressLine1: text("address_line1"),
-    addressLine2: text("address_line2"),
-    city: text("city"),
-    state: text("state"),
-    zipCode: text("zip_code"),
-    homePhone: text("home_phone"),
+    parentFamilyId: uuid("parent_family_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [
-    index("families_family_name_idx").on(table.familyName),
-  ],
+  (table) => ({
+    parentFamilyIdFk: foreignKey({
+      columns: [table.parentFamilyId],
+      foreignColumns: [table.id],
+    })
+      .onDelete("set null"),
+  }),
 );
 
 export const members = pgTable(
@@ -56,10 +71,10 @@ export const members = pgTable(
     zipCode: text("zip_code"),
     dateOfBirth: date("date_of_birth"),
     baptismDate: date("baptism_date"),
-    membershipStatus: text("membership_status")
+    membershipStatus: membershipStatusEnum("membership_status")
       .notNull()
       .default("active"),
-    familyRole: text("family_role"), // 'spouse', 'child', 'parent', 'sibling', 'grandparent', 'other'
+    familyRole: familyRoleEnum("family_role"),
     notes: text("notes"),
     photoUrl: text("photo_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

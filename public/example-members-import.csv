@@ -1,0 +1,7 @@
+First Name,Last Name,Membership Date,Email,Phone,Address Line 1,Address Line 2,City,State,Zip Code,Date of Birth,Baptism Date,Membership Status,Family Role,Notes,Photo URL,Family ID,Create New Family
+John,Smith,2020-01-15,john.smith@example.com,555-0101,123 Main St,,Springfield,IL,62701,1985-05-20,2000-06-15,active,father,Long-time member,https://example.com/photo1.jpg,,
+Jane,Smith,2020-01-15,jane.smith@example.com,555-0102,123 Main St,,Springfield,IL,62701,1987-08-10,2000-06-15,active,mother,Long-time member,https://example.com/photo2.jpg,,
+Bob,Johnson,2021-03-20,bob.johnson@example.com,555-0201,456 Oak Ave,,Chicago,IL,60601,1990-12-05,,pending,son,New member,https://example.com/photo3.jpg,,
+Mary,Williams,2019-06-10,mary.williams@example.com,555-0301,789 Pine St,Apt 2B,Peoria,IL,61601,1975-03-22,1995-04-10,active,mother,Active volunteer,,,
+Tom,Brown,2022-09-05,tom.brown@example.com,555-0401,321 Elm St,,Rockford,IL,61101,1995-07-18,,active,daughter,Student,https://example.com/photo5.jpg,,
+

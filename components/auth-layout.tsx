@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Member Directory", href: "/members" },
+  { label: "Member Directory", href: "/membership" },
   { label: "Attendance", href: "/attendance" },
   { label: "Giving", href: "/giving" },
 ];
@@ -26,17 +26,23 @@ export default function AuthLayout({
 
   useEffect(() => {
     if (!isPending) {
-      setIsChecking(false);
       const isPublicRoute = publicRoutes.includes(pathname);
 
       // If not on a public route and not authenticated, redirect to login
       if (!isPublicRoute && !session?.user) {
         router.push("/");
+        return;
       }
       // If authenticated and on login/signup/setup, redirect to dashboard
       if (session?.user && (pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/setup")) {
         router.push("/dashboard");
+        return;
       }
+      
+      // Defer state update to avoid cascading renders
+      startTransition(() => {
+        setIsChecking(false);
+      });
     }
   }, [session, isPending, pathname, router]);
 

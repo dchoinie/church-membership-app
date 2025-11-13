@@ -22,6 +22,27 @@
       "when": 1763048200265,
       "tag": "0002_ambiguous_micromacro",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1763057932983,
+      "tag": "0003_pretty_exodus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1763060893299,
+      "tag": "0004_medical_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1763064019675,
+      "tag": "0005_aspiring_stardust",
+      "breakpoints": true
     }
   ]
 }
