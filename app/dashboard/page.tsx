@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Dashboard() {
   return (
@@ -11,24 +11,24 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-lg border bg-card p-6">
+        <Link href="/membership" className="rounded-lg border bg-card p-6 hover:bg-accent transition-colors">
           <h2 className="text-lg font-semibold">Member Directory</h2>
           <p className="text-sm text-muted-foreground mt-2">
             Manage church members and their information
           </p>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
-          <h2 className="text-lg font-semibold">Attendance</h2>
-          <p className="text-sm text-muted-foreground mt-2">
-            Track attendance for services and events
-          </p>
-        </div>
-        <div className="rounded-lg border bg-card p-6">
+        </Link>
+        <Link href="/giving" className="rounded-lg border bg-card p-6 hover:bg-accent transition-colors">
           <h2 className="text-lg font-semibold">Giving</h2>
           <p className="text-sm text-muted-foreground mt-2">
             Manage donations and giving records
           </p>
-        </div>
+        </Link>
+        <Link href="/reports" className="rounded-lg border bg-card p-6 hover:bg-accent transition-colors">
+          <h2 className="text-lg font-semibold">Reports</h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            View and generate reports
+          </p>
+        </Link>
       </div>
     </div>
   );

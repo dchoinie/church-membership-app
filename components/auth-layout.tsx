@@ -8,8 +8,8 @@ import { authClient } from "@/lib/auth-client";
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Member Directory", href: "/membership" },
-  { label: "Attendance", href: "/attendance" },
   { label: "Giving", href: "/giving" },
+  { label: "Reports", href: "/reports" },
 ];
 
 const publicRoutes = ["/", "/login", "/signup", "/setup"];
@@ -72,26 +72,37 @@ export default function AuthLayout({
             Good Shepherd Admin
           </div>
           <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
             <div className="mt-auto border-t border-sidebar-border pt-4">
               <Link
                 href="/manage-admin-access"
-                className="rounded-md px-4 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                  pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                    : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`}
               >
                 Manage Admin Access
               </Link>
             </div>
           </nav>
         </aside>
-        <main className="flex-1 overflow-y-auto bg-background max-h-screen">
+        <main className="flex-1 overflow-y-auto bg-background min-h-0">
           <div className="mx-auto w-full max-w-6xl px-4 py-8">{children}</div>
         </main>
       </div>

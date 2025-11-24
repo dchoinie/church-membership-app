@@ -4,18 +4,12 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { members } from "@/db/schema";
+import { members, household } from "@/db/schema";
 
-const VALID_MEMBERSHIP_STATUSES = ["active", "inactive", "pending", "transferred", "deceased"] as const;
-const VALID_FAMILY_ROLES = ["father", "mother", "son", "daughter"] as const;
+const VALID_PARTICIPATION_STATUSES = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
 
-function isValidMembershipStatus(status: string | null | undefined): status is typeof VALID_MEMBERSHIP_STATUSES[number] {
-  return status !== null && status !== undefined && VALID_MEMBERSHIP_STATUSES.includes(status.toLowerCase() as any);
-}
-
-function isValidFamilyRole(role: string | null | undefined): role is typeof VALID_FAMILY_ROLES[number] | null {
-  if (!role || role === "__none__") return true; // null is valid
-  return VALID_FAMILY_ROLES.includes(role.toLowerCase() as any);
+function isValidParticipationStatus(status: string | null | undefined): status is typeof VALID_PARTICIPATION_STATUSES[number] {
+  return status !== null && status !== undefined && VALID_PARTICIPATION_STATUSES.includes(status.toLowerCase() as any);
 }
 
 export async function GET(
@@ -38,23 +32,31 @@ export async function GET(
     const [member] = await db
       .select({
         id: members.id,
-        familyId: members.familyId,
+        householdId: members.householdId,
         firstName: members.firstName,
+        middleName: members.middleName,
         lastName: members.lastName,
-        membershipDate: members.membershipDate,
-        email: members.email,
-        phone: members.phone,
-        addressLine1: members.addressLine1,
-        addressLine2: members.addressLine2,
-        city: members.city,
-        state: members.state,
-        zipCode: members.zipCode,
+        suffix: members.suffix,
+        preferredName: members.preferredName,
+        maidenName: members.maidenName,
+        title: members.title,
+        sex: members.sex,
         dateOfBirth: members.dateOfBirth,
+        email1: members.email1,
+        email2: members.email2,
+        phoneHome: members.phoneHome,
+        phoneCell1: members.phoneCell1,
+        phoneCell2: members.phoneCell2,
         baptismDate: members.baptismDate,
-        membershipStatus: members.membershipStatus,
-        familyRole: members.familyRole,
-        notes: members.notes,
-        photoUrl: members.photoUrl,
+        confirmationDate: members.confirmationDate,
+        receivedBy: members.receivedBy,
+        dateReceived: members.dateReceived,
+        removedBy: members.removedBy,
+        dateRemoved: members.dateRemoved,
+        deceasedDate: members.deceasedDate,
+        membershipCode: members.membershipCode,
+        envelopeNumber: members.envelopeNumber,
+        participation: members.participation,
         createdAt: members.createdAt,
         updatedAt: members.updatedAt,
       })
@@ -94,9 +96,9 @@ export async function PUT(
     const body = await request.json();
 
     // Validate required fields
-    if (!body.firstName || !body.lastName || !body.membershipDate) {
+    if (!body.firstName || !body.lastName) {
       return NextResponse.json(
-        { error: "First name, last name, and membership date are required" },
+        { error: "First name and last name are required" },
         { status: 400 },
       );
     }
@@ -112,12 +114,12 @@ export async function PUT(
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    // Check email uniqueness if email is being changed
-    if (body.email && body.email !== existingMember.email) {
+    // Check email uniqueness if email1 is being changed
+    if (body.email1 && body.email1 !== existingMember.email1) {
       const emailConflict = await db
         .select()
         .from(members)
-        .where(eq(members.email, body.email))
+        .where(eq(members.email1, body.email1))
         .limit(1);
 
       if (emailConflict.length > 0) {
@@ -128,35 +130,64 @@ export async function PUT(
       }
     }
 
+    // Enforce household requirement - all members must belong to a household
+    const newHouseholdId = body.householdId !== undefined ? body.householdId : existingMember.householdId;
+    if (!newHouseholdId) {
+      return NextResponse.json(
+        { error: "Household is required. All members must belong to a household." },
+        { status: 400 },
+      );
+    }
+
+    // Validate that household exists if householdId is being changed
+    if (body.householdId !== undefined && body.householdId !== existingMember.householdId) {
+      const [targetHousehold] = await db
+        .select()
+        .from(household)
+        .where(eq(household.id, body.householdId))
+        .limit(1);
+
+      if (!targetHousehold) {
+        return NextResponse.json(
+          { error: "Selected household does not exist" },
+          { status: 400 },
+        );
+      }
+    }
+
     // Update member
     const [updatedMember] = await db
       .update(members)
       .set({
-        familyId: body.familyId !== undefined ? body.familyId : existingMember.familyId,
+        householdId: newHouseholdId,
         firstName: body.firstName,
+        middleName: body.middleName !== undefined ? body.middleName : existingMember.middleName,
         lastName: body.lastName,
-        membershipDate: body.membershipDate,
-        email: body.email !== undefined ? body.email : existingMember.email,
-        phone: body.phone !== undefined ? body.phone : existingMember.phone,
-        addressLine1: body.addressLine1 !== undefined ? body.addressLine1 : existingMember.addressLine1,
-        addressLine2: body.addressLine2 !== undefined ? body.addressLine2 : existingMember.addressLine2,
-        city: body.city !== undefined ? body.city : existingMember.city,
-        state: body.state !== undefined ? body.state : existingMember.state,
-        zipCode: body.zipCode !== undefined ? body.zipCode : existingMember.zipCode,
+        suffix: body.suffix !== undefined ? body.suffix : existingMember.suffix,
+        preferredName: body.preferredName !== undefined ? body.preferredName : existingMember.preferredName,
+        maidenName: body.maidenName !== undefined ? body.maidenName : existingMember.maidenName,
+        title: body.title !== undefined ? body.title : existingMember.title,
+        sex: body.sex !== undefined ? body.sex : existingMember.sex,
         dateOfBirth: body.dateOfBirth !== undefined ? body.dateOfBirth : existingMember.dateOfBirth,
+        email1: body.email1 !== undefined ? body.email1 : existingMember.email1,
+        email2: body.email2 !== undefined ? body.email2 : existingMember.email2,
+        phoneHome: body.phoneHome !== undefined ? body.phoneHome : existingMember.phoneHome,
+        phoneCell1: body.phoneCell1 !== undefined ? body.phoneCell1 : existingMember.phoneCell1,
+        phoneCell2: body.phoneCell2 !== undefined ? body.phoneCell2 : existingMember.phoneCell2,
         baptismDate: body.baptismDate !== undefined ? body.baptismDate : existingMember.baptismDate,
-        membershipStatus: body.membershipStatus !== undefined
-          ? (isValidMembershipStatus(body.membershipStatus)
-              ? body.membershipStatus.toLowerCase()
-              : existingMember.membershipStatus)
-          : existingMember.membershipStatus,
-        familyRole: body.familyRole !== undefined
-          ? (isValidFamilyRole(body.familyRole)
-              ? (body.familyRole === "__none__" || !body.familyRole ? null : body.familyRole.toLowerCase())
-              : existingMember.familyRole)
-          : existingMember.familyRole,
-        notes: body.notes !== undefined ? body.notes : existingMember.notes,
-        photoUrl: body.photoUrl !== undefined ? body.photoUrl : existingMember.photoUrl,
+        confirmationDate: body.confirmationDate !== undefined ? body.confirmationDate : existingMember.confirmationDate,
+        receivedBy: body.receivedBy !== undefined ? body.receivedBy : existingMember.receivedBy,
+        dateReceived: body.dateReceived !== undefined ? body.dateReceived : existingMember.dateReceived,
+        removedBy: body.removedBy !== undefined ? body.removedBy : existingMember.removedBy,
+        dateRemoved: body.dateRemoved !== undefined ? body.dateRemoved : existingMember.dateRemoved,
+        deceasedDate: body.deceasedDate !== undefined ? body.deceasedDate : existingMember.deceasedDate,
+        membershipCode: body.membershipCode !== undefined ? body.membershipCode : existingMember.membershipCode,
+        envelopeNumber: body.envelopeNumber !== undefined ? body.envelopeNumber : existingMember.envelopeNumber,
+        participation: body.participation !== undefined
+          ? (isValidParticipationStatus(body.participation)
+              ? body.participation.toLowerCase()
+              : existingMember.participation)
+          : existingMember.participation,
       })
       .where(eq(members.id, id))
       .returning();

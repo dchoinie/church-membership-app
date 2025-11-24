@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { format } from "date-fns";
-import { PlusIcon, EyeIcon, PencilIcon, UsersIcon, UploadIcon } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PlusIcon, UploadIcon, TrashIcon, PencilIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +22,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -32,80 +39,68 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useForm } from "react-hook-form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-interface Member {
-  id: string;
-  familyId: string | null;
+interface HouseholdMember {
   firstName: string;
   lastName: string;
-  membershipDate: string;
-  email: string | null;
-  phone: string | null;
-  addressLine1: string | null;
-  addressLine2: string | null;
+}
+
+interface Household {
+  id: string;
+  name: string | null;
+  type: string | null;
+  address1: string | null;
   city: string | null;
   state: string | null;
-  zipCode: string | null;
-  dateOfBirth: string | null;
-  baptismDate: string | null;
-  membershipStatus: string;
-  familyRole: string | null;
-  notes: string | null;
-  photoUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
+  memberCount: number;
+  members: HouseholdMember[];
 }
 
-interface FamilyMember {
-  firstName: string;
-  lastName: string;
-}
-
-interface Family {
-  id: string;
-  parentFamilyId: string | null;
-  members: FamilyMember[];
-}
-
-interface MemberFormData {
-  firstName: string;
-  lastName: string;
-  membershipDate: string;
-  email: string;
-  phone: string;
-  addressLine1: string;
-  addressLine2: string;
+interface HouseholdFormData {
+  name: string;
+  type: string;
+  address1: string;
+  address2: string;
   city: string;
   state: string;
-  zipCode: string;
-  dateOfBirth: string;
-  baptismDate: string;
-  membershipStatus: string;
-  familyId: string;
-  familyRole: string;
-  notes: string;
-  photoUrl: string;
-  // New family flag
-  createNewFamily: boolean;
+  zip: string;
+}
+
+interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export default function MembershipPage() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [families, setFamilies] = useState<Family[]>([]);
+  const router = useRouter();
+  const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -115,85 +110,206 @@ export default function MembershipPage() {
     errors: string[];
   } | null>(null);
 
-  const form = useForm<MemberFormData>({
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      membershipDate: "",
-      email: "",
-      phone: "",
-      addressLine1: "",
-      addressLine2: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      dateOfBirth: "",
-      baptismDate: "",
-      membershipStatus: "active",
-      familyId: "",
-      familyRole: "",
-      notes: "",
-      photoUrl: "",
-      createNewFamily: false,
-    },
-    mode: "onChange",
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 0,
   });
 
-  const createNewFamily = form.watch("createNewFamily");
+  const createForm = useForm<HouseholdFormData>({
+    defaultValues: {
+      name: "",
+      type: "individual",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+    },
+  });
 
-  useEffect(() => {
-    fetchMembers();
-    fetchFamilies();
-  }, []);
+  const editForm = useForm<HouseholdFormData>({
+    defaultValues: {
+      name: "",
+      type: "individual",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+    },
+  });
 
-  const fetchMembers = async () => {
+  const fetchHouseholds = async (page: number) => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/members");
+      const response = await fetch(`/api/families?page=${page}&pageSize=50`);
       if (response.ok) {
         const data = await response.json();
-        setMembers(data.members || []);
+        const fetchedHouseholds = data.households || [];
+        const paginationInfo = data.pagination || {
+          page: 1,
+          pageSize: 50,
+          total: 0,
+          totalPages: 0,
+        };
+
+        setHouseholds(fetchedHouseholds);
+        setPagination(paginationInfo);
       }
     } catch (error) {
-      console.error("Error fetching members:", error);
+      console.error("Error fetching households:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchFamilies = async () => {
+  useEffect(() => {
+    fetchHouseholds(currentPage);
+  }, [currentPage]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  const getHouseholdDisplayName = (household: Household): string => {
+    if (household.name) {
+      return household.name;
+    }
+    if (household.memberCount === 0) {
+      return `Household ${household.id.slice(0, 8)}`;
+    }
+    if (household.members.length === 0) {
+      return `Household (${household.memberCount} member${household.memberCount !== 1 ? "s" : ""})`;
+    }
+    if (household.members.length === 1) {
+      return `${household.members[0].firstName} ${household.members[0].lastName}`;
+    }
+    if (household.members.length === 2) {
+      return `${household.members[0].firstName} & ${household.members[1].firstName} ${household.members[1].lastName}`;
+    }
+    return `${household.members[0].firstName} ${household.members[0].lastName} (+${household.memberCount - 1})`;
+  };
+
+  const getAddressDisplay = (household: Household): string => {
+    const parts = [];
+    if (household.address1) parts.push(household.address1);
+    if (household.city) parts.push(household.city);
+    if (household.state) parts.push(household.state);
+    return parts.length > 0 ? parts.join(", ") : "N/A";
+  };
+
+  const onCreateSubmit = async (data: HouseholdFormData) => {
     try {
-      const response = await fetch("/api/families");
+      const response = await fetch("/api/families", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: data.name || null,
+          type: data.type || null,
+          address1: data.address1 || null,
+          address2: data.address2 || null,
+          city: data.city || null,
+          state: data.state || null,
+          zip: data.zip || null,
+        }),
+      });
+
       if (response.ok) {
-        const data = await response.json();
-        setFamilies(data.families || []);
+        setCreateDialogOpen(false);
+        createForm.reset();
+        fetchHouseholds(currentPage);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to create household");
       }
     } catch (error) {
-      console.error("Error fetching families:", error);
+      console.error("Error creating household:", error);
+      alert("Failed to create household");
     }
   };
 
-  const getFamilyDisplayName = (family: Family): string => {
-    if (family.members.length === 0) {
-      return `Family ${family.id.slice(0, 8)}`;
-    }
-    if (family.members.length === 1) {
-      return `Family of ${family.members[0].firstName} ${family.members[0].lastName}`;
-    }
-    if (family.members.length === 2) {
-      return `Family of ${family.members[0].firstName} & ${family.members[1].firstName} ${family.members[1].lastName}`;
-    }
-    return `Family of ${family.members[0].firstName} ${family.members[0].lastName} (+${family.members.length - 1})`;
-  };
+  const onEditSubmit = async (data: HouseholdFormData) => {
+    if (!selectedHousehold) return;
 
-  const getFamilyDisplayNameWithParent = (family: Family): string => {
-    const baseName = getFamilyDisplayName(family);
-    if (family.parentFamilyId) {
-      const parent = families.find((f) => f.id === family.parentFamilyId);
-      if (parent) {
-        return `${baseName} (in ${getFamilyDisplayName(parent)})`;
+    try {
+      const response = await fetch(`/api/families/${selectedHousehold.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: data.name || null,
+          type: data.type || null,
+          address1: data.address1 || null,
+          address2: data.address2 || null,
+          city: data.city || null,
+          state: data.state || null,
+          zip: data.zip || null,
+        }),
+      });
+
+      if (response.ok) {
+        setEditDialogOpen(false);
+        setSelectedHousehold(null);
+        editForm.reset();
+        fetchHouseholds(currentPage);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to update household");
       }
+    } catch (error) {
+      console.error("Error updating household:", error);
+      alert("Failed to update household");
     }
-    return baseName;
+  };
+
+  const handleDeleteClick = (household: Household) => {
+    setSelectedHousehold(household);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedHousehold) return;
+
+    try {
+      const response = await fetch(`/api/families/${selectedHousehold.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setDeleteDialogOpen(false);
+        setSelectedHousehold(null);
+        fetchHouseholds(currentPage);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to delete household");
+      }
+    } catch (error) {
+      console.error("Error deleting household:", error);
+      alert("Failed to delete household");
+    }
+  };
+
+  const handleEditClick = (household: Household) => {
+    setSelectedHousehold(household);
+    editForm.reset({
+      name: household.name || "",
+      type: household.type || "individual",
+      address1: household.address1 || "",
+      address2: "",
+      city: household.city || "",
+      state: household.state || "",
+      zip: "",
+    });
+    setEditDialogOpen(true);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,11 +350,8 @@ export default function MembershipPage() {
           failed: data.failed || 0,
           errors: data.errors || [],
         });
-        // Refresh members list
-        await fetchMembers();
-        // Clear file input
+        fetchHouseholds(currentPage);
         setImportFile(null);
-        // Reset file input element
         const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
         if (fileInput) {
           fileInput.value = "";
@@ -254,129 +367,106 @@ export default function MembershipPage() {
     }
   };
 
-  const onSubmit = async (data: MemberFormData) => {
-    // Validate required fields
-    if (!data.firstName || !data.lastName || !data.membershipDate) {
-      alert("First name, last name, and membership date are required");
-      return;
-    }
-
-    try {
-      interface MemberPayload {
-        firstName: string;
-        lastName: string;
-        membershipDate: string;
-        email: string | null;
-        phone: string | null;
-        addressLine1: string | null;
-        addressLine2: string | null;
-        city: string | null;
-        state: string | null;
-        zipCode: string | null;
-        dateOfBirth: string | null;
-        baptismDate: string | null;
-        membershipStatus: string;
-        familyRole: string | null;
-        notes: string | null;
-        photoUrl: string | null;
-        familyId?: string | null;
-        createNewFamily?: boolean;
-      }
-
-      const payload: MemberPayload = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        membershipDate: data.membershipDate,
-        email: data.email || null,
-        phone: data.phone || null,
-        addressLine1: data.addressLine1 || null,
-        addressLine2: data.addressLine2 || null,
-        city: data.city || null,
-        state: data.state || null,
-        zipCode: data.zipCode || null,
-        dateOfBirth: data.dateOfBirth || null,
-        baptismDate: data.baptismDate || null,
-        membershipStatus: data.membershipStatus || "active",
-        familyRole: data.familyRole === "__none__" || !data.familyRole ? null : data.familyRole,
-        notes: data.notes || null,
-        photoUrl: data.photoUrl || null,
-      };
-
-      // Handle family assignment
-      if (data.createNewFamily) {
-        // Create new family (empty container)
-        payload.createNewFamily = true;
-        payload.familyId = null; // Will be set after family creation
-      } else {
-        // Use existing family or none
-        payload.familyId = data.familyId === "__none__" || !data.familyId ? null : data.familyId;
-      }
-
-      const response = await fetch("/api/members", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        setDialogOpen(false);
-        form.reset();
-        fetchMembers();
-        fetchFamilies(); // Refresh families list
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to create member");
-      }
-    } catch (error) {
-      console.error("Error creating member:", error);
-      alert("Failed to create member");
-    }
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    try {
-      return format(new Date(dateString), "MMM d, yyyy");
-    } catch {
-      return dateString;
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Membership</h1>
           <p className="text-muted-foreground mt-2">
-            Manage church members and their information
+            Manage households and their members
           </p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="cursor-pointer">
                 <PlusIcon className="mr-2 h-4 w-4" />
-                Add New Member
+                Create Household
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add New Member</DialogTitle>
+                <DialogTitle>Create New Household</DialogTitle>
                 <DialogDescription>
-                  Enter the member&apos;s information below.
+                  Create a new household. You can add members to it later.
                 </DialogDescription>
               </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4">
+                  <FormField
+                    control={createForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Household Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Smith Family" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Household Type</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="individual">Individual</SelectItem>
+                            <SelectItem value="family">Family</SelectItem>
+                            <SelectItem value="couple">Couple</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
-                      control={form.control}
-                      name="firstName"
+                      control={createForm.control}
+                      name="address1"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>First Name *</FormLabel>
+                          <FormLabel>Address</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Street address" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="address2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address 2</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Apartment, suite, etc." />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <FormField
+                      control={createForm.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -385,11 +475,81 @@ export default function MembershipPage() {
                       )}
                     />
                     <FormField
-                      control={form.control}
-                      name="lastName"
+                      control={createForm.control}
+                      name="state"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Last Name *</FormLabel>
+                          <FormLabel>State</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select state" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="AL">AL - Alabama</SelectItem>
+                              <SelectItem value="AK">AK - Alaska</SelectItem>
+                              <SelectItem value="AZ">AZ - Arizona</SelectItem>
+                              <SelectItem value="AR">AR - Arkansas</SelectItem>
+                              <SelectItem value="CA">CA - California</SelectItem>
+                              <SelectItem value="CO">CO - Colorado</SelectItem>
+                              <SelectItem value="CT">CT - Connecticut</SelectItem>
+                              <SelectItem value="DE">DE - Delaware</SelectItem>
+                              <SelectItem value="FL">FL - Florida</SelectItem>
+                              <SelectItem value="GA">GA - Georgia</SelectItem>
+                              <SelectItem value="HI">HI - Hawaii</SelectItem>
+                              <SelectItem value="ID">ID - Idaho</SelectItem>
+                              <SelectItem value="IL">IL - Illinois</SelectItem>
+                              <SelectItem value="IN">IN - Indiana</SelectItem>
+                              <SelectItem value="IA">IA - Iowa</SelectItem>
+                              <SelectItem value="KS">KS - Kansas</SelectItem>
+                              <SelectItem value="KY">KY - Kentucky</SelectItem>
+                              <SelectItem value="LA">LA - Louisiana</SelectItem>
+                              <SelectItem value="ME">ME - Maine</SelectItem>
+                              <SelectItem value="MD">MD - Maryland</SelectItem>
+                              <SelectItem value="MA">MA - Massachusetts</SelectItem>
+                              <SelectItem value="MI">MI - Michigan</SelectItem>
+                              <SelectItem value="MN">MN - Minnesota</SelectItem>
+                              <SelectItem value="MS">MS - Mississippi</SelectItem>
+                              <SelectItem value="MO">MO - Missouri</SelectItem>
+                              <SelectItem value="MT">MT - Montana</SelectItem>
+                              <SelectItem value="NE">NE - Nebraska</SelectItem>
+                              <SelectItem value="NV">NV - Nevada</SelectItem>
+                              <SelectItem value="NH">NH - New Hampshire</SelectItem>
+                              <SelectItem value="NJ">NJ - New Jersey</SelectItem>
+                              <SelectItem value="NM">NM - New Mexico</SelectItem>
+                              <SelectItem value="NY">NY - New York</SelectItem>
+                              <SelectItem value="NC">NC - North Carolina</SelectItem>
+                              <SelectItem value="ND">ND - North Dakota</SelectItem>
+                              <SelectItem value="OH">OH - Ohio</SelectItem>
+                              <SelectItem value="OK">OK - Oklahoma</SelectItem>
+                              <SelectItem value="OR">OR - Oregon</SelectItem>
+                              <SelectItem value="PA">PA - Pennsylvania</SelectItem>
+                              <SelectItem value="RI">RI - Rhode Island</SelectItem>
+                              <SelectItem value="SC">SC - South Carolina</SelectItem>
+                              <SelectItem value="SD">SD - South Dakota</SelectItem>
+                              <SelectItem value="TN">TN - Tennessee</SelectItem>
+                              <SelectItem value="TX">TX - Texas</SelectItem>
+                              <SelectItem value="UT">UT - Utah</SelectItem>
+                              <SelectItem value="VT">VT - Vermont</SelectItem>
+                              <SelectItem value="VA">VA - Virginia</SelectItem>
+                              <SelectItem value="WA">WA - Washington</SelectItem>
+                              <SelectItem value="WV">WV - West Virginia</SelectItem>
+                              <SelectItem value="WI">WI - Wisconsin</SelectItem>
+                              <SelectItem value="WY">WY - Wyoming</SelectItem>
+                              <SelectItem value="DC">DC - District of Columbia</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="zip"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ZIP Code</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -398,369 +558,20 @@ export default function MembershipPage() {
                       )}
                     />
                   </div>
-                  <FormField
-                    control={form.control}
-                    name="membershipDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Membership Date *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} required />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="addressLine1"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Address Line 1</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                <FormField
-                  control={form.control}
-                  name="membershipDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Membership Date *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} required />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone</FormLabel>
-                        <FormControl>
-                          <Input type="tel" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="addressLine1"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address Line 1</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="addressLine2"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address Line 2</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>City</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>State</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="zipCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Zip Code</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Birth</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="baptismDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Baptism Date</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="membershipStatus"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Membership Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="transferred">Transferred</SelectItem>
-                            <SelectItem value="deceased">Deceased</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {!createNewFamily ? (
-                    <FormField
-                      control={form.control}
-                      name="familyId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Family</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select family" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="__none__">None</SelectItem>
-                              {families
-                                .filter((f) => !f.parentFamilyId)
-                                .map((family) => (
-                                  <SelectItem key={family.id} value={family.id}>
-                                    {getFamilyDisplayName(family)} (Extended)
-                                  </SelectItem>
-                                ))}
-                              {families
-                                .filter((f) => f.parentFamilyId)
-                                .map((family) => (
-                                  <SelectItem key={family.id} value={family.id}>
-                                    {getFamilyDisplayNameWithParent(family)}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : (
-                    <FormItem>
-                      <FormLabel>Family</FormLabel>
-                      <div className="text-sm text-muted-foreground">
-                        Creating new family
-                      </div>
-                    </FormItem>
-                  )}
-                </div>
-
-                {/* Create New Family Toggle */}
-                <FormField
-                  control={form.control}
-                  name="createNewFamily"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Create New Family</FormLabel>
-                        <FormDescription className="text-xs">
-                          Check this to create a new family for this member
-                        </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="familyRole"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Family Role</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">None</SelectItem>
-                          <SelectItem value="father">Father</SelectItem>
-                          <SelectItem value="mother">Mother</SelectItem>
-                          <SelectItem value="son">Son</SelectItem>
-                          <SelectItem value="daughter">Daughter</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="photoUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Photo URL</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} rows={3} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">Create Member</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCreateDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">Create Household</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
           <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="cursor-pointer">
@@ -772,7 +583,7 @@ export default function MembershipPage() {
               <DialogHeader>
                 <DialogTitle>Bulk Import Members</DialogTitle>
                 <DialogDescription>
-                  Upload a CSV file to import multiple members at once. Download the example CSV to see the required format.
+                  Upload a CSV file to import multiple members at once. Each member must be assigned to a household.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -805,9 +616,9 @@ export default function MembershipPage() {
                     Download Example CSV Template
                   </a>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Required columns: First Name, Last Name, Membership Date
+                    Required columns: First Name, Last Name, Household ID (or create new household)
                     <br />
-                    Optional columns: Email, Phone, Address Line 1, Address Line 2, City, State, Zip Code, Date of Birth, Baptism Date, Membership Status, Family Role, Notes, Photo URL
+                    Optional columns: Middle Name, Suffix, Preferred Name, Maiden Name, Title, Sex, Date of Birth, Email1, Email2, Phone Home, Phone Cell1, Phone Cell2, Baptism Date, Confirmation Date, Received By, Date Received, Removed By, Date Removed, Deceased Date, Membership Code, Participation
                   </p>
                 </div>
                 {importResults && (
@@ -863,86 +674,380 @@ export default function MembershipPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Members</CardTitle>
+          <CardTitle>Households</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Loading members...
+              Loading households...
             </div>
-          ) : members.length === 0 ? (
+          ) : households.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No members found. Add your first member to get started.
+              No households found. Create your first household to get started.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>First Name</TableHead>
-                  <TableHead>Last Name</TableHead>
-                  <TableHead>Member Since</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">
-                      {member.firstName}
-                    </TableCell>
-                    <TableCell>{member.lastName}</TableCell>
-                    <TableCell>{formatDate(member.membershipDate)}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          member.membershipStatus?.toLowerCase() === "active"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                            : member.membershipStatus?.toLowerCase() === "inactive"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                              : member.membershipStatus?.toLowerCase() === "pending"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                                : member.membershipStatus?.toLowerCase() === "deceased" ||
-                                    member.membershipStatus?.toLowerCase() === "transferred"
-                                  ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                  : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                        }`}
-                      >
-                        {member.membershipStatus}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link href={`/membership/${member.id}`}>
-                          <Button variant="ghost" size="icon" title="View">
-                            <EyeIcon className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        {member.familyId && (
-                          <Link href={`/membership/family/${member.familyId}`}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="View Family"
-                            >
-                              <UsersIcon className="h-4 w-4" />
-                            </Button>
-                          </Link>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Household Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Members</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {households.map((household) => (
+                    <TableRow
+                      key={household.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/membership/family/${household.id}`)}
+                    >
+                      <TableCell className="font-medium">
+                        {getHouseholdDisplayName(household)}
+                      </TableCell>
+                      <TableCell>
+                        {household.type ? (
+                          <span className="capitalize">{household.type}</span>
+                        ) : (
+                          "N/A"
                         )}
-                        <Link href={`/membership/${member.id}?edit=true`}>
-                          <Button variant="ghost" size="icon" title="Edit">
+                      </TableCell>
+                      <TableCell>{getAddressDisplay(household)}</TableCell>
+                      <TableCell>{household.memberCount}</TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Edit"
+                            onClick={() => handleEditClick(household)}
+                          >
                             <PencilIcon className="h-4 w-4" />
                           </Button>
-                        </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete"
+                            onClick={() => handleDeleteClick(household)}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* Pagination Controls */}
+              {!loading && pagination.totalPages > 0 && (
+                <div className="mt-6 space-y-4">
+                  <div className="text-sm text-muted-foreground text-center">
+                    Showing {((pagination.page - 1) * pagination.pageSize) + 1} to{" "}
+                    {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{" "}
+                    {pagination.total} households
+                  </div>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handlePageChange(currentPage - 1);
+                          }}
+                          className={
+                            currentPage === 1
+                              ? "pointer-events-none opacity-50"
+                              : "cursor-pointer"
+                          }
+                        />
+                      </PaginationItem>
+
+                      {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(
+                        (pageNum) => {
+                          const showPage =
+                            pageNum === 1 ||
+                            pageNum === pagination.totalPages ||
+                            (pageNum >= currentPage - 1 && pageNum <= currentPage + 1);
+
+                          if (!showPage) {
+                            if (
+                              pageNum === currentPage - 2 ||
+                              pageNum === currentPage + 2
+                            ) {
+                              return (
+                                <PaginationItem key={pageNum}>
+                                  <PaginationEllipsis />
+                                </PaginationItem>
+                              );
+                            }
+                            return null;
+                          }
+
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handlePageChange(pageNum);
+                                }}
+                                isActive={pageNum === currentPage}
+                                className="cursor-pointer"
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        }
+                      )}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handlePageChange(currentPage + 1);
+                          }}
+                          className={
+                            currentPage === pagination.totalPages
+                              ? "pointer-events-none opacity-50"
+                              : "cursor-pointer"
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Household Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Household</DialogTitle>
+            <DialogDescription>
+              Update household information.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Household Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., Smith Family" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Household Type</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="family">Family</SelectItem>
+                        <SelectItem value="couple">Couple</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="address1"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Street address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="address2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address 2</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Apartment, suite, etc." />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="AL">AL - Alabama</SelectItem>
+                          <SelectItem value="AK">AK - Alaska</SelectItem>
+                          <SelectItem value="AZ">AZ - Arizona</SelectItem>
+                          <SelectItem value="AR">AR - Arkansas</SelectItem>
+                          <SelectItem value="CA">CA - California</SelectItem>
+                          <SelectItem value="CO">CO - Colorado</SelectItem>
+                          <SelectItem value="CT">CT - Connecticut</SelectItem>
+                          <SelectItem value="DE">DE - Delaware</SelectItem>
+                          <SelectItem value="FL">FL - Florida</SelectItem>
+                          <SelectItem value="GA">GA - Georgia</SelectItem>
+                          <SelectItem value="HI">HI - Hawaii</SelectItem>
+                          <SelectItem value="ID">ID - Idaho</SelectItem>
+                          <SelectItem value="IL">IL - Illinois</SelectItem>
+                          <SelectItem value="IN">IN - Indiana</SelectItem>
+                          <SelectItem value="IA">IA - Iowa</SelectItem>
+                          <SelectItem value="KS">KS - Kansas</SelectItem>
+                          <SelectItem value="KY">KY - Kentucky</SelectItem>
+                          <SelectItem value="LA">LA - Louisiana</SelectItem>
+                          <SelectItem value="ME">ME - Maine</SelectItem>
+                          <SelectItem value="MD">MD - Maryland</SelectItem>
+                          <SelectItem value="MA">MA - Massachusetts</SelectItem>
+                          <SelectItem value="MI">MI - Michigan</SelectItem>
+                          <SelectItem value="MN">MN - Minnesota</SelectItem>
+                          <SelectItem value="MS">MS - Mississippi</SelectItem>
+                          <SelectItem value="MO">MO - Missouri</SelectItem>
+                          <SelectItem value="MT">MT - Montana</SelectItem>
+                          <SelectItem value="NE">NE - Nebraska</SelectItem>
+                          <SelectItem value="NV">NV - Nevada</SelectItem>
+                          <SelectItem value="NH">NH - New Hampshire</SelectItem>
+                          <SelectItem value="NJ">NJ - New Jersey</SelectItem>
+                          <SelectItem value="NM">NM - New Mexico</SelectItem>
+                          <SelectItem value="NY">NY - New York</SelectItem>
+                          <SelectItem value="NC">NC - North Carolina</SelectItem>
+                          <SelectItem value="ND">ND - North Dakota</SelectItem>
+                          <SelectItem value="OH">OH - Ohio</SelectItem>
+                          <SelectItem value="OK">OK - Oklahoma</SelectItem>
+                          <SelectItem value="OR">OR - Oregon</SelectItem>
+                          <SelectItem value="PA">PA - Pennsylvania</SelectItem>
+                          <SelectItem value="RI">RI - Rhode Island</SelectItem>
+                          <SelectItem value="SC">SC - South Carolina</SelectItem>
+                          <SelectItem value="SD">SD - South Dakota</SelectItem>
+                          <SelectItem value="TN">TN - Tennessee</SelectItem>
+                          <SelectItem value="TX">TX - Texas</SelectItem>
+                          <SelectItem value="UT">UT - Utah</SelectItem>
+                          <SelectItem value="VT">VT - Vermont</SelectItem>
+                          <SelectItem value="VA">VA - Virginia</SelectItem>
+                          <SelectItem value="WA">WA - Washington</SelectItem>
+                          <SelectItem value="WV">WV - West Virginia</SelectItem>
+                          <SelectItem value="WI">WI - Wisconsin</SelectItem>
+                          <SelectItem value="WY">WY - Wyoming</SelectItem>
+                          <SelectItem value="DC">DC - District of Columbia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="zip"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditDialogOpen(false);
+                    setSelectedHousehold(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Update Household</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Household Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedHousehold?.memberCount && selectedHousehold.memberCount > 0 ? (
+                <>
+                  This household has {selectedHousehold.memberCount} member{selectedHousehold.memberCount !== 1 ? "s" : ""}. 
+                  You cannot delete a household that has members. Please remove all members first or transfer them to another household.
+                </>
+              ) : (
+                "This action cannot be undone. This will permanently delete the household."
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {selectedHousehold?.memberCount === 0 && (
+              <AlertDialogAction onClick={handleDeleteConfirm}>
+                Delete
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

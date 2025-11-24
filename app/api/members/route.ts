@@ -1,24 +1,18 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, asc, count } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { members, families } from "@/db/schema";
+import { members, household } from "@/db/schema";
 
-const VALID_MEMBERSHIP_STATUSES = ["active", "inactive", "pending", "transferred", "deceased"] as const;
-const VALID_FAMILY_ROLES = ["father", "mother", "son", "daughter"] as const;
+const VALID_PARTICIPATION_STATUSES = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
 
-function isValidMembershipStatus(status: string | null | undefined): status is typeof VALID_MEMBERSHIP_STATUSES[number] {
-  return status !== null && status !== undefined && VALID_MEMBERSHIP_STATUSES.includes(status.toLowerCase() as any);
+function isValidParticipationStatus(status: string | null | undefined): status is typeof VALID_PARTICIPATION_STATUSES[number] {
+  return status !== null && status !== undefined && VALID_PARTICIPATION_STATUSES.includes(status.toLowerCase() as any);
 }
 
-function isValidFamilyRole(role: string | null | undefined): role is typeof VALID_FAMILY_ROLES[number] | null {
-  if (!role || role === "__none__") return true; // null is valid
-  return VALID_FAMILY_ROLES.includes(role.toLowerCase() as any);
-}
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
     // Check authentication
     const session = await auth.api.getSession({
@@ -29,33 +23,69 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get all members
-    const allMembers = await db
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
+
+    // Validate pagination parameters
+    const validPage = Math.max(1, page);
+    const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
+    const offset = (validPage - 1) * validPageSize;
+
+    // Get total count
+    const [totalResult] = await db
+      .select({ count: count() })
+      .from(members);
+    const total = totalResult.count;
+    const totalPages = Math.ceil(total / validPageSize);
+
+    // Get paginated members, sorted alphabetically by last name, then first name
+    const paginatedMembers = await db
       .select({
         id: members.id,
-        familyId: members.familyId,
+        householdId: members.householdId,
         firstName: members.firstName,
+        middleName: members.middleName,
         lastName: members.lastName,
-        membershipDate: members.membershipDate,
-        email: members.email,
-        phone: members.phone,
-        addressLine1: members.addressLine1,
-        addressLine2: members.addressLine2,
-        city: members.city,
-        state: members.state,
-        zipCode: members.zipCode,
+        suffix: members.suffix,
+        preferredName: members.preferredName,
+        maidenName: members.maidenName,
+        title: members.title,
+        sex: members.sex,
         dateOfBirth: members.dateOfBirth,
+        email1: members.email1,
+        email2: members.email2,
+        phoneHome: members.phoneHome,
+        phoneCell1: members.phoneCell1,
+        phoneCell2: members.phoneCell2,
         baptismDate: members.baptismDate,
-        membershipStatus: members.membershipStatus,
-        familyRole: members.familyRole,
-        notes: members.notes,
-        photoUrl: members.photoUrl,
+        confirmationDate: members.confirmationDate,
+        receivedBy: members.receivedBy,
+        dateReceived: members.dateReceived,
+        removedBy: members.removedBy,
+        dateRemoved: members.dateRemoved,
+        deceasedDate: members.deceasedDate,
+        membershipCode: members.membershipCode,
+        envelopeNumber: members.envelopeNumber,
+        participation: members.participation,
         createdAt: members.createdAt,
         updatedAt: members.updatedAt,
       })
-      .from(members);
+      .from(members)
+      .orderBy(asc(members.lastName), asc(members.firstName))
+      .limit(validPageSize)
+      .offset(offset);
 
-    return NextResponse.json({ members: allMembers });
+    return NextResponse.json({
+      members: paginatedMembers,
+      pagination: {
+        page: validPage,
+        pageSize: validPageSize,
+        total,
+        totalPages,
+      },
+    });
   } catch (error) {
     console.error("Error fetching members:", error);
     return NextResponse.json(
@@ -79,19 +109,27 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.firstName || !body.lastName || !body.membershipDate) {
+    if (!body.firstName || !body.lastName) {
       return NextResponse.json(
-        { error: "First name, last name, and membership date are required" },
+        { error: "First name and last name are required" },
+        { status: 400 },
+      );
+    }
+
+    // Enforce household requirement - all members must belong to a household
+    if (!body.householdId && !body.createNewHousehold) {
+      return NextResponse.json(
+        { error: "Household is required. Please select an existing household or create a new one." },
         { status: 400 },
       );
     }
 
     // Check email uniqueness if provided
-    if (body.email) {
+    if (body.email1) {
       const existingMember = await db
         .select()
         .from(members)
-        .where(eq(members.email, body.email))
+        .where(eq(members.email1, body.email1))
         .limit(1);
 
       if (existingMember.length > 0) {
@@ -102,43 +140,68 @@ export async function POST(request: Request) {
       }
     }
 
-    let familyId = body.familyId || null;
+    let householdId = body.householdId || null;
 
-    // If creating a new family, create it first (just an empty container)
-    if (body.createNewFamily) {
-      const [newFamily] = await db
-        .insert(families)
-        .values({})
+    // If creating a new household, create it first
+    if (body.createNewHousehold) {
+      const [newHousehold] = await db
+        .insert(household)
+        .values({
+          name: body.householdName || null,
+          type: body.householdType || "individual", // Default to "individual" for new households
+        })
         .returning();
       
-      familyId = newFamily.id;
+      householdId = newHousehold.id;
+    }
+
+    // Validate that householdId exists if provided
+    if (householdId) {
+      const [existingHousehold] = await db
+        .select()
+        .from(household)
+        .where(eq(household.id, householdId))
+        .limit(1);
+
+      if (!existingHousehold) {
+        return NextResponse.json(
+          { error: "Selected household does not exist" },
+          { status: 400 },
+        );
+      }
     }
 
     // Insert new member
     const [newMember] = await db
       .insert(members)
       .values({
-        familyId: familyId,
+        householdId: householdId,
         firstName: body.firstName,
+        middleName: body.middleName || null,
         lastName: body.lastName,
-        membershipDate: body.membershipDate,
-        email: body.email || null,
-        phone: body.phone || null,
-        addressLine1: body.addressLine1 || null,
-        addressLine2: body.addressLine2 || null,
-        city: body.city || null,
-        state: body.state || null,
-        zipCode: body.zipCode || null,
+        suffix: body.suffix || null,
+        preferredName: body.preferredName || null,
+        maidenName: body.maidenName || null,
+        title: body.title || null,
+        sex: body.sex || null,
         dateOfBirth: body.dateOfBirth || null,
+        email1: body.email1 || null,
+        email2: body.email2 || null,
+        phoneHome: body.phoneHome || null,
+        phoneCell1: body.phoneCell1 || null,
+        phoneCell2: body.phoneCell2 || null,
         baptismDate: body.baptismDate || null,
-        membershipStatus: isValidMembershipStatus(body.membershipStatus)
-          ? body.membershipStatus.toLowerCase()
+        confirmationDate: body.confirmationDate || null,
+        receivedBy: body.receivedBy || null,
+        dateReceived: body.dateReceived || null,
+        removedBy: body.removedBy || null,
+        dateRemoved: body.dateRemoved || null,
+        deceasedDate: body.deceasedDate || null,
+        membershipCode: body.membershipCode || null,
+        envelopeNumber: body.envelopeNumber !== undefined ? body.envelopeNumber : null,
+        participation: isValidParticipationStatus(body.participation)
+          ? body.participation.toLowerCase()
           : "active",
-        familyRole: isValidFamilyRole(body.familyRole)
-          ? (body.familyRole === "__none__" || !body.familyRole ? null : body.familyRole.toLowerCase())
-          : null,
-        notes: body.notes || null,
-        photoUrl: body.photoUrl || null,
       })
       .returning();
 

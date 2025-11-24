@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { families, members } from "@/db/schema";
+import { household, members } from "@/db/schema";
 
 export async function GET(
   request: Request,
@@ -22,58 +22,43 @@ export async function GET(
 
     const { id } = await params;
 
-    // Get family with parent info
-    const [family] = await db
-      .select({
-        id: families.id,
-        parentFamilyId: families.parentFamilyId,
-        createdAt: families.createdAt,
-        updatedAt: families.updatedAt,
-      })
-      .from(families)
-      .where(eq(families.id, id))
+    // Get household
+    const [h] = await db
+      .select()
+      .from(household)
+      .where(eq(household.id, id))
       .limit(1);
 
-    if (!family) {
-      return NextResponse.json({ error: "Family not found" }, { status: 404 });
+    if (!h) {
+      return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
-    // Get parent family info if exists
-    let parentFamily = null;
-    if (family.parentFamilyId) {
-      const [parent] = await db
-        .select({
-          id: families.id,
-        })
-        .from(families)
-        .where(eq(families.id, family.parentFamilyId))
-        .limit(1);
-      parentFamily = parent;
-    }
-
-    // Get all members in this family
-    const familyMembers = await db
+    // Get all members in this household
+    const householdMembers = await db
       .select({
         id: members.id,
         firstName: members.firstName,
+        middleName: members.middleName,
         lastName: members.lastName,
-        membershipDate: members.membershipDate,
-        familyRole: members.familyRole,
-        email: members.email,
-        phone: members.phone,
+        suffix: members.suffix,
+        preferredName: members.preferredName,
+        email1: members.email1,
+        phoneHome: members.phoneHome,
+        phoneCell1: members.phoneCell1,
+        participation: members.participation,
+        envelopeNumber: members.envelopeNumber,
       })
       .from(members)
-      .where(eq(members.familyId, id));
+      .where(eq(members.householdId, id));
 
     return NextResponse.json({
-      family,
-      parentFamily,
-      members: familyMembers,
+      household: h,
+      members: householdMembers,
     });
   } catch (error) {
-    console.error("Error fetching family:", error);
+    console.error("Error fetching household:", error);
     return NextResponse.json(
-      { error: "Failed to fetch family" },
+      { error: "Failed to fetch household" },
       { status: 500 },
     );
   }
@@ -95,76 +80,45 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { parentFamilyId } = body;
 
-    // Check if family exists
-    const [existingFamily] = await db
+    // Check if household exists
+    const [existingHousehold] = await db
       .select()
-      .from(families)
-      .where(eq(families.id, id))
+      .from(household)
+      .where(eq(household.id, id))
       .limit(1);
 
-    if (!existingFamily) {
-      return NextResponse.json({ error: "Family not found" }, { status: 404 });
+    if (!existingHousehold) {
+      return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
-    // Validate parentFamilyId if provided
-    if (parentFamilyId) {
-      // Prevent self-reference
-      if (parentFamilyId === id) {
-        return NextResponse.json(
-          { error: "Family cannot be its own parent" },
-          { status: 400 },
-        );
-      }
-
-      // Check if parent exists
-      const [parentFamily] = await db
-        .select()
-        .from(families)
-        .where(eq(families.id, parentFamilyId))
-        .limit(1);
-
-      if (!parentFamily) {
-        return NextResponse.json(
-          { error: "Parent family not found" },
-          { status: 400 },
-        );
-      }
-
-      // Prevent circular reference (check if parent is a descendant)
-      let currentParentId = parentFamily.parentFamilyId;
-      while (currentParentId) {
-        if (currentParentId === id) {
-          return NextResponse.json(
-            { error: "Cannot create circular reference" },
-            { status: 400 },
-          );
-        }
-        const [currentParent] = await db
-          .select()
-          .from(families)
-          .where(eq(families.id, currentParentId))
-          .limit(1);
-        currentParentId = currentParent?.parentFamilyId || null;
-      }
-    }
-
-    // Update family
-    const [updatedFamily] = await db
-      .update(families)
+    // Update household
+    const [updatedHousehold] = await db
+      .update(household)
       .set({
-        parentFamilyId: parentFamilyId === "__none__" ? null : parentFamilyId || null,
+        name: body.name !== undefined ? body.name : existingHousehold.name,
+        type: body.type !== undefined ? body.type : existingHousehold.type,
+        isNonHousehold: body.isNonHousehold !== undefined ? body.isNonHousehold : existingHousehold.isNonHousehold,
+        personAssigned: body.personAssigned !== undefined ? body.personAssigned : existingHousehold.personAssigned,
+        ministryGroup: body.ministryGroup !== undefined ? body.ministryGroup : existingHousehold.ministryGroup,
+        address1: body.address1 !== undefined ? body.address1 : existingHousehold.address1,
+        address2: body.address2 !== undefined ? body.address2 : existingHousehold.address2,
+        city: body.city !== undefined ? body.city : existingHousehold.city,
+        state: body.state !== undefined ? body.state : existingHousehold.state,
+        zip: body.zip !== undefined ? body.zip : existingHousehold.zip,
+        country: body.country !== undefined ? body.country : existingHousehold.country,
+        alternateAddressBegin: body.alternateAddressBegin !== undefined ? body.alternateAddressBegin : existingHousehold.alternateAddressBegin,
+        alternateAddressEnd: body.alternateAddressEnd !== undefined ? body.alternateAddressEnd : existingHousehold.alternateAddressEnd,
         updatedAt: new Date(),
       })
-      .where(eq(families.id, id))
+      .where(eq(household.id, id))
       .returning();
 
-    return NextResponse.json({ family: updatedFamily });
+    return NextResponse.json({ household: updatedHousehold });
   } catch (error) {
-    console.error("Error updating family:", error);
+    console.error("Error updating household:", error);
     return NextResponse.json(
-      { error: "Failed to update family" },
+      { error: "Failed to update household" },
       { status: 500 },
     );
   }
@@ -186,53 +140,39 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if family exists
-    const [existingFamily] = await db
+    // Check if household exists
+    const [existingHousehold] = await db
       .select()
-      .from(families)
-      .where(eq(families.id, id))
+      .from(household)
+      .where(eq(household.id, id))
       .limit(1);
 
-    if (!existingFamily) {
-      return NextResponse.json({ error: "Family not found" }, { status: 404 });
+    if (!existingHousehold) {
+      return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
-    // Check if family has members
-    const familyMembers = await db
+    // Check if household has members
+    const householdMembers = await db
       .select()
       .from(members)
-      .where(eq(members.familyId, id))
+      .where(eq(members.householdId, id))
       .limit(1);
 
-    if (familyMembers.length > 0) {
+    if (householdMembers.length > 0) {
       return NextResponse.json(
-        { error: "Cannot delete family with members. Remove all members first." },
+        { error: "Cannot delete household with members. Remove all members first." },
         { status: 400 },
       );
     }
 
-    // Check if family has child families
-    const childFamilies = await db
-      .select()
-      .from(families)
-      .where(eq(families.parentFamilyId, id))
-      .limit(1);
-
-    if (childFamilies.length > 0) {
-      return NextResponse.json(
-        { error: "Cannot delete family with child families. Remove or reassign child families first." },
-        { status: 400 },
-      );
-    }
-
-    // Delete family (cascade handled by DB - members.familyId will be set to null)
-    await db.delete(families).where(eq(families.id, id));
+    // Delete household (cascade handled by DB - members.householdId will be set to null)
+    await db.delete(household).where(eq(household.id, id));
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting family:", error);
+    console.error("Error deleting household:", error);
     return NextResponse.json(
-      { error: "Failed to delete family" },
+      { error: "Failed to delete household" },
       { status: 500 },
     );
   }

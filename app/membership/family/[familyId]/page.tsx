@@ -3,7 +3,16 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
-import { ArrowLeftIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import {
+  ArrowLeftIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  UserMinusIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,82 +30,486 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Member {
   id: string;
   firstName: string;
+  middleName: string | null;
   lastName: string;
-  membershipDate: string;
-  familyRole: string | null;
-  email: string | null;
-  phone: string | null;
+  suffix: string | null;
+  preferredName: string | null;
+  email1: string | null;
+  phoneHome: string | null;
+  phoneCell1: string | null;
+  participation: string;
+  envelopeNumber: number | null;
 }
 
-interface Family {
+interface Household {
   id: string;
-  parentFamilyId: string | null;
+  name: string | null;
+  type: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
 }
 
-export default function FamilyViewPage({
+interface HouseholdFormData {
+  name: string;
+  type: string;
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+interface MemberFormData {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  suffix: string;
+  preferredName: string;
+  maidenName: string;
+  title: string;
+  sex: string;
+  dateOfBirth: string;
+  email1: string;
+  email2: string;
+  phoneHome: string;
+  phoneCell1: string;
+  phoneCell2: string;
+  baptismDate: string;
+  confirmationDate: string;
+  receivedBy: string;
+  dateReceived: string;
+  removedBy: string;
+  dateRemoved: string;
+  deceasedDate: string;
+  membershipCode: string;
+  participation: string;
+  envelopeNumber: string;
+}
+
+interface HouseholdOption {
+  id: string;
+  name: string | null;
+  type: string | null;
+  memberCount: number;
+  members: Array<{ firstName: string; lastName: string }>;
+}
+
+export default function HouseholdViewPage({
   params,
 }: {
   params: Promise<{ familyId: string }>;
 }) {
+  const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
-  const [family, setFamily] = useState<Family | null>(null);
-  const [parentFamily, setParentFamily] = useState<Family | null>(null);
+  const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
-  const [familyId, setFamilyId] = useState<string>("");
+  const [householdId, setHouseholdId] = useState<string>("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
+  const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
+  const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [allHouseholds, setAllHouseholds] = useState<HouseholdOption[]>([]);
+
+  const editForm = useForm<HouseholdFormData>({
+    defaultValues: {
+      name: "",
+      type: "individual",
+      address1: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+    },
+  });
+
+  const memberForm = useForm<MemberFormData>({
+    defaultValues: {
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      suffix: "",
+      preferredName: "",
+      maidenName: "",
+      title: "",
+      sex: "",
+      dateOfBirth: "",
+      email1: "",
+      email2: "",
+      phoneHome: "",
+      phoneCell1: "",
+      phoneCell2: "",
+      baptismDate: "",
+      confirmationDate: "",
+      receivedBy: "",
+      dateReceived: "",
+      removedBy: "",
+      dateRemoved: "",
+      deceasedDate: "",
+      membershipCode: "",
+      participation: "active",
+      envelopeNumber: "",
+    },
+  });
+
+  const transferForm = useForm<{ targetHouseholdId: string; createNewHousehold: boolean }>({
+    defaultValues: {
+      targetHouseholdId: "",
+      createNewHousehold: false,
+    },
+  });
 
   useEffect(() => {
     const init = async () => {
       const resolvedParams = await params;
-      const id = resolvedParams.familyId;
-      setFamilyId(id);
-      await fetchFamilyData(id);
+      const id = resolvedParams.familyId; // Route param is still familyId for backward compatibility
+      setHouseholdId(id);
+      await fetchHouseholdData(id);
+      await fetchAllHouseholds();
     };
     init();
   }, [params]);
 
-  const fetchFamilyData = async (id: string) => {
+  const fetchHouseholdData = async (id: string) => {
     try {
       const response = await fetch(`/api/families/${id}`);
       if (response.ok) {
         const data = await response.json();
         setMembers(data.members || []);
-        setFamily(data.family);
-        if (data.parentFamily) {
-          setParentFamily(data.parentFamily);
-        }
+        setHousehold(data.household);
       } else {
-        console.error("Failed to fetch family data");
+        console.error("Failed to fetch household data");
       }
     } catch (error) {
-      console.error("Error fetching family data:", error);
+      console.error("Error fetching household data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getFamilyDisplayName = (): string => {
+  const fetchAllHouseholds = async () => {
+    try {
+      const response = await fetch("/api/families?page=1&pageSize=1000");
+      if (response.ok) {
+        const data = await response.json();
+        setAllHouseholds(data.households || []);
+      }
+    } catch (error) {
+      console.error("Error fetching households:", error);
+    }
+  };
+
+  const getHouseholdDisplayName = (): string => {
+    if (household?.name) {
+      return household.name;
+    }
     if (members.length === 0) {
-      return `Family ${familyId.slice(0, 8)}`;
+      return `Household ${householdId.slice(0, 8)}`;
     }
     if (members.length === 1) {
-      return `Family of ${members[0].firstName} ${members[0].lastName}`;
+      return `${members[0].preferredName || members[0].firstName} ${members[0].lastName}`;
     }
     if (members.length === 2) {
-      return `Family of ${members[0].firstName} & ${members[1].firstName} ${members[1].lastName}`;
+      return `${members[0].preferredName || members[0].firstName} & ${members[1].preferredName || members[1].firstName} ${members[1].lastName}`;
     }
-    return `Family of ${members[0].firstName} ${members[0].lastName} (+${members.length - 1})`;
+    return `${members[0].preferredName || members[0].firstName} ${members[0].lastName} (+${members.length - 1})`;
+  };
+
+  const checkEnvelopeNumbers = (): boolean => {
+    if (members.length === 0 || members.length === 1) {
+      return true; // No conflict if 0 or 1 member
+    }
+    
+    const envelopeNumbers = members.map((m) => m.envelopeNumber);
+    const hasNulls = envelopeNumbers.some((num) => num === null || num === undefined);
+    const hasNumbers = envelopeNumbers.some((num) => num !== null && num !== undefined);
+    
+    // If there's a mix of null and non-null values, show alert
+    if (hasNulls && hasNumbers) {
+      return false;
+    }
+    
+    // If all are null, no conflict
+    if (!hasNumbers) {
+      return true;
+    }
+    
+    // Check if all envelope numbers are the same
+    const nonNullNumbers = envelopeNumbers.filter((num): num is number => num !== null && num !== undefined);
+    const firstEnvelope = nonNullNumbers[0];
+    return nonNullNumbers.every((num) => num === firstEnvelope);
+  };
+
+  const getHouseholdOptionDisplayName = (h: HouseholdOption): string => {
+    if (h.name) return h.name;
+    if (h.members.length === 0) return `Household (${h.memberCount} members)`;
+    if (h.members.length === 1) {
+      return `${h.members[0].firstName} ${h.members[0].lastName}`;
+    }
+    return `${h.members[0].firstName} ${h.members[0].lastName} (+${h.memberCount - 1})`;
   };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
     try {
+      const parts = dateString.split("-");
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const localDate = new Date(year, month, day);
+        return format(localDate, "MMM d, yyyy");
+      }
       return format(new Date(dateString), "MMM d, yyyy");
     } catch {
       return dateString;
+    }
+  };
+
+  const formatDateInput = (dateString: string | null) => {
+    if (!dateString) return "";
+    try {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString;
+      }
+      const parts = dateString.split("-");
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const localDate = new Date(year, month, day);
+        const y = localDate.getFullYear();
+        const m = String(localDate.getMonth() + 1).padStart(2, "0");
+        const d = String(localDate.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+      const date = new Date(dateString);
+      return date.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
+  const handleEditClick = () => {
+    if (household) {
+      editForm.reset({
+        name: household.name || "",
+        type: household.type || "individual",
+        address1: household.address1 || "",
+        address2: household.address2 || "",
+        city: household.city || "",
+        state: household.state || "",
+        zip: household.zip || "",
+      });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const onEditSubmit = async (data: HouseholdFormData) => {
+    try {
+      const response = await fetch(`/api/families/${householdId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: data.name || null,
+          type: data.type || null,
+          address1: data.address1 || null,
+          address2: data.address2 || null,
+          city: data.city || null,
+          state: data.state || null,
+          zip: data.zip || null,
+        }),
+      });
+
+      if (response.ok) {
+        setEditDialogOpen(false);
+        fetchHouseholdData(householdId);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to update household");
+      }
+    } catch (error) {
+      console.error("Error updating household:", error);
+      alert("Failed to update household");
+    }
+  };
+
+  const onAddMemberSubmit = async (data: MemberFormData) => {
+    if (!data.firstName || !data.lastName) {
+      alert("First name and last name are required");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/members", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...data,
+          householdId: householdId,
+          envelopeNumber: data.envelopeNumber ? parseInt(data.envelopeNumber, 10) : null,
+        }),
+      });
+
+      if (response.ok) {
+        setAddMemberDialogOpen(false);
+        memberForm.reset();
+        fetchHouseholdData(householdId);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to create member");
+      }
+    } catch (error) {
+      console.error("Error creating member:", error);
+      alert("Failed to create member");
+    }
+  };
+
+  const handleRemoveMemberClick = (member: Member) => {
+    setSelectedMember(member);
+    setRemoveMemberDialogOpen(true);
+  };
+
+  const handleTransferMember = async () => {
+    if (!selectedMember) return;
+
+    const formData = transferForm.getValues();
+    let targetHouseholdId: string | null = null;
+
+    if (formData.createNewHousehold) {
+      // Create new individual household
+      try {
+        const response = await fetch("/api/families", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: `${selectedMember.firstName} ${selectedMember.lastName}`,
+            type: "individual",
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          targetHouseholdId = data.household.id;
+        } else {
+          alert("Failed to create new household");
+          return;
+        }
+      } catch (error) {
+        console.error("Error creating household:", error);
+        alert("Failed to create new household");
+        return;
+      }
+    } else {
+      targetHouseholdId = formData.targetHouseholdId || null;
+    }
+
+    if (!targetHouseholdId) {
+      alert("Please select a target household");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/members/${selectedMember.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName: selectedMember.firstName,
+          lastName: selectedMember.lastName,
+          householdId: targetHouseholdId,
+        }),
+      });
+
+      if (response.ok) {
+        setTransferMemberDialogOpen(false);
+        setRemoveMemberDialogOpen(false);
+        setSelectedMember(null);
+        transferForm.reset();
+        fetchHouseholdData(householdId);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to transfer member");
+      }
+    } catch (error) {
+      console.error("Error transferring member:", error);
+      alert("Failed to transfer member");
+    }
+  };
+
+  const handleDeleteHousehold = async () => {
+    if (members.length > 0) {
+      alert("Cannot delete household with members. Please remove all members first.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/families/${householdId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        router.push("/membership");
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to delete household");
+      }
+    } catch (error) {
+      console.error("Error deleting household:", error);
+      alert("Failed to delete household");
     }
   };
 
@@ -104,23 +517,23 @@ export default function FamilyViewPage({
     return (
       <div className="space-y-6">
         <div className="text-center py-8 text-muted-foreground">
-          Loading family information...
+          Loading household information...
         </div>
       </div>
     );
   }
 
-  if (members.length === 0) {
+  if (!household) {
     return (
       <div className="space-y-6">
         <div className="text-center py-8 text-muted-foreground">
-          No family members found or family does not exist.
+          Household not found.
         </div>
         <div className="text-center">
           <Link href="/membership">
             <Button variant="outline">
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
-              Back to Members
+              Back to Households
             </Button>
           </Link>
         </div>
@@ -128,80 +541,818 @@ export default function FamilyViewPage({
     );
   }
 
+  const hasEnvelopeNumberConflict = !checkEnvelopeNumbers();
+
   return (
     <div className="space-y-6">
+      {hasEnvelopeNumberConflict && (
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>Envelope Number Mismatch</AlertTitle>
+          <AlertDescription>
+            Not all members in this household have the same envelope number. Please review and update the envelope numbers to ensure consistency.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{getFamilyDisplayName()}</h1>
-          <p className="text-muted-foreground mt-2">
-            {parentFamily ? (
-              <>
-                Part of{" "}
-                <Link
-                  href={`/membership/family/${parentFamily.id}`}
-                  className="text-primary hover:underline"
-                >
-                  Extended Family {parentFamily.id.slice(0, 8)}
-                </Link>
-              </>
-            ) : (
-              "Extended Family"
-            )}
-          </p>
+          <h1 className="text-3xl font-bold">{getHouseholdDisplayName()}</h1>
+          {household && (
+            <p className="text-muted-foreground mt-2">
+              {household.address1 && (
+                <>
+                  {household.address1}
+                  {household.city && `, ${household.city}`}
+                  {household.state && ` ${household.state}`}
+                </>
+              )}
+              {household.type && (
+                <span className="ml-2 capitalize">({household.type})</span>
+              )}
+            </p>
+          )}
         </div>
-        <Link href="/membership">
-          <Button variant="outline">
-            <ArrowLeftIcon className="mr-2 h-4 w-4" />
-            Back to Members
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleEditClick}>
+            <PencilIcon className="mr-2 h-4 w-4" />
+            Edit Household
           </Button>
-        </Link>
+          <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusIcon className="mr-2 h-4 w-4" />
+                Add Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add Member to Household</DialogTitle>
+                <DialogDescription>
+                  Create a new member and add them to this household.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...memberForm}>
+                <form onSubmit={memberForm.handleSubmit(onAddMemberSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name *</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name *</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="middleName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Middle Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="preferredName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Preferred Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="suffix"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Suffix</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Jr., Sr., III, etc." />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Title</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Mr., Mrs., Dr., etc." />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="maidenName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Maiden Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="sex"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sex</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select sex" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="male">Male</SelectItem>
+                              <SelectItem value="female">Female</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={memberForm.control}
+                    name="dateOfBirth"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date of Birth</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            {...field}
+                            value={formatDateInput(field.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="email1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="phoneCell1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input type="tel" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="baptismDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Baptism Date</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={formatDateInput(field.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="confirmationDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirmation Date</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={formatDateInput(field.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="receivedBy"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Received By</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select method" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="baptism">Baptism</SelectItem>
+                              <SelectItem value="confirmation">Confirmation</SelectItem>
+                              <SelectItem value="transfer">Transfer</SelectItem>
+                              <SelectItem value="profession">Profession</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="dateReceived"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Date Received</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={formatDateInput(field.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="removedBy"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Removed By</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="dateRemoved"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Date Removed</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={formatDateInput(field.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={memberForm.control}
+                      name="deceasedDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Deceased Date</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={formatDateInput(field.value)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={memberForm.control}
+                      name="membershipCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Membership Code</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={memberForm.control}
+                    name="envelopeNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Envelope Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            {...field}
+                            placeholder="Enter envelope number"
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value ? e.target.value : "")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={memberForm.control}
+                    name="participation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Participation Status</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="visitor">Visitor</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                            <SelectItem value="transferred">Transferred</SelectItem>
+                            <SelectItem value="deceased">Deceased</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAddMemberDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit">Add Member</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+          {members.length === 0 && (
+            <Button variant="destructive" onClick={() => setDeleteHouseholdDialogOpen(true)}>
+              <TrashIcon className="mr-2 h-4 w-4" />
+              Delete Household
+            </Button>
+          )}
+          <Link href="/membership">
+            <Button variant="outline">
+              <ArrowLeftIcon className="mr-2 h-4 w-4" />
+              Back to Households
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Family Members */}
+      {/* Household Members */}
       <Card>
         <CardHeader>
-          <CardTitle>Family Members</CardTitle>
+          <CardTitle>Household Members</CardTitle>
           <CardDescription>
-            {members.length} member{members.length !== 1 ? "s" : ""} in this
-            family
+            {members.length} member{members.length !== 1 ? "s" : ""} in this household
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Member Since</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium">
-                    {member.firstName} {member.lastName}
-                  </TableCell>
-                  <TableCell>{member.familyRole || "N/A"}</TableCell>
-                  <TableCell>{formatDate(member.membershipDate)}</TableCell>
-                  <TableCell>{member.email || "N/A"}</TableCell>
-                  <TableCell>{member.phone || "N/A"}</TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/membership/${member.id}`}>
-                      <Button variant="ghost" size="sm">
-                        View Details
-                      </Button>
-                    </Link>
-                  </TableCell>
+          {members.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No members in this household. Add a member to get started.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {members.map((member) => (
+                  <TableRow key={member.id}>
+                    <TableCell className="font-medium">
+                      {member.preferredName || member.firstName}{" "}
+                      {member.middleName ? `${member.middleName} ` : ""}
+                      {member.lastName}
+                      {member.suffix ? ` ${member.suffix}` : ""}
+                    </TableCell>
+                    <TableCell>{member.email1 || "N/A"}</TableCell>
+                    <TableCell>
+                      {member.phoneCell1 || member.phoneHome || "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                          member.participation?.toLowerCase() === "active"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : member.participation?.toLowerCase() === "visitor"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                        }`}
+                      >
+                        {member.participation}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link href={`/membership/${member.id}`}>
+                          <Button variant="ghost" size="sm">
+                            View Details
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveMemberClick(member)}
+                        >
+                          <UserMinusIcon className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
+
+      {/* Edit Household Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Household</DialogTitle>
+            <DialogDescription>Update household information.</DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Household Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., Smith Family" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Household Type</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="family">Family</SelectItem>
+                        <SelectItem value="couple">Couple</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="address1"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Street address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="address2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address 2</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Apartment, suite, etc." />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="state"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select state" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="AL">AL - Alabama</SelectItem>
+                          <SelectItem value="AK">AK - Alaska</SelectItem>
+                          <SelectItem value="AZ">AZ - Arizona</SelectItem>
+                          <SelectItem value="AR">AR - Arkansas</SelectItem>
+                          <SelectItem value="CA">CA - California</SelectItem>
+                          <SelectItem value="CO">CO - Colorado</SelectItem>
+                          <SelectItem value="CT">CT - Connecticut</SelectItem>
+                          <SelectItem value="DE">DE - Delaware</SelectItem>
+                          <SelectItem value="FL">FL - Florida</SelectItem>
+                          <SelectItem value="GA">GA - Georgia</SelectItem>
+                          <SelectItem value="HI">HI - Hawaii</SelectItem>
+                          <SelectItem value="ID">ID - Idaho</SelectItem>
+                          <SelectItem value="IL">IL - Illinois</SelectItem>
+                          <SelectItem value="IN">IN - Indiana</SelectItem>
+                          <SelectItem value="IA">IA - Iowa</SelectItem>
+                          <SelectItem value="KS">KS - Kansas</SelectItem>
+                          <SelectItem value="KY">KY - Kentucky</SelectItem>
+                          <SelectItem value="LA">LA - Louisiana</SelectItem>
+                          <SelectItem value="ME">ME - Maine</SelectItem>
+                          <SelectItem value="MD">MD - Maryland</SelectItem>
+                          <SelectItem value="MA">MA - Massachusetts</SelectItem>
+                          <SelectItem value="MI">MI - Michigan</SelectItem>
+                          <SelectItem value="MN">MN - Minnesota</SelectItem>
+                          <SelectItem value="MS">MS - Mississippi</SelectItem>
+                          <SelectItem value="MO">MO - Missouri</SelectItem>
+                          <SelectItem value="MT">MT - Montana</SelectItem>
+                          <SelectItem value="NE">NE - Nebraska</SelectItem>
+                          <SelectItem value="NV">NV - Nevada</SelectItem>
+                          <SelectItem value="NH">NH - New Hampshire</SelectItem>
+                          <SelectItem value="NJ">NJ - New Jersey</SelectItem>
+                          <SelectItem value="NM">NM - New Mexico</SelectItem>
+                          <SelectItem value="NY">NY - New York</SelectItem>
+                          <SelectItem value="NC">NC - North Carolina</SelectItem>
+                          <SelectItem value="ND">ND - North Dakota</SelectItem>
+                          <SelectItem value="OH">OH - Ohio</SelectItem>
+                          <SelectItem value="OK">OK - Oklahoma</SelectItem>
+                          <SelectItem value="OR">OR - Oregon</SelectItem>
+                          <SelectItem value="PA">PA - Pennsylvania</SelectItem>
+                          <SelectItem value="RI">RI - Rhode Island</SelectItem>
+                          <SelectItem value="SC">SC - South Carolina</SelectItem>
+                          <SelectItem value="SD">SD - South Dakota</SelectItem>
+                          <SelectItem value="TN">TN - Tennessee</SelectItem>
+                          <SelectItem value="TX">TX - Texas</SelectItem>
+                          <SelectItem value="UT">UT - Utah</SelectItem>
+                          <SelectItem value="VT">VT - Vermont</SelectItem>
+                          <SelectItem value="VA">VA - Virginia</SelectItem>
+                          <SelectItem value="WA">WA - Washington</SelectItem>
+                          <SelectItem value="WV">WV - West Virginia</SelectItem>
+                          <SelectItem value="WI">WI - Wisconsin</SelectItem>
+                          <SelectItem value="WY">WY - Wyoming</SelectItem>
+                          <SelectItem value="DC">DC - District of Columbia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="zip"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ZIP Code</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Update Household</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Dialog */}
+      <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member from Household</AlertDialogTitle>
+            <AlertDialogDescription>
+              All members must belong to a household. Please transfer{" "}
+              {selectedMember
+                ? `${selectedMember.firstName} ${selectedMember.lastName}`
+                : "this member"}{" "}
+              to another household or create a new individual household.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => setTransferMemberDialogOpen(true)}>
+              Transfer Member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Transfer Member Dialog */}
+      <Dialog open={transferMemberDialogOpen} onOpenChange={setTransferMemberDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Member</DialogTitle>
+            <DialogDescription>
+              Select a household to transfer{" "}
+              {selectedMember
+                ? `${selectedMember.firstName} ${selectedMember.lastName}`
+                : "this member"}{" "}
+              to, or create a new individual household.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...transferForm}>
+            <form onSubmit={transferForm.handleSubmit(handleTransferMember)} className="space-y-4">
+              <FormField
+                control={transferForm.control}
+                name="createNewHousehold"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Create New Individual Household</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              {!transferForm.watch("createNewHousehold") && (
+                <FormField
+                  control={transferForm.control}
+                  name="targetHouseholdId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Target Household</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select household" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {allHouseholds
+                            .filter((h) => h.id !== householdId)
+                            .map((h) => (
+                              <SelectItem key={h.id} value={h.id}>
+                                {getHouseholdOptionDisplayName(h)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setTransferMemberDialogOpen(false);
+                    setRemoveMemberDialogOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Transfer</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Household Dialog */}
+      <AlertDialog open={deleteHouseholdDialogOpen} onOpenChange={setDeleteHouseholdDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the household.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteHousehold}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-

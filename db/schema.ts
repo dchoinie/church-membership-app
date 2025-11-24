@@ -5,23 +5,39 @@ import {
   uuid,
   date,
   index,
-  foreignKey,
   pgEnum,
+  integer,
+  boolean,
+  numeric,
 } from "drizzle-orm/pg-core";
 
-export const membershipStatusEnum = pgEnum("membership_status_enum", [
+export const householdTypeEnum = pgEnum("household_type_enum", [
+  "family",
+  "single",
+  "couple",
+  "other",
+]);
+
+export const sexEnum = pgEnum("sex_enum", [
+  "male",
+  "female",
+  "other",
+]);
+
+export const participationStatusEnum = pgEnum("participation_status_enum", [
   "active",
+  "visitor",
   "inactive",
-  "pending",
   "transferred",
   "deceased",
 ]);
 
-export const familyRoleEnum = pgEnum("family_role_enum", [
-  "father",
-  "mother",
-  "son",
-  "daughter",
+export const receivedByEnum = pgEnum("received_by_enum", [
+  "baptism",
+  "confirmation",
+  "transfer",
+  "profession",
+  "other",
 ]);
 
 export const invitations = pgTable("invitations", {
@@ -32,51 +48,61 @@ export const invitations = pgTable("invitations", {
   acceptedAt: timestamp("accepted_at"),
 });
 
-export const families = pgTable(
-  "families",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    parentFamilyId: uuid("parent_family_id"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => ({
-    parentFamilyIdFk: foreignKey({
-      columns: [table.parentFamilyId],
-      foreignColumns: [table.id],
-    })
-      .onDelete("set null"),
-  }),
-);
+export const household = pgTable("household", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name"),
+  type: householdTypeEnum("type"),
+  isNonHousehold: boolean("is_non_household").default(false),
+  personAssigned: uuid("person_assigned"),
+  ministryGroup: text("ministry_group"),
+  address1: text("address1"),
+  address2: text("address2"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  country: text("country"),
+  alternateAddressBegin: date("alternate_address_begin"),
+  alternateAddressEnd: date("alternate_address_end"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const members = pgTable(
   "members",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    familyId: uuid("family_id").references(() => families.id, {
+    householdId: uuid("household_id").references(() => household.id, {
       onDelete: "set null",
     }),
     firstName: text("first_name").notNull(),
+    middleName: text("middle_name"),
     lastName: text("last_name").notNull(),
-    membershipDate: date("membership_date").notNull(),
-    email: text("email").unique(),
-    phone: text("phone"),
-    addressLine1: text("address_line1"),
-    addressLine2: text("address_line2"),
-    city: text("city"),
-    state: text("state"),
-    zipCode: text("zip_code"),
+    suffix: text("suffix"),
+    preferredName: text("preferred_name"),
+    maidenName: text("maiden_name"),
+    title: text("title"),
+    sex: sexEnum("sex"),
     dateOfBirth: date("date_of_birth"),
+    email1: text("email1").unique(),
+    email2: text("email2"),
+    phoneHome: text("phone_home"),
+    phoneCell1: text("phone_cell1"),
+    phoneCell2: text("phone_cell2"),
     baptismDate: date("baptism_date"),
-    membershipStatus: membershipStatusEnum("membership_status")
+    confirmationDate: date("confirmation_date"),
+    receivedBy: receivedByEnum("received_by"),
+    dateReceived: date("date_received"),
+    removedBy: text("removed_by"),
+    dateRemoved: date("date_removed"),
+    deceasedDate: date("deceased_date"),
+    membershipCode: text("membership_code"),
+    envelopeNumber: integer("envelope_number"),
+    participation: participationStatusEnum("participation")
       .notNull()
       .default("active"),
-    familyRole: familyRoleEnum("family_role"),
-    notes: text("notes"),
-    photoUrl: text("photo_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -84,9 +110,9 @@ export const members = pgTable(
       .notNull(),
   },
   (table) => [
-    index("members_family_id_idx").on(table.familyId),
-    index("members_membership_status_idx").on(table.membershipStatus),
-    index("members_email_idx").on(table.email),
+    index("members_household_id_idx").on(table.householdId),
+    index("members_participation_idx").on(table.participation),
+    index("members_email1_idx").on(table.email1),
   ],
 );
 
@@ -107,5 +133,27 @@ export const membershipHistory = pgTable(
   (table) => [
     index("membership_history_member_id_idx").on(table.memberId),
     index("membership_history_changed_at_idx").on(table.changedAt),
+  ],
+);
+
+export const giving = pgTable(
+  "giving",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    dateGiven: date("date_given").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("giving_member_id_idx").on(table.memberId),
+    index("giving_date_given_idx").on(table.dateGiven),
   ],
 );

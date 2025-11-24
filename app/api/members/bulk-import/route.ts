@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { members, families } from "@/db/schema";
+import { members, household } from "@/db/schema";
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     });
 
     // Validate required columns
-    const requiredColumns = ["first name", "last name", "membership date"];
+    const requiredColumns = ["first name", "last name"];
     const missingColumns = requiredColumns.filter(
       (col) => !headerMap[col.toLowerCase()],
     );
@@ -81,34 +81,23 @@ export async function POST(request: Request) {
 
         const firstName = getValue("first name");
         const lastName = getValue("last name");
-        const membershipDate = getValue("membership date");
 
         // Validate required fields
-        if (!firstName || !lastName || !membershipDate) {
+        if (!firstName || !lastName) {
           results.failed++;
           results.errors.push(
-            `Row ${i + 1}: Missing required fields (First Name, Last Name, or Membership Date)`,
+            `Row ${i + 1}: Missing required fields (First Name or Last Name)`,
           );
           continue;
         }
 
         // Parse dates
-        let parsedMembershipDate: Date;
         let parsedDateOfBirth: Date | null = null;
         let parsedBaptismDate: Date | null = null;
-
-        try {
-          parsedMembershipDate = new Date(membershipDate);
-          if (isNaN(parsedMembershipDate.getTime())) {
-            throw new Error("Invalid date");
-          }
-        } catch {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid membership date format (use YYYY-MM-DD)`,
-          );
-          continue;
-        }
+        let parsedConfirmationDate: Date | null = null;
+        let parsedDateReceived: Date | null = null;
+        let parsedDateRemoved: Date | null = null;
+        let parsedDeceasedDate: Date | null = null;
 
         const dateOfBirthStr = getValue("date of birth");
         if (dateOfBirthStr) {
@@ -134,82 +123,152 @@ export async function POST(request: Request) {
           }
         }
 
-        // Handle family - check if family ID exists or create new family
-        let familyId: string | null = null;
-        const familyIdStr = getValue("family id");
-        const createNewFamily = getValue("create new family")?.toLowerCase() === "true";
+        const confirmationDateStr = getValue("confirmation date");
+        if (confirmationDateStr) {
+          try {
+            parsedConfirmationDate = new Date(confirmationDateStr);
+            if (isNaN(parsedConfirmationDate.getTime())) {
+              parsedConfirmationDate = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
 
-        if (createNewFamily) {
-          // Create new family
-          const [newFamily] = await db
-            .insert(families)
-            .values({})
+        const dateReceivedStr = getValue("date received");
+        if (dateReceivedStr) {
+          try {
+            parsedDateReceived = new Date(dateReceivedStr);
+            if (isNaN(parsedDateReceived.getTime())) {
+              parsedDateReceived = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
+        const dateRemovedStr = getValue("date removed");
+        if (dateRemovedStr) {
+          try {
+            parsedDateRemoved = new Date(dateRemovedStr);
+            if (isNaN(parsedDateRemoved.getTime())) {
+              parsedDateRemoved = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
+        const deceasedDateStr = getValue("deceased date");
+        if (deceasedDateStr) {
+          try {
+            parsedDeceasedDate = new Date(deceasedDateStr);
+            if (isNaN(parsedDeceasedDate.getTime())) {
+              parsedDeceasedDate = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
+        // Handle household - check if household ID exists or create new household
+        // All members must belong to a household
+        let householdId: string | null = null;
+        const householdIdStr = getValue("household id");
+        const createNewHousehold = getValue("create new household")?.toLowerCase() === "true";
+
+        if (createNewHousehold) {
+          // Create new household
+          const [newHousehold] = await db
+            .insert(household)
+            .values({
+              name: getValue("household name") || null,
+              type: getValue("household type") || "individual",
+            })
             .returning();
-          familyId = newFamily.id;
-        } else if (familyIdStr) {
-          // Check if family exists
-          const [existingFamily] = await db
+          householdId = newHousehold.id;
+        } else if (householdIdStr) {
+          // Check if household exists
+          const [existingHousehold] = await db
             .select()
-            .from(families)
-            .where(eq(families.id, familyIdStr))
+            .from(household)
+            .where(eq(household.id, householdIdStr))
             .limit(1);
 
-          if (!existingFamily) {
+          if (!existingHousehold) {
             results.failed++;
             results.errors.push(
-              `Row ${i + 1}: Family ID ${familyIdStr} not found`,
+              `Row ${i + 1}: Household ID ${householdIdStr} not found`,
             );
             continue;
           }
-          familyId = familyIdStr;
+          householdId = householdIdStr;
+        } else {
+          // Household is required - fail this row
+          results.failed++;
+          results.errors.push(
+            `Row ${i + 1}: Household is required. Please provide Household ID or set Create New Household to true`,
+          );
+          continue;
         }
 
         // Prepare member data
         const memberData = {
           firstName,
+          middleName: getValue("middle name") || null,
           lastName,
-          membershipDate: parsedMembershipDate.toISOString().split("T")[0],
-          email: getValue("email") || null,
-          phone: getValue("phone") || null,
-          addressLine1: getValue("address line 1") || null,
-          addressLine2: getValue("address line 2") || null,
-          city: getValue("city") || null,
-          state: getValue("state") || null,
-          zipCode: getValue("zip code") || null,
+          suffix: getValue("suffix") || null,
+          preferredName: getValue("preferred name") || null,
+          maidenName: getValue("maiden name") || null,
+          title: getValue("title") || null,
+          sex: getValue("sex") || null,
           dateOfBirth: parsedDateOfBirth
             ? parsedDateOfBirth.toISOString().split("T")[0]
             : null,
+          email1: getValue("email1") || getValue("email") || null,
+          email2: getValue("email2") || null,
+          phoneHome: getValue("phone home") || null,
+          phoneCell1: getValue("phone cell1") || getValue("phone") || null,
+          phoneCell2: getValue("phone cell2") || null,
           baptismDate: parsedBaptismDate
             ? parsedBaptismDate.toISOString().split("T")[0]
             : null,
-          membershipStatus: (() => {
-            const status = getValue("membership status")?.toLowerCase();
-            const validStatuses = ["active", "inactive", "pending", "transferred", "deceased"];
+          confirmationDate: parsedConfirmationDate
+            ? parsedConfirmationDate.toISOString().split("T")[0]
+            : null,
+          receivedBy: getValue("received by") || null,
+          dateReceived: parsedDateReceived
+            ? parsedDateReceived.toISOString().split("T")[0]
+            : null,
+          removedBy: getValue("removed by") || null,
+          dateRemoved: parsedDateRemoved
+            ? parsedDateRemoved.toISOString().split("T")[0]
+            : null,
+          deceasedDate: parsedDeceasedDate
+            ? parsedDeceasedDate.toISOString().split("T")[0]
+            : null,
+          membershipCode: getValue("membership code") || null,
+          envelopeNumber: getValue("envelope number") ? parseInt(getValue("envelope number")!) : null,
+          participation: (() => {
+            const status = getValue("participation") || getValue("membership status")?.toLowerCase();
+            const validStatuses = ["active", "visitor", "inactive", "transferred", "deceased"];
             return validStatuses.includes(status || "") ? status : "active";
           })(),
-          familyRole: (() => {
-            const role = getValue("family role")?.toLowerCase();
-            if (!role || role === "__none__") return null;
-            const validRoles = ["father", "mother", "son", "daughter"];
-            return validRoles.includes(role) ? role : null;
-          })(),
-          notes: getValue("notes") || null,
-          photoUrl: getValue("photo url") || null,
-          familyId,
+          householdId,
         };
 
-        // Check for duplicate email if email is provided
-        if (memberData.email) {
+        // Check for duplicate email if email1 is provided
+        if (memberData.email1) {
           const [existingMember] = await db
             .select()
             .from(members)
-            .where(eq(members.email, memberData.email))
+            .where(eq(members.email1, memberData.email1))
             .limit(1);
 
           if (existingMember) {
             results.failed++;
             results.errors.push(
-              `Row ${i + 1}: Email ${memberData.email} already exists`,
+              `Row ${i + 1}: Email ${memberData.email1} already exists`,
             );
             continue;
           }
