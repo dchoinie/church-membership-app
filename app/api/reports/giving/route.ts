@@ -133,10 +133,86 @@ export async function GET(request: Request) {
 
     const givingRecords = await queryBuilder;
 
+    // Helper function to find head of household (oldest male)
+    const findHeadOfHousehold = (
+      members: Array<{
+        id: string;
+        firstName: string;
+        lastName: string;
+        sex: "male" | "female" | "other" | null;
+        dateOfBirth: string | null;
+      }>
+    ): { id: string; firstName: string; lastName: string } => {
+      // Filter for males
+      const males = members.filter(m => m.sex === "male");
+      
+      if (males.length > 0) {
+        // Sort males by dateOfBirth (oldest first)
+        const sortedMales = males.sort((a, b) => {
+          if (!a.dateOfBirth) return 1; // No date goes to end
+          if (!b.dateOfBirth) return -1;
+          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+        });
+        return {
+          id: sortedMales[0].id,
+          firstName: sortedMales[0].firstName,
+          lastName: sortedMales[0].lastName,
+        };
+      }
+      
+      // No males found, use oldest member overall
+      const sortedAll = members.sort((a, b) => {
+        if (!a.dateOfBirth) return 1; // No date goes to end
+        if (!b.dateOfBirth) return -1;
+        return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+      });
+      
+      return {
+        id: sortedAll[0].id,
+        firstName: sortedAll[0].firstName,
+        lastName: sortedAll[0].lastName,
+      };
+    };
+
+    // For each giving record, find the head of household (oldest male)
+    const recordsWithHeadOfHousehold = await Promise.all(
+      givingRecords.map(async (record) => {
+        // If the member has an envelope number, find all members with that envelope number
+        if (record.member.envelopeNumber) {
+          const householdMembers = await db
+            .select({
+              id: members.id,
+              firstName: members.firstName,
+              lastName: members.lastName,
+              sex: members.sex,
+              dateOfBirth: members.dateOfBirth,
+            })
+            .from(members)
+            .where(eq(members.envelopeNumber, record.member.envelopeNumber));
+
+          if (householdMembers.length > 0) {
+            const headOfHousehold = findHeadOfHousehold(householdMembers);
+            return {
+              ...record,
+              member: {
+                ...record.member,
+                id: headOfHousehold.id,
+                firstName: headOfHousehold.firstName,
+                lastName: headOfHousehold.lastName,
+              },
+            };
+          }
+        }
+
+        // Fallback: use the record's member if no envelope number or household members found
+        return record;
+      })
+    );
+
     // Get unique household IDs that need name generation
     const householdIdsNeedingNames = Array.from(
       new Set(
-        givingRecords
+        recordsWithHeadOfHousehold
           .filter((r) => !r.household?.name && r.member.householdId)
           .map((r) => r.member.householdId!)
       )
@@ -169,7 +245,7 @@ export async function GET(request: Request) {
     }
 
     // Generate household display names
-    const recordsWithHouseholdNames = givingRecords.map((record) => {
+    const recordsWithHouseholdNames = recordsWithHeadOfHousehold.map((record) => {
       let householdName = record.household?.name || null;
       
       // If no household name, generate one from members
@@ -191,8 +267,17 @@ export async function GET(request: Request) {
       };
     });
 
+    // Calculate total amount
+    const totalAmount = recordsWithHouseholdNames.reduce((sum, record) => {
+      const amount = parseFloat(record.amount || "0");
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+
     if (format === "json") {
-      return NextResponse.json({ giving: recordsWithHouseholdNames });
+      return NextResponse.json({ 
+        giving: recordsWithHouseholdNames,
+        totalAmount: totalAmount.toFixed(2),
+      });
     }
 
     // Generate CSV
@@ -204,6 +289,16 @@ export async function GET(request: Request) {
       "Amount": record.amount || "0.00",
       "Notes": record.notes || "",
     }));
+
+    // Add total row at the bottom
+    csvRows.push({
+      "Household Name": "",
+      "Envelope Number": "",
+      "Member Name": "",
+      "Date Given": "",
+      "Amount": totalAmount.toFixed(2),
+      "Notes": "TOTAL",
+    });
 
     const csvContent = generateCsv(csvRows);
     const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;

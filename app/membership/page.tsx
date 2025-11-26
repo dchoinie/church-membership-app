@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, UploadIcon, TrashIcon, PencilIcon } from "lucide-react";
+import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -119,6 +119,10 @@ export default function MembershipPage() {
     totalPages: 0,
   });
 
+  // Sorting state
+  const [sortBy, setSortBy] = useState<"name" | "type" | "members">("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
   const createForm = useForm<HouseholdFormData>({
     defaultValues: {
       name: "",
@@ -203,6 +207,35 @@ export default function MembershipPage() {
     if (household.state) parts.push(household.state);
     return parts.length > 0 ? parts.join(", ") : "N/A";
   };
+
+  const handleSort = (column: "name" | "type" | "members") => {
+    if (sortBy === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      // Set new column and default to ascending
+      setSortBy(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedHouseholds = [...households].sort((a, b) => {
+    let comparison = 0;
+    
+    if (sortBy === "name") {
+      const nameA = getHouseholdDisplayName(a).toLowerCase();
+      const nameB = getHouseholdDisplayName(b).toLowerCase();
+      comparison = nameA.localeCompare(nameB);
+    } else if (sortBy === "type") {
+      const typeA = (a.type || "").toLowerCase();
+      const typeB = (b.type || "").toLowerCase();
+      comparison = typeA.localeCompare(typeB);
+    } else if (sortBy === "members") {
+      comparison = a.memberCount - b.memberCount;
+    }
+    
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
 
   const onCreateSubmit = async (data: HouseholdFormData) => {
     try {
@@ -693,15 +726,63 @@ export default function MembershipPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Household Name</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort("name")}
+                    >
+                      <div className="flex items-center gap-2">
+                        Household Name
+                        {sortBy === "name" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-4 w-4" />
+                          ) : (
+                            <ArrowDown className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-4 w-4 opacity-50" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort("type")}
+                    >
+                      <div className="flex items-center gap-2">
+                        Type
+                        {sortBy === "type" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-4 w-4" />
+                          ) : (
+                            <ArrowDown className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-4 w-4 opacity-50" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead>Address</TableHead>
-                    <TableHead>Members</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort("members")}
+                    >
+                      <div className="flex items-center gap-2">
+                        Members
+                        {sortBy === "members" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-4 w-4" />
+                          ) : (
+                            <ArrowDown className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-4 w-4 opacity-50" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {households.map((household) => (
+                  {sortedHouseholds.map((household) => (
                     <TableRow
                       key={household.id}
                       className="cursor-pointer"

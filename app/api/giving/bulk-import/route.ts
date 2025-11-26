@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -73,9 +73,27 @@ export async function POST(request: Request) {
     }
 
     // Fetch all members with envelope numbers for lookup
-    const allMembers = await db.select().from(members);
-    const membersByEnvelope = new Map<number, typeof members.$inferSelect[]>();
-    const membersById = new Map<string, typeof members.$inferSelect>();
+    // Include sex and dateOfBirth for head of household determination
+    type MemberForLookup = {
+      id: string;
+      householdId: string | null;
+      envelopeNumber: number | null;
+      sex: "male" | "female" | "other" | null;
+      dateOfBirth: string | null;
+    };
+    
+    const allMembers = await db
+      .select({
+        id: members.id,
+        householdId: members.householdId,
+        envelopeNumber: members.envelopeNumber,
+        sex: members.sex,
+        dateOfBirth: members.dateOfBirth,
+      })
+      .from(members);
+    
+    const membersByEnvelope = new Map<number, MemberForLookup[]>();
+    const membersById = new Map<string, MemberForLookup>();
 
     allMembers.forEach((member) => {
       if (member.envelopeNumber !== null) {
@@ -168,8 +186,8 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Find member(s)
-        let targetMembers: typeof members.$inferSelect[] = [];
+        // Find head of household member
+        let targetMemberId: string;
 
         if (envelopeNumberStr) {
           const envelopeNum = parseInt(envelopeNumberStr, 10);
@@ -188,7 +206,35 @@ export async function POST(request: Request) {
             );
             continue;
           }
-          targetMembers = membersForEnvelope;
+
+          // Find head of household: oldest male member in the household
+          // If no males, fallback to oldest member overall
+          // If no dates, fallback to first member
+          const findHeadOfHousehold = (members: typeof membersForEnvelope): string => {
+            // Filter for males
+            const males = members.filter(m => m.sex === "male");
+            
+            if (males.length > 0) {
+              // Sort males by dateOfBirth (oldest first)
+              const sortedMales = males.sort((a, b) => {
+                if (!a.dateOfBirth) return 1; // No date goes to end
+                if (!b.dateOfBirth) return -1;
+                return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+              });
+              return sortedMales[0].id;
+            }
+            
+            // No males found, use oldest member overall
+            const sortedAll = members.sort((a, b) => {
+              if (!a.dateOfBirth) return 1; // No date goes to end
+              if (!b.dateOfBirth) return -1;
+              return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+            });
+            
+            return sortedAll[0].id;
+          };
+
+          targetMemberId = findHeadOfHousehold(membersForEnvelope);
         } else if (memberIdStr) {
           const member = membersById.get(memberIdStr);
           if (!member) {
@@ -198,7 +244,7 @@ export async function POST(request: Request) {
             );
             continue;
           }
-          targetMembers = [member];
+          targetMemberId = member.id;
         } else {
           results.failed++;
           results.errors.push(
@@ -207,15 +253,13 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Create records for all target members
-        for (const member of targetMembers) {
-          recordsToInsert.push({
-            memberId: member.id,
-            amount: amount.toString(),
-            dateGiven,
-            notes: notesStr || null,
-          });
-        }
+        // Create one record per envelope number (household level)
+        recordsToInsert.push({
+          memberId: targetMemberId,
+          amount: amount.toString(),
+          dateGiven,
+          notes: notesStr || null,
+        });
       } catch (error) {
         results.failed++;
         results.errors.push(

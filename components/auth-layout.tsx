@@ -103,7 +103,7 @@ export default function AuthLayout({
           </nav>
         </aside>
         <main className="flex-1 overflow-y-auto bg-background min-h-0">
-          <div className="mx-auto w-full max-w-6xl px-4 py-8">{children}</div>
+          <div className="mx-auto w-full max-w-6xl px-4 py-8 min-h-0">{children}</div>
         </main>
       </div>
     );

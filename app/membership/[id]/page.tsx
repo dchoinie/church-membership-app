@@ -456,7 +456,7 @@ export default function MemberDetailPage({
         </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-6 ${isEditMode ? 'mb-0' : ''}`}>
           {/* Personal Information */}
           <Card>
             <CardHeader>

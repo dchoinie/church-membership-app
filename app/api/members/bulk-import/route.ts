@@ -39,22 +39,44 @@ export async function POST(request: Request) {
     }
 
     // Parse header row
-    const headers = parseCSVLine(lines[0]);
+    const csvHeaders = parseCSVLine(lines[0]);
     const headerMap: Record<string, number> = {};
-    headers.forEach((header, index) => {
-      headerMap[header.trim().toLowerCase()] = index;
+    
+    // Normalize header names for flexible matching
+    const normalizeHeader = (header: string): string => {
+      return header
+        .trim()
+        .replace(/\uFEFF/g, "") // Remove BOM
+        .replace(/[_\s]+/g, " ") // Replace underscores and multiple spaces with single space
+        .toLowerCase();
+    };
+    
+    csvHeaders.forEach((header, index) => {
+      const normalized = normalizeHeader(header);
+      // Store both the normalized version and common variations
+      headerMap[normalized] = index;
+      // Also store without spaces for "FirstName" -> "firstname"
+      headerMap[normalized.replace(/\s+/g, "")] = index;
     });
 
-    // Validate required columns
+    // Validate required columns with flexible matching
     const requiredColumns = ["first name", "last name"];
+    const findColumnIndex = (colName: string): number | undefined => {
+      const normalized = normalizeHeader(colName);
+      return headerMap[normalized] ?? headerMap[normalized.replace(/\s+/g, "")];
+    };
+    
     const missingColumns = requiredColumns.filter(
-      (col) => !headerMap[col.toLowerCase()],
+      (col) => findColumnIndex(col) === undefined,
     );
 
     if (missingColumns.length > 0) {
+      const foundHeaders = csvHeaders.map((h, i) => `${h} (normalized: "${normalizeHeader(h)}")`).join(", ");
       return NextResponse.json(
         {
           error: `Missing required columns: ${missingColumns.join(", ")}`,
+          foundHeaders: csvHeaders,
+          hint: "Required columns should be named 'First Name' or 'FirstName' (case-insensitive, spaces/underscores allowed)",
         },
         { status: 400 },
       );
@@ -67,13 +89,17 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
+    // Track household groups created during this import
+    // Maps household group value -> household ID
+    const householdGroupMap = new Map<string, string>();
+
     for (let i = 1; i < lines.length; i++) {
       try {
         const values = parseCSVLine(lines[i]);
 
-        // Extract values using header map
+        // Extract values using header map with flexible matching
         const getValue = (key: string): string | null => {
-          const index = headerMap[key.toLowerCase()];
+          const index = findColumnIndex(key);
           if (index === undefined || index >= values.length) return null;
           const value = values[index]?.trim();
           return value === "" ? null : value;
@@ -171,22 +197,96 @@ export async function POST(request: Request) {
           }
         }
 
+        // Parse household alternate address dates
+        let parsedAlternateAddressBegin: Date | null = null;
+        let parsedAlternateAddressEnd: Date | null = null;
+
+        const alternateAddressBeginStr = getValue("alternate address begin") || getValue("household alternate address begin");
+        if (alternateAddressBeginStr) {
+          try {
+            parsedAlternateAddressBegin = new Date(alternateAddressBeginStr);
+            if (isNaN(parsedAlternateAddressBegin.getTime())) {
+              parsedAlternateAddressBegin = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
+        const alternateAddressEndStr = getValue("alternate address end") || getValue("household alternate address end");
+        if (alternateAddressEndStr) {
+          try {
+            parsedAlternateAddressEnd = new Date(alternateAddressEndStr);
+            if (isNaN(parsedAlternateAddressEnd.getTime())) {
+              parsedAlternateAddressEnd = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
         // Handle household - check if household ID exists or create new household
         // All members must belong to a household
         let householdId: string | null = null;
         const householdIdStr = getValue("household id");
         const createNewHousehold = getValue("create new household")?.toLowerCase() === "true";
+        const householdGroup = getValue("household group");
 
-        if (createNewHousehold) {
-          // Create new household
+        // Helper to safely get string values (never return boolean)
+        const getStringValue = (key: string): string | null => {
+          const val = getValue(key);
+          if (!val) return null;
+          // Ensure we return a string, never a boolean
+          const str = String(val).trim();
+          return str || null;
+        };
+
+        // Check if we should use an existing household from a household group
+        if (householdGroup && householdGroupMap.has(householdGroup)) {
+          // Reuse existing household from this import session
+          householdId = householdGroupMap.get(householdGroup)!;
+        } else if (createNewHousehold) {
+          // Validate and normalize household type
+          const householdTypeRaw = getValue("household type");
+          const validHouseholdTypes = ["family", "single", "couple", "other"];
+          const householdType = householdTypeRaw && validHouseholdTypes.includes(householdTypeRaw.toLowerCase())
+            ? householdTypeRaw.toLowerCase()
+            : "single"; // Default to "single" instead of invalid "individual"
+
+          // Create new household with all available fields
+          const householdNameValue = getValue("household name");
+          const householdName = (householdNameValue && typeof householdNameValue === "string" && householdNameValue.trim() !== "")
+            ? householdNameValue.trim()
+            : null;
+
           const [newHousehold] = await db
             .insert(household)
             .values({
-              name: getValue("household name") || null,
-              type: getValue("household type") || "individual",
+              name: householdName,
+              type: householdType as "family" | "single" | "couple" | "other",
+              isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
+              personAssigned: getStringValue("person assigned") || null,
+              ministryGroup: getStringValue("ministry group") || null,
+              address1: getStringValue("household address1") || getStringValue("address1") || null,
+              address2: getStringValue("household address2") || getStringValue("address2") || null,
+              city: getStringValue("household city") || getStringValue("city") || null,
+              state: getStringValue("household state") || getStringValue("state") || null,
+              zip: getStringValue("household zip") || getStringValue("zip") || null,
+              country: getStringValue("household country") || getStringValue("country") || null,
+              alternateAddressBegin: parsedAlternateAddressBegin
+                ? parsedAlternateAddressBegin.toISOString().split("T")[0]
+                : null,
+              alternateAddressEnd: parsedAlternateAddressEnd
+                ? parsedAlternateAddressEnd.toISOString().split("T")[0]
+                : null,
             })
             .returning();
           householdId = newHousehold.id;
+          
+          // Store in map if household group is provided
+          if (householdGroup) {
+            householdGroupMap.set(householdGroup, householdId);
+          }
         } else if (householdIdStr) {
           // Check if household exists
           const [existingHousehold] = await db
@@ -203,13 +303,74 @@ export async function POST(request: Request) {
             continue;
           }
           householdId = householdIdStr;
+          
+          // Store in map if household group is provided
+          if (householdGroup) {
+            householdGroupMap.set(householdGroup, householdId);
+          }
         } else {
-          // Household is required - fail this row
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Household is required. Please provide Household ID or set Create New Household to true`,
-          );
-          continue;
+          // Auto-create a household for this member if none provided
+          // Use member's name as household name, default to "single" type
+          
+          // Get household name - ensure it's always a string
+          const householdNameValue = getStringValue("household name");
+          // Build fallback name from member's name
+          const memberName = [firstName, lastName].filter(Boolean).join(" ").trim();
+          const householdName = householdNameValue || memberName || "New Household";
+          
+          // Ensure householdName is definitely a string (not boolean)
+          const finalHouseholdName = typeof householdName === "string" 
+            ? householdName 
+            : String(householdName || memberName || "New Household");
+          
+          const householdTypeRaw = getValue("household type");
+          const validHouseholdTypes = ["family", "single", "couple", "other"];
+          const householdType = householdTypeRaw && validHouseholdTypes.includes(householdTypeRaw.toLowerCase())
+            ? householdTypeRaw.toLowerCase()
+            : "single";
+
+          // Ensure all values are properly typed before insertion
+          const householdData = {
+            name: finalHouseholdName, // Guaranteed to be a string
+            type: householdType as "family" | "single" | "couple" | "other",
+            isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
+            personAssigned: getStringValue("person assigned") || null,
+            ministryGroup: getStringValue("ministry group") || null,
+            address1: getStringValue("household address1") || getStringValue("address1") || null,
+            address2: getStringValue("household address2") || getStringValue("address2") || null,
+            city: getStringValue("household city") || getStringValue("city") || null,
+            state: getStringValue("household state") || getStringValue("state") || null,
+            zip: getStringValue("household zip") || getStringValue("zip") || null,
+            country: getStringValue("household country") || getStringValue("country") || null,
+            alternateAddressBegin: parsedAlternateAddressBegin
+              ? parsedAlternateAddressBegin.toISOString().split("T")[0]
+              : null,
+            alternateAddressEnd: parsedAlternateAddressEnd
+              ? parsedAlternateAddressEnd.toISOString().split("T")[0]
+              : null,
+          };
+
+          // Validate that name is definitely a string before inserting
+          if (typeof householdData.name !== "string") {
+            throw new Error(`Invalid household name type: ${typeof householdData.name}, value: ${JSON.stringify(householdData.name)}`);
+          }
+
+          // Final safety check - ensure name is a string (not boolean)
+          const safeHouseholdData = {
+            ...householdData,
+            name: String(householdData.name || memberName || "New Household"),
+          };
+
+          const [newHousehold] = await db
+            .insert(household)
+            .values(safeHouseholdData)
+            .returning();
+          householdId = newHousehold.id;
+          
+          // Store in map if household group is provided
+          if (householdGroup) {
+            householdGroupMap.set(householdGroup, householdId);
+          }
         }
 
         // Prepare member data

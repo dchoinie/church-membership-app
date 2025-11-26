@@ -221,49 +221,40 @@ export default function GivingPage() {
 
     setSubmitting(true);
     try {
-      // Create giving records for all members with this envelope number
-      const promises = membersForEnvelope.map((member) =>
-        fetch("/api/giving", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            memberId: member.id,
-            amount: parseFloat(data.amount),
-            dateGiven: data.dateGiven,
-            notes: data.notes || null,
-          }),
-        })
-      );
+      // Create a single giving record for the envelope number (household level)
+      // The API will automatically find the head of household
+      const response = await fetch("/api/giving", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          envelopeNumber: envelopeNum,
+          amount: parseFloat(data.amount),
+          dateGiven: data.dateGiven,
+          notes: data.notes || null,
+        }),
+      });
 
-      const responses = await Promise.all(promises);
-      const errors = [];
-
-      for (let i = 0; i < responses.length; i++) {
-        if (!responses[i].ok) {
-          const error = await responses[i].json();
-          errors.push(`${membersForEnvelope[i].firstName} ${membersForEnvelope[i].lastName}: ${error.error || "Failed"}`);
-        }
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Failed to create giving record: ${error.error || "Unknown error"}`);
+        return;
       }
 
-      if (errors.length > 0) {
-        alert(`Some records failed to create:\n${errors.join("\n")}`);
-      } else {
-        setDialogOpen(false);
-        form.reset({
-          envelopeNumber: "",
-          amount: "",
-          dateGiven: new Date().toISOString().split("T")[0],
-          notes: "",
-        });
-        setFilteredMembers([]);
-        // Refresh the giving records list
-        await fetchGivingRecords(currentPage);
-      }
+      setDialogOpen(false);
+      form.reset({
+        envelopeNumber: "",
+        amount: "",
+        dateGiven: new Date().toISOString().split("T")[0],
+        notes: "",
+      });
+      setFilteredMembers([]);
+      // Refresh the giving records list
+      await fetchGivingRecords(currentPage);
     } catch (error) {
-      console.error("Error creating giving records:", error);
-      alert("Failed to create giving records");
+      console.error("Error creating giving record:", error);
+      alert("Failed to create giving record");
     } finally {
       setSubmitting(false);
     }
@@ -601,7 +592,7 @@ export default function GivingPage() {
               <DialogHeader>
                 <DialogTitle>Add Giving Record</DialogTitle>
                 <DialogDescription>
-                  Enter the giving amount by selecting an envelope number. The amount will be applied to all members associated with that envelope number.
+                  Enter the giving amount by selecting an envelope number. One giving record will be created at the household level, associated with the head of household member.
                 </DialogDescription>
               </DialogHeader>
               <Form {...form}>
@@ -643,7 +634,7 @@ export default function GivingPage() {
                           </div>
                         ))}
                         <p className="text-xs text-muted-foreground mt-2">
-                          Giving amount will be applied to all {filteredMembers.length} member{filteredMembers.length !== 1 ? "s" : ""} listed above.
+                          One giving record will be created for this envelope number, associated with the head of household member ({filteredMembers.length} member{filteredMembers.length !== 1 ? "s" : ""} share this envelope).
                         </p>
                       </div>
                     </div>

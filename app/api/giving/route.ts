@@ -55,6 +55,8 @@ export async function GET(request: Request) {
           id: members.id,
           firstName: members.firstName,
           lastName: members.lastName,
+          householdId: members.householdId,
+          envelopeNumber: members.envelopeNumber,
         },
       })
       .from(giving)
@@ -63,9 +65,91 @@ export async function GET(request: Request) {
       .limit(validPageSize)
       .offset(offset);
 
-    const givingRecords = whereCondition
+    const givingRecordsRaw = whereCondition
       ? await queryBuilder.where(whereCondition)
       : await queryBuilder;
+
+    // Helper function to find head of household (oldest male)
+    const findHeadOfHousehold = (
+      members: Array<{
+        id: string;
+        firstName: string;
+        lastName: string;
+        sex: "male" | "female" | "other" | null;
+        dateOfBirth: string | null;
+      }>
+    ): { id: string; firstName: string; lastName: string } => {
+      // Filter for males
+      const males = members.filter(m => m.sex === "male");
+      
+      if (males.length > 0) {
+        // Sort males by dateOfBirth (oldest first)
+        const sortedMales = males.sort((a, b) => {
+          if (!a.dateOfBirth) return 1; // No date goes to end
+          if (!b.dateOfBirth) return -1;
+          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+        });
+        return {
+          id: sortedMales[0].id,
+          firstName: sortedMales[0].firstName,
+          lastName: sortedMales[0].lastName,
+        };
+      }
+      
+      // No males found, use oldest member overall
+      const sortedAll = members.sort((a, b) => {
+        if (!a.dateOfBirth) return 1; // No date goes to end
+        if (!b.dateOfBirth) return -1;
+        return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+      });
+      
+      return {
+        id: sortedAll[0].id,
+        firstName: sortedAll[0].firstName,
+        lastName: sortedAll[0].lastName,
+      };
+    };
+
+    // For each giving record, find the head of household
+    const givingRecords = await Promise.all(
+      givingRecordsRaw.map(async (record) => {
+        // If the member has an envelope number, find all members with that envelope number
+        if (record.member.envelopeNumber) {
+          const householdMembers = await db
+            .select({
+              id: members.id,
+              firstName: members.firstName,
+              lastName: members.lastName,
+              sex: members.sex,
+              dateOfBirth: members.dateOfBirth,
+            })
+            .from(members)
+            .where(eq(members.envelopeNumber, record.member.envelopeNumber));
+
+          if (householdMembers.length > 0) {
+            const headOfHousehold = findHeadOfHousehold(householdMembers);
+            return {
+              ...record,
+              member: {
+                id: headOfHousehold.id,
+                firstName: headOfHousehold.firstName,
+                lastName: headOfHousehold.lastName,
+              },
+            };
+          }
+        }
+
+        // Fallback: use the record's member if no envelope number or household members found
+        return {
+          ...record,
+          member: {
+            id: record.member.id,
+            firstName: record.member.firstName,
+            lastName: record.member.lastName,
+          },
+        };
+      })
+    );
 
     return NextResponse.json({
       giving: givingRecords,
@@ -99,9 +183,9 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.memberId || !body.amount || !body.dateGiven) {
+    if ((!body.memberId && !body.envelopeNumber) || !body.amount || !body.dateGiven) {
       return NextResponse.json(
-        { error: "Member ID, amount, and date given are required" },
+        { error: "Member ID (or envelope number), amount, and date given are required" },
         { status: 400 },
       );
     }
@@ -115,11 +199,75 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if member exists and is head of household
+    // Determine target member ID
+    let targetMemberId: string;
+
+    if (body.envelopeNumber) {
+      // Find head of household for this envelope number
+      const envelopeNum = parseInt(body.envelopeNumber, 10);
+      if (isNaN(envelopeNum)) {
+        return NextResponse.json(
+          { error: "Invalid envelope number" },
+          { status: 400 },
+        );
+      }
+
+      // Find all members with this envelope number (with full details for age/sex determination)
+      const membersWithEnvelope = await db
+        .select({
+          id: members.id,
+          householdId: members.householdId,
+          sex: members.sex,
+          dateOfBirth: members.dateOfBirth,
+        })
+        .from(members)
+        .where(eq(members.envelopeNumber, envelopeNum));
+
+      if (membersWithEnvelope.length === 0) {
+        return NextResponse.json(
+          { error: "No members found for this envelope number" },
+          { status: 404 },
+        );
+      }
+
+      // Find head of household: oldest male member in the household
+      // If no males, fallback to oldest member overall
+      // If no dates, fallback to first member
+      const findHeadOfHousehold = (members: typeof membersWithEnvelope): string => {
+        // Filter for males
+        const males = members.filter(m => m.sex === "male");
+        
+        if (males.length > 0) {
+          // Sort males by dateOfBirth (oldest first)
+          const sortedMales = males.sort((a, b) => {
+            if (!a.dateOfBirth) return 1; // No date goes to end
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          return sortedMales[0].id;
+        }
+        
+        // No males found, use oldest member overall
+        const sortedAll = members.sort((a, b) => {
+          if (!a.dateOfBirth) return 1; // No date goes to end
+          if (!b.dateOfBirth) return -1;
+          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+        });
+        
+        return sortedAll[0].id;
+      };
+
+      targetMemberId = findHeadOfHousehold(membersWithEnvelope);
+    } else {
+      // Use provided memberId
+      targetMemberId = body.memberId;
+    }
+
+    // Check if member exists
     const [member] = await db
       .select()
       .from(members)
-      .where(eq(members.id, body.memberId))
+      .where(eq(members.id, targetMemberId))
       .limit(1);
 
     if (!member) {
@@ -129,26 +277,21 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!member.headOfHousehold) {
-      return NextResponse.json(
-        { error: "Only head of household members can have giving records" },
-        { status: 400 },
-      );
-    }
-
     // Insert new giving record
+    // Note: This creates one record per envelope number (household level)
+    // The record is associated with the head of household member
     const [newGiving] = await db
       .insert(giving)
       .values({
-        memberId: body.memberId,
+        memberId: targetMemberId,
         amount: amount.toString(),
         dateGiven: body.dateGiven,
         notes: body.notes || null,
       })
       .returning();
 
-    // Fetch with member info
-    const [givingWithMember] = await db
+    // Fetch with member info (including envelope number for head of household lookup)
+    const [givingWithMemberRaw] = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
@@ -161,12 +304,69 @@ export async function POST(request: Request) {
           id: members.id,
           firstName: members.firstName,
           lastName: members.lastName,
+          envelopeNumber: members.envelopeNumber,
         },
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
       .where(eq(giving.id, newGiving.id))
       .limit(1);
+
+    // Find head of household (oldest male) if envelope number exists
+    let headOfHouseholdMember = {
+      id: givingWithMemberRaw.member.id,
+      firstName: givingWithMemberRaw.member.firstName,
+      lastName: givingWithMemberRaw.member.lastName,
+    };
+
+    if (givingWithMemberRaw.member.envelopeNumber) {
+      const householdMembers = await db
+        .select({
+          id: members.id,
+          firstName: members.firstName,
+          lastName: members.lastName,
+          sex: members.sex,
+          dateOfBirth: members.dateOfBirth,
+        })
+        .from(members)
+        .where(eq(members.envelopeNumber, givingWithMemberRaw.member.envelopeNumber));
+
+      if (householdMembers.length > 0) {
+        // Filter for males
+        const males = householdMembers.filter(m => m.sex === "male");
+        
+        if (males.length > 0) {
+          // Sort males by dateOfBirth (oldest first)
+          const sortedMales = males.sort((a, b) => {
+            if (!a.dateOfBirth) return 1;
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          headOfHouseholdMember = {
+            id: sortedMales[0].id,
+            firstName: sortedMales[0].firstName,
+            lastName: sortedMales[0].lastName,
+          };
+        } else {
+          // No males, use oldest member overall
+          const sortedAll = householdMembers.sort((a, b) => {
+            if (!a.dateOfBirth) return 1;
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          headOfHouseholdMember = {
+            id: sortedAll[0].id,
+            firstName: sortedAll[0].firstName,
+            lastName: sortedAll[0].lastName,
+          };
+        }
+      }
+    }
+
+    const givingWithMember = {
+      ...givingWithMemberRaw,
+      member: headOfHouseholdMember,
+    };
 
     return NextResponse.json({ giving: givingWithMember }, { status: 201 });
   } catch (error) {
