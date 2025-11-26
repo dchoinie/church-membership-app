@@ -10,8 +10,8 @@ import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
-  UserMinusIcon,
   TriangleAlertIcon,
+  EyeIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,8 @@ interface Member {
   phoneCell1: string | null;
   participation: string;
   envelopeNumber: number | null;
+  dateOfBirth: string | null;
+  sex: string | null;
 }
 
 interface Household {
@@ -142,7 +144,7 @@ interface HouseholdOption {
 export default function HouseholdViewPage({
   params,
 }: {
-  params: Promise<{ familyId: string }>;
+  params: Promise<{ householdId: string }>;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>([]);
@@ -208,7 +210,7 @@ export default function HouseholdViewPage({
   useEffect(() => {
     const init = async () => {
       const resolvedParams = await params;
-      const id = resolvedParams.familyId; // Route param is still familyId for backward compatibility
+      const id = resolvedParams.householdId;
       setHouseholdId(id);
       await fetchHouseholdData(id);
       await fetchAllHouseholds();
@@ -336,6 +338,29 @@ export default function HouseholdViewPage({
     }
   };
 
+  const calculateAge = (dateOfBirth: string | null): number | null => {
+    if (!dateOfBirth) return null;
+    try {
+      const parts = dateOfBirth.split("-");
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const birthDate = new Date(year, month, day);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        return age;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleEditClick = () => {
     if (household) {
       editForm.reset({
@@ -418,6 +443,28 @@ export default function HouseholdViewPage({
   const handleRemoveMemberClick = (member: Member) => {
     setSelectedMember(member);
     setRemoveMemberDialogOpen(true);
+  };
+
+  const handleDeleteMember = async () => {
+    if (!selectedMember) return;
+
+    try {
+      const response = await fetch(`/api/members/${selectedMember.id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        setRemoveMemberDialogOpen(false);
+        setSelectedMember(null);
+        fetchHouseholdData(householdId);
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to delete member");
+      }
+    } catch (error) {
+      console.error("Error deleting member:", error);
+      alert("Failed to delete member");
+    }
   };
 
   const handleTransferMember = async () => {
@@ -530,12 +577,12 @@ export default function HouseholdViewPage({
           Household not found.
         </div>
         <div className="text-center">
-          <Link href="/membership">
-            <Button variant="outline">
+          <Button asChild variant="outline">
+            <Link href="/membership">
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back to Households
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
     );
@@ -573,13 +620,13 @@ export default function HouseholdViewPage({
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleEditClick}>
+          <Button variant="outline" onClick={handleEditClick} className="cursor-pointer">
             <PencilIcon className="mr-2 h-4 w-4" />
             Edit Household
           </Button>
           <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="cursor-pointer">
                 <PlusIcon className="mr-2 h-4 w-4" />
                 Add Member
               </Button>
@@ -953,27 +1000,28 @@ export default function HouseholdViewPage({
                       type="button"
                       variant="outline"
                       onClick={() => setAddMemberDialogOpen(false)}
+                      className="cursor-pointer"
                     >
                       Cancel
                     </Button>
-                    <Button type="submit">Add Member</Button>
+                    <Button type="submit" className="cursor-pointer">Add Member</Button>
                   </DialogFooter>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
           {members.length === 0 && (
-            <Button variant="destructive" onClick={() => setDeleteHouseholdDialogOpen(true)}>
+            <Button variant="destructive" onClick={() => setDeleteHouseholdDialogOpen(true)} className="cursor-pointer">
               <TrashIcon className="mr-2 h-4 w-4" />
               Delete Household
             </Button>
           )}
-          <Link href="/membership">
-            <Button variant="outline">
+          <Button asChild variant="outline">
+            <Link href="/membership">
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back to Households
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -995,6 +1043,7 @@ export default function HouseholdViewPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Age</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
@@ -1002,50 +1051,76 @@ export default function HouseholdViewPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">
-                      {member.preferredName || member.firstName}{" "}
-                      {member.middleName ? `${member.middleName} ` : ""}
-                      {member.lastName}
-                      {member.suffix ? ` ${member.suffix}` : ""}
-                    </TableCell>
-                    <TableCell>{member.email1 || "N/A"}</TableCell>
-                    <TableCell>
-                      {member.phoneCell1 || member.phoneHome || "N/A"}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          member.participation?.toLowerCase() === "active"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                            : member.participation?.toLowerCase() === "visitor"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                        }`}
-                      >
-                        {member.participation}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link href={`/membership/${member.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View Details
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveMemberClick(member)}
+                {members.map((member) => {
+                  const age = calculateAge(member.dateOfBirth);
+                  const genderIcon = member.sex === "male" ? "♂" : member.sex === "female" ? "♀" : null;
+                  
+                  return (
+                    <TableRow 
+                      key={member.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => router.push(`/membership/${member.id}`)}
+                    >
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {genderIcon && (
+                            <span className="text-muted-foreground text-sm" title={member.sex === "male" ? "Male" : "Female"}>
+                              {genderIcon}
+                            </span>
+                          )}
+                          <span>
+                            {member.firstName}{" "}
+                            {member.middleName ? `${member.middleName} ` : ""}
+                            {member.lastName}
+                            {member.suffix ? ` ${member.suffix}` : ""}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{age !== null ? age : "N/A"}</TableCell>
+                      <TableCell>{member.email1 || "N/A"}</TableCell>
+                      <TableCell>
+                        {member.phoneCell1 || member.phoneHome || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                            member.participation?.toLowerCase() === "active"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : member.participation?.toLowerCase() === "visitor"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                          }`}
                         >
-                          <UserMinusIcon className="h-4 w-4 mr-1" />
-                          Remove
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          {member.participation}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button 
+                            asChild 
+                            variant="ghost" 
+                            size="icon"
+                          >
+                            <Link href={`/membership/${member.id}`}>
+                              <EyeIcon className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveMemberClick(member);
+                            }}
+                            className="cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -1228,33 +1303,36 @@ export default function HouseholdViewPage({
                   type="button"
                   variant="outline"
                   onClick={() => setEditDialogOpen(false)}
+                  className="cursor-pointer"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Update Household</Button>
+                <Button type="submit" className="cursor-pointer">Update Household</Button>
               </DialogFooter>
             </form>
           </Form>
         </DialogContent>
       </Dialog>
 
-      {/* Remove Member Dialog */}
+      {/* Delete Member Dialog */}
       <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member from Household</AlertDialogTitle>
+            <AlertDialogTitle>Delete Member</AlertDialogTitle>
             <AlertDialogDescription>
-              All members must belong to a household. Please transfer{" "}
+              Are you sure you want to delete{" "}
               {selectedMember
                 ? `${selectedMember.firstName} ${selectedMember.lastName}`
-                : "this member"}{" "}
-              to another household or create a new individual household.
+                : "this member"}? This action cannot be undone and will permanently remove the member from the database.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => setTransferMemberDialogOpen(true)}>
-              Transfer Member
+            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteMember}
+              className="cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Member
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1328,10 +1406,11 @@ export default function HouseholdViewPage({
                     setTransferMemberDialogOpen(false);
                     setRemoveMemberDialogOpen(false);
                   }}
+                  className="cursor-pointer"
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Transfer</Button>
+                <Button type="submit" className="cursor-pointer">Transfer</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -1356,3 +1435,4 @@ export default function HouseholdViewPage({
     </div>
   );
 }
+

@@ -173,7 +173,7 @@ export default function SetupPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
               {isSubmitting ? "Creating Admin Account..." : "Create Admin Account"}
             </Button>
           </form>

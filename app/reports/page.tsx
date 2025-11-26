@@ -357,7 +357,7 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              <Button type="submit" disabled={generatingGivingReport}>
+              <Button type="submit" disabled={generatingGivingReport} className="cursor-pointer">
                 {generatingGivingReport ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -486,7 +486,7 @@ export default function ReportsPage() {
                 )}
               />
 
-              <Button type="submit" disabled={generatingMembershipReport}>
+              <Button type="submit" disabled={generatingMembershipReport} className="cursor-pointer">
                 {generatingMembershipReport ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -379,9 +379,9 @@ export default function MemberDetailPage({
           Member not found
         </div>
         <div className="text-center">
-          <Link href="/membership">
-            <Button variant="outline">Back to Households</Button>
-          </Link>
+          <Button asChild variant="outline">
+            <Link href="/membership">Back to Households</Link>
+          </Button>
         </div>
       </div>
     );
@@ -400,15 +400,15 @@ export default function MemberDetailPage({
           <div className="flex gap-2">
             {!isEditMode ? (
               <>
-                <Link href={`/membership/${memberId}?edit=true`}>
-                  <Button variant="outline">
+                <Button asChild variant="outline">
+                  <Link href={`/membership/${memberId}?edit=true`}>
                     <PencilIcon className="mr-2 h-4 w-4" />
                     Edit
-                  </Button>
-                </Link>
-                <Link href="/membership">
-                  <Button variant="outline">Back</Button>
-                </Link>
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/membership">Back</Link>
+                </Button>
               </>
             ) : (
               <>
@@ -418,17 +418,18 @@ export default function MemberDetailPage({
                     setIsEditMode(false);
                     router.push(`/membership/${memberId}`);
                   }}
+                  className="cursor-pointer"
                 >
                   <XIcon className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button onClick={form.handleSubmit(onSubmit)}>
+                <Button onClick={form.handleSubmit(onSubmit)} className="cursor-pointer">
                   <SaveIcon className="mr-2 h-4 w-4" />
                   Save
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive">
+                    <Button variant="destructive" className="cursor-pointer">
                       <TrashIcon className="mr-2 h-4 w-4" />
                       Delete
                     </Button>
@@ -1092,7 +1093,7 @@ export default function MemberDetailPage({
                         </label>
                         <p className="mt-1 text-sm">
                           <Link
-                            href={`/membership/family/${member.householdId}`}
+                            href={`/membership/household/${member.householdId}`}
                             className="text-primary hover:underline"
                           >
                             View Household

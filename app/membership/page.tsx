@@ -563,10 +563,11 @@ export default function MembershipPage() {
                       type="button"
                       variant="outline"
                       onClick={() => setCreateDialogOpen(false)}
+                      className="cursor-pointer"
                     >
                       Cancel
                     </Button>
-                    <Button type="submit">Create Household</Button>
+                    <Button type="submit" className="cursor-pointer">Create Household</Button>
                   </DialogFooter>
                 </form>
               </Form>
@@ -656,6 +657,7 @@ export default function MembershipPage() {
                     setImportResults(null);
                   }}
                   disabled={importing}
+                  className="cursor-pointer"
                 >
                   Cancel
                 </Button>
@@ -663,6 +665,7 @@ export default function MembershipPage() {
                   type="button"
                   onClick={handleBulkImport}
                   disabled={!importFile || importing}
+                  className="cursor-pointer"
                 >
                   {importing ? "Importing..." : "Import Members"}
                 </Button>
@@ -702,7 +705,7 @@ export default function MembershipPage() {
                     <TableRow
                       key={household.id}
                       className="cursor-pointer"
-                      onClick={() => router.push(`/membership/family/${household.id}`)}
+                      onClick={() => router.push(`/membership/household/${household.id}`)}
                     >
                       <TableCell className="font-medium">
                         {getHouseholdDisplayName(household)}
@@ -723,6 +726,7 @@ export default function MembershipPage() {
                             size="icon"
                             title="Edit"
                             onClick={() => handleEditClick(household)}
+                            className="cursor-pointer"
                           >
                             <PencilIcon className="h-4 w-4" />
                           </Button>
@@ -731,6 +735,7 @@ export default function MembershipPage() {
                             size="icon"
                             title="Delete"
                             onClick={() => handleDeleteClick(household)}
+                            className="cursor-pointer"
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
@@ -1015,7 +1020,7 @@ export default function MembershipPage() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Update Household</Button>
+                <Button type="submit" className="cursor-pointer">Update Household</Button>
               </DialogFooter>
             </form>
           </Form>

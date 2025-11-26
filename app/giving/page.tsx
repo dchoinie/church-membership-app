@@ -487,6 +487,7 @@ export default function GivingPage() {
                     variant="outline"
                     size="sm"
                     onClick={downloadExampleCSV}
+                    className="cursor-pointer"
                   >
                     <DownloadIcon className="mr-2 h-4 w-4" />
                     Download Example
@@ -558,6 +559,7 @@ export default function GivingPage() {
                     variant="outline"
                     onClick={() => setBulkImportDialogOpen(false)}
                     disabled={importing}
+                    className="cursor-pointer"
                   >
                     Close
                   </Button>
@@ -565,6 +567,7 @@ export default function GivingPage() {
                     type="button"
                     onClick={handleBulkImport}
                     disabled={!importFile || importing}
+                    className="cursor-pointer"
                   >
                     {importing ? "Importing..." : "Import Records"}
                   </Button>
@@ -702,10 +705,11 @@ export default function GivingPage() {
                       type="button"
                       variant="outline"
                       onClick={() => setDialogOpen(false)}
+                      className="cursor-pointer"
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={submitting}>
+                    <Button type="submit" disabled={submitting} className="cursor-pointer">
                       {submitting ? "Creating..." : "Create Record"}
                     </Button>
                   </DialogFooter>

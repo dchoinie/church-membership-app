@@ -159,7 +159,7 @@ export default function ManageAdminAccessPage() {
                 {successMessage}
               </div>
             )}
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="cursor-pointer">
               {isSubmitting ? "Sending Invitation..." : "Send Invitation"}
             </Button>
           </form>

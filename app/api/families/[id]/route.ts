@@ -47,6 +47,8 @@ export async function GET(
         phoneCell1: members.phoneCell1,
         participation: members.participation,
         envelopeNumber: members.envelopeNumber,
+        dateOfBirth: members.dateOfBirth,
+        sex: members.sex,
       })
       .from(members)
       .where(eq(members.householdId, id));

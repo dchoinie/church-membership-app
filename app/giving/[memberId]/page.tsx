@@ -249,11 +249,11 @@ export default function MemberGivingPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/giving">
-            <Button variant="ghost" size="icon">
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/giving">
               <ArrowLeftIcon className="h-4 w-4" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <div>
             <h1 className="text-3xl font-bold">
               {member ? `${member.firstName} ${member.lastName}` : "Loading..."}
@@ -343,6 +343,7 @@ export default function MemberGivingPage({
                         variant="ghost"
                         size="icon"
                         onClick={() => handleEdit(record)}
+                        className="cursor-pointer"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </Button>
@@ -422,10 +423,11 @@ export default function MemberGivingPage({
                     setEditDialogOpen(false);
                     setEditingRecord(null);
                   }}
+                  className="cursor-pointer"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting} className="cursor-pointer">
                   {submitting ? "Updating..." : "Update Record"}
                 </Button>
               </DialogFooter>
@@ -498,10 +500,11 @@ export default function MemberGivingPage({
                   type="button"
                   variant="outline"
                   onClick={() => setAddDialogOpen(false)}
+                  className="cursor-pointer"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting} className="cursor-pointer">
                   {submitting ? "Creating..." : "Create Record"}
                 </Button>
               </DialogFooter>
