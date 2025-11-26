@@ -17,9 +17,14 @@ export async function sendInvitationEmail({
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${baseUrl}/signup?invite=${inviteCode}`;
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const isDevMode = process.env.NODE_ENV === "development" || !process.env.RESEND_FROM_EMAIL;
+  
+  // Check if using default Resend test domain
+  const isUsingTestDomain = fromEmail.includes("@resend.dev");
 
   const { data, error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+    from: fromEmail,
     to: email,
     subject: "You've been invited to join Good Shepherd Admin",
     html: `
@@ -86,6 +91,21 @@ This invitation will expire in 7 days. If you didn't expect this invitation, you
   });
 
   if (error) {
+    // Provide helpful error messages for common Resend issues
+    if (error.message?.includes("only send testing emails to your own email address")) {
+      const helpfulMessage = isUsingTestDomain
+        ? `Resend Test Domain Limitation: When using "onboarding@resend.dev" (or any @resend.dev address), you can only send emails to your own verified email address.\n\n` +
+          `To send emails to other recipients:\n` +
+          `1. Verify your domain at https://resend.com/domains\n` +
+          `2. Set RESEND_FROM_EMAIL in your .env file to use your verified domain (e.g., "noreply@yourdomain.com")\n\n` +
+          `For development/testing, you can:\n` +
+          `- Use Resend test addresses: delivered@resend.dev, bounced@resend.dev, complained@resend.dev\n` +
+          `- Or manually share the invitation code: ${inviteCode}`
+        : `Failed to send email: ${error.message}`;
+      
+      throw new Error(helpfulMessage);
+    }
+    
     throw new Error(`Failed to send email: ${error.message}`);
   }
 

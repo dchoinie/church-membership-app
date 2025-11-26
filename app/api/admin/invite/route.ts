@@ -55,14 +55,19 @@ export async function POST(request: Request) {
       });
     } catch (emailError) {
       console.error("Error sending invitation email:", emailError);
+      const errorMessage = emailError instanceof Error ? emailError.message : "Unknown error";
+      
       // Still return success since invitation was created
-      // But include a warning about email failure
+      // But include a warning about email failure with helpful details
       return NextResponse.json({
         success: true,
         inviteCode,
-        message: `Invitation created for ${email}, but email failed to send. Share this code manually: ${inviteCode}`,
+        message: `Invitation created for ${email}, but email failed to send.`,
         emailSent: false,
-        warning: "Email could not be sent. Please share the invitation code manually.",
+        warning: errorMessage.includes("Resend Test Domain Limitation") 
+          ? errorMessage 
+          : `Email could not be sent: ${errorMessage}. Please share the invitation code manually: ${inviteCode}`,
+        inviteCodeDisplay: inviteCode, // Make it easy to find
       });
     }
 

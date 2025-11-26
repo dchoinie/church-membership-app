@@ -54,6 +54,8 @@ const PARTICIPATION_STATUSES = [
   { value: "visitor", label: "Visitor" },
 ];
 
+const ALL_STATUS_VALUES = PARTICIPATION_STATUSES.map(s => s.value);
+
 export default function ReportsPage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loadingHouseholds, setLoadingHouseholds] = useState(true);
@@ -73,7 +75,7 @@ export default function ReportsPage() {
 
   const membershipForm = useForm<MembershipReportFormData>({
     defaultValues: {
-      participationStatuses: [],
+      participationStatuses: ALL_STATUS_VALUES, // Default to "all" (all statuses selected)
       householdId: "all",
       type: "member",
     },
@@ -208,15 +210,21 @@ export default function ReportsPage() {
     setGeneratingMembershipReport(true);
 
     try {
-      if (data.participationStatuses.length === 0) {
+      // Validate that at least one status is selected
+      if (!data.participationStatuses || data.participationStatuses.length === 0) {
         throw new Error("Please select at least one participation status");
       }
 
       const params = new URLSearchParams({
-        participation: data.participationStatuses.join(","),
         type: data.type,
         format: "csv",
       });
+
+      // If all statuses are selected, don't send participation param (API defaults to all)
+      // Otherwise, send the selected statuses
+      if (data.participationStatuses.length < ALL_STATUS_VALUES.length) {
+        params.append("participation", data.participationStatuses.join(","));
+      }
 
       if (data.householdId && data.householdId !== "all") {
         params.append("householdId", data.householdId);
@@ -391,47 +399,78 @@ export default function ReportsPage() {
             <form onSubmit={membershipForm.handleSubmit(onMembershipReportSubmit)} className="space-y-4">
               <FormField
                 name="participationStatuses"
-                render={() => (
-                  <FormItem>
-                    <div className="mb-4">
-                      <FormLabel>Participation Status</FormLabel>
-                    </div>
-                    {PARTICIPATION_STATUSES.map((status) => (
+                render={() => {
+                  const selectedStatuses = membershipForm.watch("participationStatuses") || [];
+                  const allSelected = selectedStatuses.length === ALL_STATUS_VALUES.length;
+                  
+                  return (
+                    <FormItem>
+                      <div className="mb-4">
+                        <FormLabel>Participation Status</FormLabel>
+                      </div>
+                      {/* "All" option */}
                       <FormField
-                        key={status.value}
                         control={membershipForm.control}
                         name="participationStatuses"
                         render={({ field }) => {
                           return (
-                            <FormItem
-                              key={status.value}
-                              className="flex flex-row items-start space-x-3 space-y-0"
-                            >
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0 mb-2 pb-2 border-b">
                               <FormControl>
                                 <Checkbox
-                                  checked={field.value?.includes(status.value)}
+                                  checked={allSelected}
                                   onCheckedChange={(checked) => {
-                                    return checked
-                                      ? field.onChange([...field.value, status.value])
-                                      : field.onChange(
-                                          field.value?.filter(
-                                            (value) => value !== status.value
-                                          )
-                                        );
+                                    field.onChange(checked ? [...ALL_STATUS_VALUES] : []);
                                   }}
                                 />
                               </FormControl>
-                              <FormLabel className="font-normal">
-                                {status.label}
+                              <FormLabel className="font-normal font-semibold">
+                                All
                               </FormLabel>
                             </FormItem>
                           );
                         }}
                       />
-                    ))}
-                    <FormMessage />
-                  </FormItem>
-                )}
+                      {/* Individual status options */}
+                      {PARTICIPATION_STATUSES.map((status) => (
+                        <FormField
+                          key={status.value}
+                          control={membershipForm.control}
+                          name="participationStatuses"
+                          render={({ field }) => {
+                            return (
+                              <FormItem
+                                key={status.value}
+                                className="flex flex-row items-start space-x-3 space-y-0"
+                              >
+                                <FormControl>
+                                  <Checkbox
+                                    checked={field.value?.includes(status.value)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        const newValue = [...(field.value || []), status.value];
+                                        field.onChange(newValue);
+                                      } else {
+                                        field.onChange(
+                                          field.value?.filter(
+                                            (value) => value !== status.value
+                                          ) || []
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </FormControl>
+                                <FormLabel className="font-normal">
+                                  {status.label}
+                                </FormLabel>
+                              </FormItem>
+                            );
+                          }}
+                        />
+                      ))}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormField

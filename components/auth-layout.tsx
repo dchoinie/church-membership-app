@@ -4,6 +4,7 @@ import { useEffect, useState, startTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { UserMenu } from "@/components/user-menu";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
@@ -89,6 +90,9 @@ export default function AuthLayout({
               );
             })}
             <div className="mt-auto border-t border-sidebar-border pt-4">
+              <div className="px-3 pb-4">
+                <UserMenu />
+              </div>
               <Link
                 href="/manage-admin-access"
                 className={`rounded-md px-4 py-2 text-sm transition-colors ${
