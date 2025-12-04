@@ -17,9 +17,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
+
+    // Default to current year if no dates provided
     const currentYear = new Date().getFullYear();
-    const yearStart = `${currentYear}-01-01`;
-    const yearEnd = `${currentYear}-12-31`;
+    const yearStart = startDateParam || `${currentYear}-01-01`;
+    const yearEnd = endDateParam || `${currentYear}-12-31`;
 
     // Get all services for the current year
     const allServices = await db
@@ -108,34 +114,53 @@ export async function GET(request: Request) {
     const divineServiceCount = attendancePerService.filter((s) => s.serviceType === "divine_service").length;
     const otherServiceCount = attendancePerService.filter((s) => s.serviceType !== "divine_service").length;
 
-    // Calculate monthly attendance trend for current year (average per service)
+    // Calculate monthly attendance trend (average per service)
     const monthlyTrend: { month: string; attendance: number; communion: number; serviceCount: number }[] = [];
-    for (let month = 0; month < 12; month++) {
-      const monthStart = new Date(currentYear, month, 1);
-      const monthEnd = new Date(currentYear, month + 1, 0);
-      const monthStartStr = monthStart.toISOString().split("T")[0];
-      const monthEndStr = monthEnd.toISOString().split("T")[0];
+    
+    // Get date range
+    const startDate = new Date(yearStart);
+    const endDate = new Date(yearEnd);
+    const startYear = startDate.getFullYear();
+    const endYear = endDate.getFullYear();
+    const startMonth = startDate.getMonth();
+    const endMonth = endDate.getMonth();
 
-      const monthServices = allServices.filter(
-        (s) => s.serviceDate >= monthStartStr && s.serviceDate <= monthEndStr,
-      );
-      const monthServiceIds = monthServices.map((s) => s.id);
-      const monthAttendance = allAttendance.filter((a) => monthServiceIds.includes(a.serviceId));
+    // Generate months in the range
+    for (let year = startYear; year <= endYear; year++) {
+      const monthStart = year === startYear ? startMonth : 0;
+      const monthEnd = year === endYear ? endMonth : 11;
+      
+      for (let month = monthStart; month <= monthEnd; month++) {
+        const monthStartDate = new Date(year, month, 1);
+        const monthEndDate = new Date(year, month + 1, 0);
+        const monthStartStr = monthStartDate.toISOString().split("T")[0];
+        const monthEndStr = monthEndDate.toISOString().split("T")[0];
 
-      const monthAttended = monthAttendance.filter((a) => a.attended).length;
-      const monthCommunion = monthAttendance.filter((a) => a.tookCommunion).length;
-      const serviceCount = monthServices.length;
+        // Clamp to actual date range
+        const actualStart = monthStartStr < yearStart ? yearStart : monthStartStr;
+        const actualEnd = monthEndStr > yearEnd ? yearEnd : monthEndStr;
 
-      // Calculate average attendance per service
-      const avgAttendance = serviceCount > 0 ? Math.round((monthAttended / serviceCount) * 100) / 100 : 0;
-      const avgCommunion = serviceCount > 0 ? Math.round((monthCommunion / serviceCount) * 100) / 100 : 0;
+        const monthServices = allServices.filter(
+          (s) => s.serviceDate >= actualStart && s.serviceDate <= actualEnd,
+        );
+        const monthServiceIds = monthServices.map((s) => s.id);
+        const monthAttendance = allAttendance.filter((a) => monthServiceIds.includes(a.serviceId));
 
-      monthlyTrend.push({
-        month: monthStart.toLocaleString("default", { month: "long" }),
-        attendance: avgAttendance,
-        communion: avgCommunion,
-        serviceCount,
-      });
+        const monthAttended = monthAttendance.filter((a) => a.attended).length;
+        const monthCommunion = monthAttendance.filter((a) => a.tookCommunion).length;
+        const serviceCount = monthServices.length;
+
+        // Calculate average attendance per service
+        const avgAttendance = serviceCount > 0 ? Math.round((monthAttended / serviceCount) * 100) / 100 : 0;
+        const avgCommunion = serviceCount > 0 ? Math.round((monthCommunion / serviceCount) * 100) / 100 : 0;
+
+        monthlyTrend.push({
+          month: monthStartDate.toLocaleString("default", { month: "long", year: "numeric" }),
+          attendance: avgAttendance,
+          communion: avgCommunion,
+          serviceCount,
+        });
+      }
     }
 
     return NextResponse.json({
@@ -153,7 +178,9 @@ export async function GET(request: Request) {
         },
       },
       monthlyTrend,
-      year: currentYear,
+      year: startDateParam && endDateParam ? null : currentYear,
+      startDate: yearStart,
+      endDate: yearEnd,
     });
   } catch (error) {
     console.error("Error generating attendance analytics:", error);

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PencilIcon, Loader2, PlusIcon } from "lucide-react";
+import { PencilIcon, Loader2, PlusIcon, EyeIcon } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +14,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Table,
   TableBody,
@@ -74,6 +85,16 @@ interface AttendanceRecord {
   };
 }
 
+interface ServiceWithStats {
+  serviceId: string;
+  serviceDate: string;
+  serviceType: string;
+  createdAt: string;
+  updatedAt: string;
+  attendeesCount: number;
+  communionCount: number;
+}
+
 interface PaginationInfo {
   page: number;
   pageSize: number;
@@ -86,6 +107,11 @@ interface AttendanceFormData {
     attended: boolean;
     tookCommunion: boolean;
   };
+}
+
+interface ServiceFormData {
+  serviceDate: string;
+  serviceType: string;
 }
 
 const SERVICE_TYPES = [
@@ -102,7 +128,7 @@ const formatServiceType = (type: string) => {
 export default function AttendancePage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [servicesWithStats, setServicesWithStats] = useState<ServiceWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -113,14 +139,37 @@ export default function AttendancePage() {
     totalPages: 0,
   });
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
-  const [newServiceDate, setNewServiceDate] = useState(new Date().toISOString().split("T")[0]);
-  const [newServiceType, setNewServiceType] = useState<string>("divine_service");
   const [creatingService, setCreatingService] = useState(false);
-  const [showNewServiceForm, setShowNewServiceForm] = useState(false);
+  const [createServiceDialogOpen, setCreateServiceDialogOpen] = useState(false);
   const [formData, setFormData] = useState<AttendanceFormData>({});
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const serviceForm = useForm<ServiceFormData>({
+    defaultValues: {
+      serviceDate: new Date().toISOString().split("T")[0],
+      serviceType: "divine_service",
+    },
+    mode: "onChange",
+  });
+
+  const validateServiceForm = (data: ServiceFormData): boolean => {
+    if (!data.serviceDate) {
+      alert("Please select a service date");
+      return false;
+    }
+    if (!data.serviceType) {
+      alert("Please select a service type");
+      return false;
+    }
+    const validTypes = SERVICE_TYPES.map((t) => t.value);
+    if (!validTypes.includes(data.serviceType)) {
+      alert("Invalid service type");
+      return false;
+    }
+    return true;
+  };
 
   // Fetch active members
   const fetchMembers = async () => {
@@ -155,24 +204,20 @@ export default function AttendancePage() {
           new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime()
         );
         setServices(servicesList);
-        // Auto-select most recent service if none selected
-        if (!selectedServiceId && servicesList.length > 0) {
-          setSelectedServiceId(servicesList[0].id);
-        }
       }
     } catch (error) {
       console.error("Error fetching services:", error);
     }
   };
 
-  // Fetch attendance records
-  const fetchAttendanceRecords = async (page: number) => {
+  // Fetch services with attendance statistics
+  const fetchServicesWithStats = async (page: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/attendance?page=${page}&pageSize=50`);
+      const response = await fetch(`/api/attendance/services?page=${page}&pageSize=50`);
       if (response.ok) {
         const data = await response.json();
-        setAttendanceRecords(data.attendance || []);
+        setServicesWithStats(data.services || []);
         setPagination(
           data.pagination || {
             page: 1,
@@ -183,7 +228,7 @@ export default function AttendancePage() {
         );
       }
     } catch (error) {
-      console.error("Error fetching attendance records:", error);
+      console.error("Error fetching services with stats:", error);
     } finally {
       setLoading(false);
     }
@@ -192,14 +237,14 @@ export default function AttendancePage() {
   useEffect(() => {
     fetchMembers();
     fetchServices();
-    fetchAttendanceRecords(currentPage);
+    fetchServicesWithStats(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
-      fetchAttendanceRecords(newPage);
+      fetchServicesWithStats(newPage);
     }
   };
 
@@ -239,9 +284,8 @@ export default function AttendancePage() {
     });
   };
 
-  const handleCreateService = async () => {
-    if (!newServiceDate || !newServiceType) {
-      alert("Please select a date and service type");
+  const onCreateService = async (data: ServiceFormData) => {
+    if (!validateServiceForm(data)) {
       return;
     }
 
@@ -253,8 +297,8 @@ export default function AttendancePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          serviceDate: newServiceDate,
-          serviceType: newServiceType,
+          serviceDate: data.serviceDate,
+          serviceType: data.serviceType,
         }),
       });
 
@@ -267,9 +311,11 @@ export default function AttendancePage() {
       const result = await response.json();
       await fetchServices();
       setSelectedServiceId(result.service.id);
-      setShowNewServiceForm(false);
-      setNewServiceDate(new Date().toISOString().split("T")[0]);
-      setNewServiceType("divine_service");
+      setCreateServiceDialogOpen(false);
+      serviceForm.reset({
+        serviceDate: new Date().toISOString().split("T")[0],
+        serviceType: "divine_service",
+      });
     } catch (error) {
       console.error("Error creating service:", error);
       alert("Failed to create service");
@@ -286,11 +332,21 @@ export default function AttendancePage() {
 
     setSubmitting(true);
     try {
-      const records = Object.entries(formData).map(([memberId, data]) => ({
-        memberId,
-        attended: data.attended,
-        tookCommunion: data.tookCommunion,
-      }));
+      // Only include records for members who attended
+      const records = Object.entries(formData)
+        .filter(([, data]) => data.attended)
+        .map(([memberId, data]) => ({
+          memberId,
+          attended: data.attended,
+          tookCommunion: data.tookCommunion,
+        }));
+
+      // If no one attended, show a message
+      if (records.length === 0) {
+        alert("No members marked as attended. Please mark at least one member as attended.");
+        setSubmitting(false);
+        return;
+      }
 
       const response = await fetch("/api/attendance", {
         method: "POST",
@@ -325,8 +381,11 @@ export default function AttendancePage() {
       });
       setFormData(resetFormData);
 
-      // Refresh attendance records
-      await fetchAttendanceRecords(currentPage);
+      // Reset selected service to show "Create Service" button again
+      setSelectedServiceId("");
+
+      // Refresh services with stats
+      await fetchServicesWithStats(currentPage);
       
       alert(`Successfully saved ${result.success} attendance record(s)`);
     } catch (error) {
@@ -366,7 +425,7 @@ export default function AttendancePage() {
 
       setEditDialogOpen(false);
       setEditingRecord(null);
-      await fetchAttendanceRecords(currentPage);
+      await fetchServicesWithStats(currentPage);
     } catch (error) {
       console.error("Error updating attendance:", error);
       alert("Failed to update attendance");
@@ -409,143 +468,165 @@ export default function AttendancePage() {
           <CardTitle>Record Attendance</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="space-y-2 flex-1 min-w-[200px]">
-              <Label htmlFor="service-select">Service</Label>
-              <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
-                <SelectTrigger id="service-select">
-                  <SelectValue placeholder="Select a service" />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {formatDate(service.serviceDate)} - {formatServiceType(service.serviceType)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowNewServiceForm(!showNewServiceForm)}
+          {!selectedServiceId ? (
+            <Dialog
+              open={createServiceDialogOpen}
+              onOpenChange={(open) => {
+                setCreateServiceDialogOpen(open);
+                if (!open) {
+                  // Reset form when dialog closes
+                  serviceForm.reset({
+                    serviceDate: new Date().toISOString().split("T")[0],
+                    serviceType: "divine_service",
+                  });
+                }
+              }}
             >
-              <PlusIcon className="mr-2 h-4 w-4" />
-              {showNewServiceForm ? "Cancel" : "New Service"}
-            </Button>
-          </div>
+              <DialogTrigger asChild>
+                <Button className="cursor-pointer">
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  Create Service
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Service</DialogTitle>
+                  <DialogDescription>
+                    Enter the service details to create a new service record.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...serviceForm}>
+                  <form onSubmit={serviceForm.handleSubmit(onCreateService)} className="space-y-4">
+                    <FormField
+                      control={serviceForm.control}
+                      name="serviceDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Date *</FormLabel>
+                          <FormControl>
+                            <Input type="date" required {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={serviceForm.control}
+                      name="serviceType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Type *</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select service type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {SERVICE_TYPES.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCreateServiceDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={creatingService}>
+                        {creatingService ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          "Create Service"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <>
+              {selectedService && (
+                <div className="text-sm text-muted-foreground mb-4">
+                  Service: {formatDate(selectedService.serviceDate)} - {formatServiceType(selectedService.serviceType)}
+                </div>
+              )}
 
-          {showNewServiceForm && (
-            <div className="border rounded-md p-4 space-y-4 bg-muted/50">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-service-date">Service Date</Label>
-                  <Input
-                    id="new-service-date"
-                    type="date"
-                    value={newServiceDate}
-                    onChange={(e) => setNewServiceDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-service-type">Service Type</Label>
-                  <Select value={newServiceType} onValueChange={setNewServiceType}>
-                    <SelectTrigger id="new-service-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SERVICE_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="border rounded-md max-h-[600px] overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[300px]">Member Name</TableHead>
+                      <TableHead className="text-center">Attended</TableHead>
+                      <TableHead className="text-center">Took Communion</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {members.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          {loading ? "Loading members..." : "No active members found"}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      members.map((member) => (
+                        <TableRow key={member.id}>
+                          <TableCell className="font-medium">
+                            {member.firstName} {member.lastName}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={formData[member.id]?.attended || false}
+                              onCheckedChange={(checked) =>
+                                handleCheckboxChange(member.id, "attended", checked === true)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={formData[member.id]?.tookCommunion || false}
+                              onCheckedChange={(checked) =>
+                                handleCheckboxChange(member.id, "tookCommunion", checked === true)
+                              }
+                              disabled={!formData[member.id]?.attended}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
+
               <Button
-                onClick={handleCreateService}
-                disabled={creatingService}
+                onClick={handleSubmit}
+                disabled={submitting || members.length === 0 || !selectedServiceId}
                 className="w-full"
               >
-                {creatingService ? (
+                {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
+                    Saving...
                   </>
                 ) : (
-                  "Create Service"
+                  "Save Attendance"
                 )}
               </Button>
-            </div>
+            </>
           )}
-
-          {selectedService && (
-            <div className="text-sm text-muted-foreground">
-              Selected: {formatDate(selectedService.serviceDate)} - {formatServiceType(selectedService.serviceType)}
-            </div>
-          )}
-
-          <div className="border rounded-md max-h-[600px] overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[300px]">Member Name</TableHead>
-                  <TableHead className="text-center">Attended</TableHead>
-                  <TableHead className="text-center">Took Communion</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">
-                      {loading ? "Loading members..." : "No active members found"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  members.map((member) => (
-                    <TableRow key={member.id}>
-                      <TableCell className="font-medium">
-                        {member.firstName} {member.lastName}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={formData[member.id]?.attended || false}
-                          onCheckedChange={(checked) =>
-                            handleCheckboxChange(member.id, "attended", checked === true)
-                          }
-                        />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={formData[member.id]?.tookCommunion || false}
-                          onCheckedChange={(checked) =>
-                            handleCheckboxChange(member.id, "tookCommunion", checked === true)
-                          }
-                          disabled={!formData[member.id]?.attended}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || members.length === 0 || !selectedServiceId}
-            className="w-full"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Attendance"
-            )}
-          </Button>
         </CardContent>
       </Card>
 
@@ -560,7 +641,7 @@ export default function AttendancePage() {
               <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
               Loading attendance records...
             </div>
-          ) : attendanceRecords.length === 0 ? (
+          ) : servicesWithStats.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No attendance records found
             </div>
@@ -570,36 +651,47 @@ export default function AttendancePage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Member Name</TableHead>
+                      <TableHead>Service</TableHead>
                       <TableHead>Service Date</TableHead>
-                      <TableHead>Service Type</TableHead>
-                      <TableHead className="text-center">Attended</TableHead>
+                      <TableHead className="text-center">Members Attended</TableHead>
                       <TableHead className="text-center">Took Communion</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {attendanceRecords.map((record) => (
-                      <TableRow key={record.id}>
+                    {servicesWithStats.map((service) => (
+                      <TableRow key={service.serviceId}>
                         <TableCell className="font-medium">
-                          {record.member.firstName} {record.member.lastName}
+                          {formatServiceType(service.serviceType)}
                         </TableCell>
-                        <TableCell>{formatDate(record.service.serviceDate)}</TableCell>
-                        <TableCell>{formatServiceType(record.service.serviceType)}</TableCell>
+                        <TableCell>{formatDate(service.serviceDate)}</TableCell>
                         <TableCell className="text-center">
-                          {record.attended ? "Yes" : "No"}
+                          {service.attendeesCount}
                         </TableCell>
                         <TableCell className="text-center">
-                          {record.tookCommunion ? "Yes" : "No"}
+                          {service.communionCount}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(record)}
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                            >
+                              <Link href={`/attendance/service/${service.serviceId}?mode=view`}>
+                                <EyeIcon className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                            >
+                              <Link href={`/attendance/service/${service.serviceId}?mode=edit`}>
+                                <PencilIcon className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

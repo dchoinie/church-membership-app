@@ -110,11 +110,24 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.serviceId || !Array.isArray(body.records) || body.records.length === 0) {
+    if (!body.serviceId || !Array.isArray(body.records)) {
       return NextResponse.json(
         { error: "Service ID and records array are required" },
         { status: 400 },
       );
+    }
+
+    // Filter to only process records for members who attended
+    const attendedRecords = body.records.filter((record: any) => record.attended === true);
+
+    // If no attendees, return early
+    if (attendedRecords.length === 0) {
+      return NextResponse.json({
+        success: 0,
+        failed: 0,
+        errors: [],
+        message: "No attendance records to create (only members who attended are recorded)",
+      });
     }
 
     // Check if service exists
@@ -137,21 +150,31 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    // Process each record
-    for (let i = 0; i < body.records.length; i++) {
+    // Get all existing attendance records for this service to handle deletions
+    const existingRecords = await db
+      .select()
+      .from(attendance)
+      .where(eq(attendance.serviceId, body.serviceId));
+
+    const processedMemberIds = new Set<string>();
+
+    // Process each attended record
+    for (let i = 0; i < attendedRecords.length; i++) {
       try {
-        const record = body.records[i];
+        const record = attendedRecords[i];
+        processedMemberIds.add(record.memberId);
 
         // Validate required fields
-        if (!record.memberId || typeof record.attended !== "boolean" || typeof record.tookCommunion !== "boolean") {
+        if (!record.memberId || typeof record.tookCommunion !== "boolean") {
           results.failed++;
           results.errors.push(
-            `Row ${i + 1}: Missing required fields (memberId, attended, tookCommunion)`,
+            `Row ${i + 1}: Missing required fields (memberId, tookCommunion)`,
           );
           continue;
         }
 
-        // Validate: Cannot take communion without attending
+        // Since we're only processing attended records, attended is always true
+        // Validate: Cannot take communion without attending (shouldn't happen, but safety check)
         if (record.tookCommunion && !record.attended) {
           results.failed++;
           results.errors.push(
@@ -188,24 +211,24 @@ export async function POST(request: Request) {
           .limit(1);
 
         if (existingAttendance) {
-          // Update existing record
+          // Update existing record (attended is always true at this point)
           await db
             .update(attendance)
             .set({
-              attended: record.attended,
+              attended: true,
               tookCommunion: record.tookCommunion,
               updatedAt: new Date(),
             })
             .where(eq(attendance.id, existingAttendance.id));
           results.success++;
         } else {
-          // Insert new record
+          // Insert new record (only for members who attended)
           await db
             .insert(attendance)
             .values({
               memberId: record.memberId,
               serviceId: body.serviceId,
-              attended: record.attended,
+              attended: true,
               tookCommunion: record.tookCommunion,
             });
           results.success++;
@@ -215,6 +238,21 @@ export async function POST(request: Request) {
         results.errors.push(
           `Row ${i + 1}: ${error instanceof Error ? error.message : "Unknown error"}`,
         );
+      }
+    }
+
+    // Delete attendance records for members who were previously marked as attended
+    // but are no longer in the attended list (if updating existing attendance)
+    const recordsToDelete = existingRecords.filter(
+      (existing) => !processedMemberIds.has(existing.memberId),
+    );
+
+    for (const recordToDelete of recordsToDelete) {
+      try {
+        await db.delete(attendance).where(eq(attendance.id, recordToDelete.id));
+      } catch (error) {
+        console.error("Error deleting attendance record:", error);
+        // Don't fail the whole request if deletion fails
       }
     }
 

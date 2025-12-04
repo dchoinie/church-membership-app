@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get all active members with their household and demographic info
+    // Get all members with their household and demographic info
     const allMembers = await db
       .select({
         id: members.id,
@@ -25,10 +25,10 @@ export async function GET() {
         dateOfBirth: members.dateOfBirth,
         householdId: members.householdId,
         householdType: household.type,
+        participation: members.participation,
       })
       .from(members)
-      .leftJoin(household, eq(members.householdId, household.id))
-      .where(eq(members.participation, "active"));
+      .leftJoin(household, eq(members.householdId, household.id));
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
@@ -71,6 +71,14 @@ export async function GET() {
       couple: 0,
       other: 0,
       unknown: 0,
+    };
+
+    const memberStatusBreakdown: Record<string, number> = {
+      active: 0,
+      visitor: 0,
+      inactive: 0,
+      transferred: 0,
+      deceased: 0,
     };
 
     allMembers.forEach((member) => {
@@ -149,6 +157,14 @@ export async function GET() {
       } else {
         householdTypeBreakdown.unknown++;
       }
+
+      // Member status breakdown
+      if (member.participation) {
+        const status = member.participation.toLowerCase();
+        if (status in memberStatusBreakdown) {
+          memberStatusBreakdown[status]++;
+        }
+      }
     });
 
     // Format data for charts
@@ -172,10 +188,18 @@ export async function GET() {
         value: count,
       }));
 
+    const memberStatusData = Object.entries(memberStatusBreakdown)
+      .filter(([, count]) => count > 0)
+      .map(([status, count]) => ({
+        name: status.charAt(0).toUpperCase() + status.slice(1),
+        value: count,
+      }));
+
     return NextResponse.json({
       gender: genderData,
       ageGroups: ageData,
       householdTypes: householdTypeData,
+      memberStatus: memberStatusData,
       totalMembers: allMembers.length,
     });
   } catch (error) {
