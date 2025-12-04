@@ -9,6 +9,7 @@ import {
   integer,
   boolean,
   numeric,
+  unique,
 } from "drizzle-orm/pg-core";
 
 export const householdTypeEnum = pgEnum("household_type_enum", [
@@ -38,6 +39,13 @@ export const receivedByEnum = pgEnum("received_by_enum", [
   "transfer",
   "profession",
   "other",
+]);
+
+export const serviceTypeEnum = pgEnum("service_type_enum", [
+  "divine_service",
+  "midweek_lent",
+  "midweek_advent",
+  "festival",
 ]);
 
 export const invitations = pgTable("invitations", {
@@ -160,5 +168,48 @@ export const giving = pgTable(
   (table) => [
     index("giving_member_id_idx").on(table.memberId),
     index("giving_date_given_idx").on(table.dateGiven),
+  ],
+);
+
+export const services = pgTable(
+  "services",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    serviceDate: date("service_date").notNull(),
+    serviceType: serviceTypeEnum("service_type").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("services_service_date_idx").on(table.serviceDate),
+    unique("services_date_type_unique").on(table.serviceDate, table.serviceType),
+  ],
+);
+
+export const attendance = pgTable(
+  "attendance",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    memberId: uuid("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    attended: boolean("attended").default(false).notNull(),
+    tookCommunion: boolean("took_communion").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("attendance_member_id_idx").on(table.memberId),
+    index("attendance_service_id_idx").on(table.serviceId),
+    unique("attendance_member_service_unique").on(table.memberId, table.serviceId),
   ],
 );

@@ -1,0 +1,166 @@
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { eq, and, gte, lte } from "drizzle-orm";
+
+import { auth } from "@/lib/auth";
+import { db } from "@/db";
+import { attendance, services, members } from "@/db/schema";
+
+export async function GET(request: Request) {
+  try {
+    // Check authentication
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const currentYear = new Date().getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+    const yearEnd = `${currentYear}-12-31`;
+
+    // Get all services for the current year
+    const allServices = await db
+      .select()
+      .from(services)
+      .where(
+        and(
+          gte(services.serviceDate, yearStart),
+          lte(services.serviceDate, yearEnd),
+        ),
+      )
+      .orderBy(services.serviceDate);
+
+    // Get all attendance records with member and service info for current year
+    const allAttendance = await db
+      .select({
+        attendanceId: attendance.id,
+        serviceId: attendance.serviceId,
+        memberId: attendance.memberId,
+        attended: attendance.attended,
+        tookCommunion: attendance.tookCommunion,
+        serviceDate: services.serviceDate,
+        serviceType: services.serviceType,
+        memberSex: members.sex,
+        memberDateOfBirth: members.dateOfBirth,
+      })
+      .from(attendance)
+      .innerJoin(services, eq(attendance.serviceId, services.id))
+      .innerJoin(members, eq(attendance.memberId, members.id))
+      .where(
+        and(
+          gte(services.serviceDate, yearStart),
+          lte(services.serviceDate, yearEnd),
+        ),
+      );
+
+    // Calculate overall attendance per service
+    const attendancePerService = allServices.map((service) => {
+      const serviceAttendance = allAttendance.filter((a) => a.serviceId === service.id);
+      const totalAttended = serviceAttendance.filter((a) => a.attended).length;
+      const totalCommunion = serviceAttendance.filter((a) => a.tookCommunion).length;
+
+      // Calculate male vs female percentages
+      const attendedRecords = serviceAttendance.filter((a) => a.attended);
+      const maleCount = attendedRecords.filter((a) => a.memberSex === "male").length;
+      const femaleCount = attendedRecords.filter((a) => a.memberSex === "female").length;
+      const totalWithGender = maleCount + femaleCount;
+      const malePercent = totalWithGender > 0 ? (maleCount / totalWithGender) * 100 : 0;
+      const femalePercent = totalWithGender > 0 ? (femaleCount / totalWithGender) * 100 : 0;
+
+      // Calculate children count (under 18 at time of service)
+      const serviceDateObj = new Date(service.serviceDate);
+      const childrenCount = attendedRecords.filter((a) => {
+        if (!a.memberDateOfBirth) return false;
+        const birthDate = new Date(a.memberDateOfBirth);
+        const ageAtService = serviceDateObj.getFullYear() - birthDate.getFullYear();
+        const monthDiff = serviceDateObj.getMonth() - birthDate.getMonth();
+        const dayDiff = serviceDateObj.getDate() - birthDate.getDate();
+        const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? ageAtService - 1 : ageAtService;
+        return actualAge < 18;
+      }).length;
+
+      return {
+        serviceId: service.id,
+        serviceDate: service.serviceDate,
+        serviceType: service.serviceType,
+        totalAttendance: totalAttended,
+        totalCommunion,
+        maleCount,
+        femaleCount,
+        malePercent: Math.round(malePercent * 100) / 100,
+        femalePercent: Math.round(femalePercent * 100) / 100,
+        childrenCount,
+      };
+    });
+
+    // Calculate attendance comparison: Divine Service vs others
+    const divineServiceAttendance = attendancePerService
+      .filter((s) => s.serviceType === "divine_service")
+      .reduce((sum, s) => sum + s.totalAttendance, 0);
+
+    const otherServiceAttendance = attendancePerService
+      .filter((s) => s.serviceType !== "divine_service")
+      .reduce((sum, s) => sum + s.totalAttendance, 0);
+
+    const divineServiceCount = attendancePerService.filter((s) => s.serviceType === "divine_service").length;
+    const otherServiceCount = attendancePerService.filter((s) => s.serviceType !== "divine_service").length;
+
+    // Calculate monthly attendance trend for current year (average per service)
+    const monthlyTrend: { month: string; attendance: number; communion: number; serviceCount: number }[] = [];
+    for (let month = 0; month < 12; month++) {
+      const monthStart = new Date(currentYear, month, 1);
+      const monthEnd = new Date(currentYear, month + 1, 0);
+      const monthStartStr = monthStart.toISOString().split("T")[0];
+      const monthEndStr = monthEnd.toISOString().split("T")[0];
+
+      const monthServices = allServices.filter(
+        (s) => s.serviceDate >= monthStartStr && s.serviceDate <= monthEndStr,
+      );
+      const monthServiceIds = monthServices.map((s) => s.id);
+      const monthAttendance = allAttendance.filter((a) => monthServiceIds.includes(a.serviceId));
+
+      const monthAttended = monthAttendance.filter((a) => a.attended).length;
+      const monthCommunion = monthAttendance.filter((a) => a.tookCommunion).length;
+      const serviceCount = monthServices.length;
+
+      // Calculate average attendance per service
+      const avgAttendance = serviceCount > 0 ? Math.round((monthAttended / serviceCount) * 100) / 100 : 0;
+      const avgCommunion = serviceCount > 0 ? Math.round((monthCommunion / serviceCount) * 100) / 100 : 0;
+
+      monthlyTrend.push({
+        month: monthStart.toLocaleString("default", { month: "long" }),
+        attendance: avgAttendance,
+        communion: avgCommunion,
+        serviceCount,
+      });
+    }
+
+    return NextResponse.json({
+      attendancePerService,
+      divineServiceComparison: {
+        divineService: {
+          totalAttendance: divineServiceAttendance,
+          serviceCount: divineServiceCount,
+          averageAttendance: divineServiceCount > 0 ? Math.round((divineServiceAttendance / divineServiceCount) * 100) / 100 : 0,
+        },
+        otherServices: {
+          totalAttendance: otherServiceAttendance,
+          serviceCount: otherServiceCount,
+          averageAttendance: otherServiceCount > 0 ? Math.round((otherServiceAttendance / otherServiceCount) * 100) / 100 : 0,
+        },
+      },
+      monthlyTrend,
+      year: currentYear,
+    });
+  } catch (error) {
+    console.error("Error generating attendance analytics:", error);
+    return NextResponse.json(
+      { error: "Failed to generate attendance analytics" },
+      { status: 500 },
+    );
+  }
+}
+

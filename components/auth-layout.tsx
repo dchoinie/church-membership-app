@@ -3,6 +3,7 @@
 import { useEffect, useState, startTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { Settings } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
 
@@ -10,6 +11,8 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Member Directory", href: "/membership" },
   { label: "Giving", href: "/giving" },
+  { label: "Attendance", href: "/attendance" },
+  { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
 ];
 
@@ -89,20 +92,23 @@ export default function AuthLayout({
                 </Link>
               );
             })}
-            <div className="mt-auto border-t border-sidebar-border pt-4">
-              <div className="px-3 pb-4">
-                <UserMenu />
-              </div>
+            <div className="mt-auto">
               <Link
                 href="/manage-admin-access"
-                className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
                   pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
                     ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
                     : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 }`}
               >
+                <Settings className="size-4" />
                 Manage Admin Access
               </Link>
+              <div className="border-t border-sidebar-border pt-4">
+                <div className="px-3">
+                  <UserMenu />
+                </div>
+              </div>
             </div>
           </nav>
         </aside>
