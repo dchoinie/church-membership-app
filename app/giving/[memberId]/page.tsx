@@ -47,7 +47,12 @@ interface Member {
 interface GivingRecord {
   id: string;
   memberId: string;
-  amount: string;
+  currentAmount: string | null;
+  missionAmount: string | null;
+  memorialsAmount: string | null;
+  debtAmount: string | null;
+  schoolAmount: string | null;
+  miscellaneousAmount: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;
@@ -60,7 +65,12 @@ interface GivingRecord {
 }
 
 interface GivingFormData {
-  amount: string;
+  currentAmount: string;
+  missionAmount: string;
+  memorialsAmount: string;
+  debtAmount: string;
+  schoolAmount: string;
+  miscellaneousAmount: string;
   dateGiven: string;
   notes: string;
 }
@@ -82,7 +92,12 @@ export default function MemberGivingPage({
 
   const editForm = useForm<GivingFormData>({
     defaultValues: {
-      amount: "",
+      currentAmount: "",
+      missionAmount: "",
+      memorialsAmount: "",
+      debtAmount: "",
+      schoolAmount: "",
+      miscellaneousAmount: "",
       dateGiven: "",
       notes: "",
     },
@@ -90,7 +105,12 @@ export default function MemberGivingPage({
 
   const addForm = useForm<GivingFormData>({
     defaultValues: {
-      amount: "",
+      currentAmount: "",
+      missionAmount: "",
+      memorialsAmount: "",
+      debtAmount: "",
+      schoolAmount: "",
+      miscellaneousAmount: "",
       dateGiven: new Date().toISOString().split("T")[0],
       notes: "",
     },
@@ -138,7 +158,12 @@ export default function MemberGivingPage({
   const handleEdit = (record: GivingRecord) => {
     setEditingRecord(record);
     editForm.reset({
-      amount: record.amount,
+      currentAmount: record.currentAmount || "",
+      missionAmount: record.missionAmount || "",
+      memorialsAmount: record.memorialsAmount || "",
+      debtAmount: record.debtAmount || "",
+      schoolAmount: record.schoolAmount || "",
+      miscellaneousAmount: record.miscellaneousAmount || "",
       dateGiven: record.dateGiven,
       notes: record.notes || "",
     });
@@ -148,6 +173,19 @@ export default function MemberGivingPage({
   const handleEditSubmit = async (data: GivingFormData) => {
     if (!editingRecord) return;
 
+    // Validate at least one amount is provided
+    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
+    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
+    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
+    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
+    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
+    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
+
+    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+      alert("At least one amount is required");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch(`/api/giving/${editingRecord.id}`, {
@@ -156,7 +194,12 @@ export default function MemberGivingPage({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          amount: parseFloat(data.amount),
+          currentAmount: current,
+          missionAmount: mission,
+          memorialsAmount: memorials,
+          debtAmount: debt,
+          schoolAmount: school,
+          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
         }),
@@ -181,6 +224,16 @@ export default function MemberGivingPage({
   const handleAddSubmit = async (data: GivingFormData) => {
     if (!memberId) return;
 
+    // Validate at least one amount is provided
+    const generalFund = data.generalFundAmount ? parseFloat(data.generalFundAmount) : null;
+    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
+    const districtSynod = data.districtSynodAmount ? parseFloat(data.districtSynodAmount) : null;
+
+    if (!generalFund && !memorials && !districtSynod) {
+      alert("At least one amount (general fund, memorials, or district synod) is required");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch("/api/giving", {
@@ -190,7 +243,12 @@ export default function MemberGivingPage({
         },
         body: JSON.stringify({
           memberId: memberId,
-          amount: parseFloat(data.amount),
+          currentAmount: current,
+          missionAmount: mission,
+          memorialsAmount: memorials,
+          debtAmount: debt,
+          schoolAmount: school,
+          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
         }),
@@ -199,7 +257,12 @@ export default function MemberGivingPage({
       if (response.ok) {
         setAddDialogOpen(false);
         addForm.reset({
-          amount: "",
+          currentAmount: "",
+          missionAmount: "",
+          memorialsAmount: "",
+          debtAmount: "",
+          schoolAmount: "",
+          miscellaneousAmount: "",
           dateGiven: new Date().toISOString().split("T")[0],
           notes: "",
         });
@@ -233,16 +296,40 @@ export default function MemberGivingPage({
     }
   };
 
-  const formatCurrency = (amount: string) => {
-    const num = parseFloat(amount);
+  const formatCurrency = (amount: string | null | undefined) => {
+    const num = parseFloat(amount || "0");
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(num);
   };
 
+  const calculateTotal = (
+    current: string | null,
+    mission: string | null,
+    memorials: string | null,
+    debt: string | null,
+    school: string | null,
+    miscellaneous: string | null
+  ): number => {
+    const curr = parseFloat(current || "0") || 0;
+    const miss = parseFloat(mission || "0") || 0;
+    const mem = parseFloat(memorials || "0") || 0;
+    const deb = parseFloat(debt || "0") || 0;
+    const sch = parseFloat(school || "0") || 0;
+    const misc = parseFloat(miscellaneous || "0") || 0;
+    return curr + miss + mem + deb + sch + misc;
+  };
+
   const totalAmount = givingRecords.reduce((sum, record) => {
-    return sum + parseFloat(record.amount);
+    return sum + calculateTotal(
+      record.currentAmount,
+      record.missionAmount,
+      record.memorialsAmount,
+      record.debtAmount,
+      record.schoolAmount,
+      record.miscellaneousAmount
+    );
   }, 0);
 
   return (
@@ -323,33 +410,55 @@ export default function MemberGivingPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead>Amount</TableHead>
+                  <TableHead>Current</TableHead>
+                  <TableHead>Mission</TableHead>
+                  <TableHead>Memorials</TableHead>
+                  <TableHead>Debt</TableHead>
+                  <TableHead>School</TableHead>
+                  <TableHead>Miscellaneous</TableHead>
+                  <TableHead>Total</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {givingRecords.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>{formatDate(record.dateGiven)}</TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(record.amount)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {record.notes || "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(record)}
-                        className="cursor-pointer"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {givingRecords.map((record) => {
+                  const total = calculateTotal(
+                    record.currentAmount,
+                    record.missionAmount,
+                    record.memorialsAmount,
+                    record.debtAmount,
+                    record.schoolAmount,
+                    record.miscellaneousAmount
+                  );
+                  return (
+                    <TableRow key={record.id}>
+                      <TableCell>{formatDate(record.dateGiven)}</TableCell>
+                      <TableCell>{formatCurrency(record.currentAmount)}</TableCell>
+                      <TableCell>{formatCurrency(record.missionAmount)}</TableCell>
+                      <TableCell>{formatCurrency(record.memorialsAmount)}</TableCell>
+                      <TableCell>{formatCurrency(record.debtAmount)}</TableCell>
+                      <TableCell>{formatCurrency(record.schoolAmount)}</TableCell>
+                      <TableCell>{formatCurrency(record.miscellaneousAmount)}</TableCell>
+                      <TableCell className="font-medium">
+                        {formatCurrency(total.toString())}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {record.notes || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(record)}
+                          className="cursor-pointer"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -372,15 +481,15 @@ export default function MemberGivingPage({
             >
               <FormField
                 control={editForm.control}
-                name="amount"
+                name="currentAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount *</FormLabel>
+                    <FormLabel>Current Amount</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.01"
-                        min="0.01"
+                        min="0"
                         placeholder="0.00"
                         {...field}
                       />
@@ -389,6 +498,104 @@ export default function MemberGivingPage({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={editForm.control}
+                name="missionAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mission Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="memorialsAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Memorials Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="debtAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Debt Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="schoolAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>School Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="miscellaneousAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Miscellaneous Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                * At least one amount is required
+              </p>
               <FormField
                 control={editForm.control}
                 name="dateGiven"
@@ -452,15 +659,15 @@ export default function MemberGivingPage({
             >
               <FormField
                 control={addForm.control}
-                name="amount"
+                name="currentAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount *</FormLabel>
+                    <FormLabel>Current Amount</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         step="0.01"
-                        min="0.01"
+                        min="0"
                         placeholder="0.00"
                         {...field}
                       />
@@ -469,6 +676,104 @@ export default function MemberGivingPage({
                   </FormItem>
                 )}
               />
+              <FormField
+                control={addForm.control}
+                name="missionAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mission Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="memorialsAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Memorials Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="debtAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Debt Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="schoolAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>School Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={addForm.control}
+                name="miscellaneousAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Miscellaneous Amount</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                * At least one amount is required
+              </p>
               <FormField
                 control={addForm.control}
                 name="dateGiven"

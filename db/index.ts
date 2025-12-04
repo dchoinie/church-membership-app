@@ -4,7 +4,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 import * as authSchema from "../auth-schema";
 
-const connectionString = process.env.POSTGRES_URL;
+const connectionString = process.env.POSTGRES_URL_NON_POOLING;
 
 if (!connectionString) {
   throw new Error(

@@ -89,7 +89,7 @@ export async function GET(request: Request) {
       if (memberIds.length === 0) {
         // No members in household, return empty result
         if (format === "csv") {
-          const csvHeaders = ["Household Name", "Envelope Number", "Member Name", "Date Given", "Amount", "Notes"];
+          const csvHeaders = ["Household Name", "Envelope Number", "Member Name", "Date Given", "Current", "Mission", "Memorials", "Debt", "School", "Miscellaneous", "Total", "Notes"];
           const csvContent = generateCsv([], csvHeaders);
           const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
           return new NextResponse(csvContent, {
@@ -110,7 +110,12 @@ export async function GET(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         member: {
@@ -267,16 +272,46 @@ export async function GET(request: Request) {
       };
     });
 
-    // Calculate total amount
-    const totalAmount = recordsWithHouseholdNames.reduce((sum, record) => {
-      const amount = parseFloat(record.amount || "0");
-      return sum + (isNaN(amount) ? 0 : amount);
-    }, 0);
+    // Calculate totals for each type and overall
+    const totals = recordsWithHouseholdNames.reduce(
+      (acc, record) => {
+        const current = parseFloat(record.currentAmount || "0");
+        const mission = parseFloat(record.missionAmount || "0");
+        const memorials = parseFloat(record.memorialsAmount || "0");
+        const debt = parseFloat(record.debtAmount || "0");
+        const school = parseFloat(record.schoolAmount || "0");
+        const miscellaneous = parseFloat(record.miscellaneousAmount || "0");
+        const currentVal = isNaN(current) ? 0 : current;
+        const missionVal = isNaN(mission) ? 0 : mission;
+        const memorialsVal = isNaN(memorials) ? 0 : memorials;
+        const debtVal = isNaN(debt) ? 0 : debt;
+        const schoolVal = isNaN(school) ? 0 : school;
+        const miscellaneousVal = isNaN(miscellaneous) ? 0 : miscellaneous;
+        return {
+          current: acc.current + currentVal,
+          mission: acc.mission + missionVal,
+          memorials: acc.memorials + memorialsVal,
+          debt: acc.debt + debtVal,
+          school: acc.school + schoolVal,
+          miscellaneous: acc.miscellaneous + miscellaneousVal,
+          total: acc.total + currentVal + missionVal + memorialsVal + debtVal + schoolVal + miscellaneousVal,
+        };
+      },
+      { current: 0, mission: 0, memorials: 0, debt: 0, school: 0, miscellaneous: 0, total: 0 }
+    );
 
     if (format === "json") {
       return NextResponse.json({ 
         giving: recordsWithHouseholdNames,
-        totalAmount: totalAmount.toFixed(2),
+        totals: {
+          current: totals.current.toFixed(2),
+          mission: totals.mission.toFixed(2),
+          memorials: totals.memorials.toFixed(2),
+          debt: totals.debt.toFixed(2),
+          school: totals.school.toFixed(2),
+          miscellaneous: totals.miscellaneous.toFixed(2),
+          total: totals.total.toFixed(2),
+        },
       });
     }
 
@@ -286,7 +321,20 @@ export async function GET(request: Request) {
       "Envelope Number": record.member.envelopeNumber?.toString() || "N/A",
       "Member Name": `${record.member.firstName} ${record.member.lastName}`,
       "Date Given": record.dateGiven || "",
-      "Amount": record.amount || "0.00",
+      "Current": record.currentAmount || "0.00",
+      "Mission": record.missionAmount || "0.00",
+      "Memorials": record.memorialsAmount || "0.00",
+      "Debt": record.debtAmount || "0.00",
+      "School": record.schoolAmount || "0.00",
+      "Miscellaneous": record.miscellaneousAmount || "0.00",
+      "Total": (
+        (parseFloat(record.currentAmount || "0") || 0) +
+        (parseFloat(record.missionAmount || "0") || 0) +
+        (parseFloat(record.memorialsAmount || "0") || 0) +
+        (parseFloat(record.debtAmount || "0") || 0) +
+        (parseFloat(record.schoolAmount || "0") || 0) +
+        (parseFloat(record.miscellaneousAmount || "0") || 0)
+      ).toFixed(2),
       "Notes": record.notes || "",
     }));
 
@@ -296,7 +344,13 @@ export async function GET(request: Request) {
       "Envelope Number": "",
       "Member Name": "",
       "Date Given": "",
-      "Amount": totalAmount.toFixed(2),
+      "Current": totals.current.toFixed(2),
+      "Mission": totals.mission.toFixed(2),
+      "Memorials": totals.memorials.toFixed(2),
+      "Debt": totals.debt.toFixed(2),
+      "School": totals.school.toFixed(2),
+      "Miscellaneous": totals.miscellaneous.toFixed(2),
+      "Total": totals.total.toFixed(2),
       "Notes": "TOTAL",
     });
 

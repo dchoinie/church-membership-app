@@ -46,7 +46,12 @@ export async function GET(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -183,18 +188,62 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validate required fields
-    if ((!body.memberId && !body.envelopeNumber) || !body.amount || !body.dateGiven) {
+    if ((!body.memberId && !body.envelopeNumber) || !body.dateGiven) {
       return NextResponse.json(
-        { error: "Member ID (or envelope number), amount, and date given are required" },
+        { error: "Member ID (or envelope number) and date given are required" },
         { status: 400 },
       );
     }
 
-    // Validate amount is a positive number
-    const amount = parseFloat(body.amount);
-    if (isNaN(amount) || amount <= 0) {
+    // Validate at least one amount is provided
+    const currentAmount = body.currentAmount ? parseFloat(body.currentAmount) : null;
+    const missionAmount = body.missionAmount ? parseFloat(body.missionAmount) : null;
+    const memorialsAmount = body.memorialsAmount ? parseFloat(body.memorialsAmount) : null;
+    const debtAmount = body.debtAmount ? parseFloat(body.debtAmount) : null;
+    const schoolAmount = body.schoolAmount ? parseFloat(body.schoolAmount) : null;
+    const miscellaneousAmount = body.miscellaneousAmount ? parseFloat(body.miscellaneousAmount) : null;
+
+    if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
       return NextResponse.json(
-        { error: "Amount must be a positive number" },
+        { error: "At least one amount is required" },
+        { status: 400 },
+      );
+    }
+
+    // Validate amounts are non-negative numbers
+    if (currentAmount !== null && (isNaN(currentAmount) || currentAmount < 0)) {
+      return NextResponse.json(
+        { error: "Current amount must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+    if (missionAmount !== null && (isNaN(missionAmount) || missionAmount < 0)) {
+      return NextResponse.json(
+        { error: "Mission amount must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+    if (memorialsAmount !== null && (isNaN(memorialsAmount) || memorialsAmount < 0)) {
+      return NextResponse.json(
+        { error: "Memorials amount must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+    if (debtAmount !== null && (isNaN(debtAmount) || debtAmount < 0)) {
+      return NextResponse.json(
+        { error: "Debt amount must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+    if (schoolAmount !== null && (isNaN(schoolAmount) || schoolAmount < 0)) {
+      return NextResponse.json(
+        { error: "School amount must be a non-negative number" },
+        { status: 400 },
+      );
+    }
+    if (miscellaneousAmount !== null && (isNaN(miscellaneousAmount) || miscellaneousAmount < 0)) {
+      return NextResponse.json(
+        { error: "Miscellaneous amount must be a non-negative number" },
         { status: 400 },
       );
     }
@@ -284,7 +333,12 @@ export async function POST(request: Request) {
       .insert(giving)
       .values({
         memberId: targetMemberId,
-        amount: amount.toString(),
+        currentAmount: currentAmount !== null ? currentAmount.toString() : null,
+        missionAmount: missionAmount !== null ? missionAmount.toString() : null,
+        memorialsAmount: memorialsAmount !== null ? memorialsAmount.toString() : null,
+        debtAmount: debtAmount !== null ? debtAmount.toString() : null,
+        schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
+        miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
         dateGiven: body.dateGiven,
         notes: body.notes || null,
       })
@@ -295,7 +349,12 @@ export async function POST(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,

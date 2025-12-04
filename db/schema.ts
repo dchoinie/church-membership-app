@@ -143,7 +143,12 @@ export const giving = pgTable(
     memberId: uuid("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
-    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currentAmount: numeric("current_amount", { precision: 10, scale: 2 }),
+    missionAmount: numeric("mission_amount", { precision: 10, scale: 2 }),
+    memorialsAmount: numeric("memorials_amount", { precision: 10, scale: 2 }),
+    debtAmount: numeric("debt_amount", { precision: 10, scale: 2 }),
+    schoolAmount: numeric("school_amount", { precision: 10, scale: 2 }),
+    miscellaneousAmount: numeric("miscellaneous_amount", { precision: 10, scale: 2 }),
     dateGiven: date("date_given").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

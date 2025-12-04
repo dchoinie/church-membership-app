@@ -27,7 +27,12 @@ export async function GET(
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -91,24 +96,98 @@ export async function PUT(
       );
     }
 
-    // Validate amount if provided
-    let amount = existingGiving.amount;
-    if (body.amount !== undefined) {
-      const parsedAmount = parseFloat(body.amount);
-      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    // Validate amounts if provided
+    let currentAmount = existingGiving.currentAmount;
+    let missionAmount = existingGiving.missionAmount;
+    let memorialsAmount = existingGiving.memorialsAmount;
+    let debtAmount = existingGiving.debtAmount;
+    let schoolAmount = existingGiving.schoolAmount;
+    let miscellaneousAmount = existingGiving.miscellaneousAmount;
+
+    if (body.currentAmount !== undefined) {
+      const parsedAmount = body.currentAmount ? parseFloat(body.currentAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
         return NextResponse.json(
-          { error: "Amount must be a positive number" },
+          { error: "Current amount must be a non-negative number" },
           { status: 400 },
         );
       }
-      amount = parsedAmount.toString();
+      currentAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    if (body.missionAmount !== undefined) {
+      const parsedAmount = body.missionAmount ? parseFloat(body.missionAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+        return NextResponse.json(
+          { error: "Mission amount must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      missionAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    if (body.memorialsAmount !== undefined) {
+      const parsedAmount = body.memorialsAmount ? parseFloat(body.memorialsAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+        return NextResponse.json(
+          { error: "Memorials amount must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      memorialsAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    if (body.debtAmount !== undefined) {
+      const parsedAmount = body.debtAmount ? parseFloat(body.debtAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+        return NextResponse.json(
+          { error: "Debt amount must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      debtAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    if (body.schoolAmount !== undefined) {
+      const parsedAmount = body.schoolAmount ? parseFloat(body.schoolAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+        return NextResponse.json(
+          { error: "School amount must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      schoolAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    if (body.miscellaneousAmount !== undefined) {
+      const parsedAmount = body.miscellaneousAmount ? parseFloat(body.miscellaneousAmount) : null;
+      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+        return NextResponse.json(
+          { error: "Miscellaneous amount must be a non-negative number" },
+          { status: 400 },
+        );
+      }
+      miscellaneousAmount = parsedAmount !== null ? parsedAmount.toString() : null;
+    }
+
+    // Validate at least one amount is provided
+    if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
+      return NextResponse.json(
+        { error: "At least one amount is required" },
+        { status: 400 },
+      );
     }
 
     // Update giving record
     const [updatedGiving] = await db
       .update(giving)
       .set({
-        amount: amount,
+        currentAmount,
+        missionAmount,
+        memorialsAmount,
+        debtAmount,
+        schoolAmount,
+        miscellaneousAmount,
         dateGiven: body.dateGiven !== undefined ? body.dateGiven : existingGiving.dateGiven,
         notes: body.notes !== undefined ? body.notes : existingGiving.notes,
       })
@@ -120,7 +199,12 @@ export async function PUT(
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,

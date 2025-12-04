@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon } from "lucide-react";
+import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,12 @@ interface Member {
 interface GivingRecord {
   id: string;
   memberId: string;
-  amount: string;
+  currentAmount: string | null;
+  missionAmount: string | null;
+  memorialsAmount: string | null;
+  debtAmount: string | null;
+  schoolAmount: string | null;
+  miscellaneousAmount: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;
@@ -75,7 +80,12 @@ interface GivingRecord {
 
 interface GivingFormData {
   envelopeNumber: string;
-  amount: string;
+  currentAmount: string;
+  missionAmount: string;
+  memorialsAmount: string;
+  debtAmount: string;
+  schoolAmount: string;
+  miscellaneousAmount: string;
   dateGiven: string;
   notes: string;
 }
@@ -108,6 +118,32 @@ export default function GivingPage() {
     errors: string[];
   } | null>(null);
   const [csvPreview, setCsvPreview] = useState<Array<Record<string, string>> | null>(null);
+  const [bulkInputDialogOpen, setBulkInputDialogOpen] = useState(false);
+  const [bulkInputRows, setBulkInputRows] = useState<Array<{
+    envelopeNumber: string;
+    dateGiven: string;
+    currentAmount: string;
+    missionAmount: string;
+    memorialsAmount: string;
+    debtAmount: string;
+    schoolAmount: string;
+    miscellaneousAmount: string;
+  }>>(Array.from({ length: 3 }, () => ({
+    envelopeNumber: "",
+    dateGiven: new Date().toISOString().split("T")[0],
+    currentAmount: "",
+    missionAmount: "",
+    memorialsAmount: "",
+    debtAmount: "",
+    schoolAmount: "",
+    miscellaneousAmount: "",
+  })));
+  const [bulkInputSubmitting, setBulkInputSubmitting] = useState(false);
+  const [bulkInputResults, setBulkInputResults] = useState<{
+    success: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -119,7 +155,12 @@ export default function GivingPage() {
   const form = useForm<GivingFormData>({
     defaultValues: {
       envelopeNumber: "",
-      amount: "",
+      currentAmount: "",
+      missionAmount: "",
+      memorialsAmount: "",
+      debtAmount: "",
+      schoolAmount: "",
+      miscellaneousAmount: "",
       dateGiven: new Date().toISOString().split("T")[0],
       notes: "",
     },
@@ -206,8 +247,21 @@ export default function GivingPage() {
   };
 
   const onSubmit = async (data: GivingFormData) => {
-    if (!data.envelopeNumber || !data.amount || !data.dateGiven) {
-      alert("Envelope number, amount, and date are required");
+    if (!data.envelopeNumber || !data.dateGiven) {
+      alert("Envelope number and date are required");
+      return;
+    }
+
+    // Validate at least one amount is provided
+    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
+    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
+    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
+    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
+    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
+    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
+
+    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+      alert("At least one amount is required");
       return;
     }
 
@@ -230,7 +284,12 @@ export default function GivingPage() {
         },
         body: JSON.stringify({
           envelopeNumber: envelopeNum,
-          amount: parseFloat(data.amount),
+          currentAmount: current,
+          missionAmount: mission,
+          memorialsAmount: memorials,
+          debtAmount: debt,
+          schoolAmount: school,
+          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
         }),
@@ -245,7 +304,12 @@ export default function GivingPage() {
       setDialogOpen(false);
       form.reset({
         envelopeNumber: "",
-        amount: "",
+        currentAmount: "",
+        missionAmount: "",
+        memorialsAmount: "",
+        debtAmount: "",
+        schoolAmount: "",
+        miscellaneousAmount: "",
         dateGiven: new Date().toISOString().split("T")[0],
         notes: "",
       });
@@ -277,12 +341,29 @@ export default function GivingPage() {
     }
   };
 
-  const formatCurrency = (amount: string) => {
-    const num = parseFloat(amount);
+  const formatCurrency = (amount: string | null | undefined) => {
+    const num = parseFloat(amount || "0");
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(num);
+  };
+
+  const calculateTotal = (
+    current: string | null,
+    mission: string | null,
+    memorials: string | null,
+    debt: string | null,
+    school: string | null,
+    miscellaneous: string | null
+  ): number => {
+    const curr = parseFloat(current || "0") || 0;
+    const miss = parseFloat(mission || "0") || 0;
+    const mem = parseFloat(memorials || "0") || 0;
+    const deb = parseFloat(debt || "0") || 0;
+    const sch = parseFloat(school || "0") || 0;
+    const misc = parseFloat(miscellaneous || "0") || 0;
+    return curr + miss + mem + deb + sch + misc;
   };
 
   // CSV parsing function (same as API)
@@ -377,6 +458,208 @@ export default function GivingPage() {
     }
   };
 
+  // Handle bulk input
+  const handleBulkInput = async () => {
+    // Validate all rows
+    const errors: string[] = [];
+    const validRecords: Array<{
+      envelopeNumber: number;
+      dateGiven: string;
+      currentAmount: number | null;
+      missionAmount: number | null;
+      memorialsAmount: number | null;
+      debtAmount: number | null;
+      schoolAmount: number | null;
+      miscellaneousAmount: number | null;
+      notes?: string | null;
+    }> = [];
+
+    bulkInputRows.forEach((row, index) => {
+      // Skip empty rows (rows with no envelope number and no amounts filled in)
+      // Note: dateGiven is always set by default, so we check if envelopeNumber and all amounts are empty
+      const hasEnvelope = row.envelopeNumber && row.envelopeNumber.trim() !== "";
+      const hasAnyAmount = row.currentAmount || row.missionAmount || row.memorialsAmount || 
+                          row.debtAmount || row.schoolAmount || row.miscellaneousAmount;
+      
+      if (!hasEnvelope && !hasAnyAmount) {
+        return; // Skip completely empty rows
+      }
+
+      // Validate required fields
+      if (!row.envelopeNumber) {
+        errors.push(`Row ${index + 1}: Envelope number is required`);
+        return;
+      }
+
+      if (!row.dateGiven) {
+        errors.push(`Row ${index + 1}: Date is required`);
+        return;
+      }
+
+      const envelopeNum = parseInt(row.envelopeNumber, 10);
+      if (isNaN(envelopeNum)) {
+        errors.push(`Row ${index + 1}: Invalid envelope number`);
+        return;
+      }
+
+      // Check if envelope exists
+      const envelopeExists = envelopeNumbers.includes(envelopeNum);
+      if (!envelopeExists) {
+        errors.push(`Row ${index + 1}: No members found for envelope number ${envelopeNum}`);
+        return;
+      }
+
+      // Parse amounts
+      const current = row.currentAmount ? parseFloat(row.currentAmount) : null;
+      const mission = row.missionAmount ? parseFloat(row.missionAmount) : null;
+      const memorials = row.memorialsAmount ? parseFloat(row.memorialsAmount) : null;
+      const debt = row.debtAmount ? parseFloat(row.debtAmount) : null;
+      const school = row.schoolAmount ? parseFloat(row.schoolAmount) : null;
+      const miscellaneous = row.miscellaneousAmount ? parseFloat(row.miscellaneousAmount) : null;
+
+      // Validate at least one amount
+      if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+        errors.push(`Row ${index + 1}: At least one amount is required`);
+        return;
+      }
+
+      // Validate amounts are non-negative
+      if (current !== null && (isNaN(current) || current < 0)) {
+        errors.push(`Row ${index + 1}: Invalid current amount`);
+        return;
+      }
+      if (mission !== null && (isNaN(mission) || mission < 0)) {
+        errors.push(`Row ${index + 1}: Invalid mission amount`);
+        return;
+      }
+      if (memorials !== null && (isNaN(memorials) || memorials < 0)) {
+        errors.push(`Row ${index + 1}: Invalid memorials amount`);
+        return;
+      }
+      if (debt !== null && (isNaN(debt) || debt < 0)) {
+        errors.push(`Row ${index + 1}: Invalid debt amount`);
+        return;
+      }
+      if (school !== null && (isNaN(school) || school < 0)) {
+        errors.push(`Row ${index + 1}: Invalid school amount`);
+        return;
+      }
+      if (miscellaneous !== null && (isNaN(miscellaneous) || miscellaneous < 0)) {
+        errors.push(`Row ${index + 1}: Invalid miscellaneous amount`);
+        return;
+      }
+
+      // Validate date
+      try {
+        const date = new Date(row.dateGiven);
+        if (isNaN(date.getTime())) {
+          errors.push(`Row ${index + 1}: Invalid date format`);
+          return;
+        }
+      } catch {
+        errors.push(`Row ${index + 1}: Invalid date format`);
+        return;
+      }
+
+      validRecords.push({
+        envelopeNumber: envelopeNum,
+        dateGiven: row.dateGiven,
+        currentAmount: current,
+        missionAmount: mission,
+        memorialsAmount: memorials,
+        debtAmount: debt,
+        schoolAmount: school,
+        miscellaneousAmount: miscellaneous,
+      });
+    });
+
+    if (errors.length > 0) {
+      setBulkInputResults({
+        success: 0,
+        failed: errors.length,
+        errors,
+      });
+      return;
+    }
+
+    if (validRecords.length === 0) {
+      alert("Please fill in at least one row");
+      return;
+    }
+
+    setBulkInputSubmitting(true);
+    setBulkInputResults(null);
+
+    try {
+      const response = await fetch("/api/giving/bulk-input", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          records: validRecords,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setBulkInputResults({
+          success: data.success || 0,
+          failed: data.failed || 0,
+          errors: data.errors || [],
+        });
+        // Refresh the giving records list
+        await fetchGivingRecords(currentPage);
+        // Reset rows after successful submission
+        if (data.failed === 0) {
+        setBulkInputRows(Array.from({ length: 3 }, () => ({
+          envelopeNumber: "",
+          dateGiven: new Date().toISOString().split("T")[0],
+          currentAmount: "",
+          missionAmount: "",
+          memorialsAmount: "",
+          debtAmount: "",
+          schoolAmount: "",
+          miscellaneousAmount: "",
+        })));
+        }
+        // Close the dialog after successful submission
+        setBulkInputDialogOpen(false);
+      } else {
+        alert(data.error || "Failed to bulk input giving records");
+      }
+    } catch (error) {
+      console.error("Error bulk inputting giving records:", error);
+      alert("Failed to bulk input giving records. Please try again.");
+    } finally {
+      setBulkInputSubmitting(false);
+    }
+  };
+
+  const addBulkInputRow = () => {
+    setBulkInputRows([...bulkInputRows, {
+      envelopeNumber: "",
+      dateGiven: new Date().toISOString().split("T")[0],
+      currentAmount: "",
+      missionAmount: "",
+      memorialsAmount: "",
+      debtAmount: "",
+      schoolAmount: "",
+      miscellaneousAmount: "",
+    }]);
+  };
+
+  const removeBulkInputRow = (index: number) => {
+    setBulkInputRows(bulkInputRows.filter((_, i) => i !== index));
+  };
+
+  const updateBulkInputRow = (index: number, field: string, value: string) => {
+    const newRows = [...bulkInputRows];
+    newRows[index] = { ...newRows[index], [field]: value };
+    setBulkInputRows(newRows);
+  };
+
   // Handle bulk import
   const handleBulkImport = async () => {
     if (!importFile) {
@@ -432,6 +715,220 @@ export default function GivingPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Dialog
+            open={bulkInputDialogOpen}
+            onOpenChange={(open) => {
+              setBulkInputDialogOpen(open);
+              // Clear results whenever dialog opens or closes
+              setBulkInputResults(null);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" className="cursor-pointer">
+                <TableIcon className="mr-2 h-4 w-4" />
+                Bulk Input
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[80vh] max-w-[95vw] sm:max-w-[95vw] overflow-auto">
+              <DialogHeader>
+                <DialogTitle>Bulk Input Giving Records</DialogTitle>
+                <DialogDescription>
+                  Enter multiple giving records in a spreadsheet-like format. Fill in envelope number, date, and at least one amount type per row.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Envelope Number</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Current</TableHead>
+                        <TableHead>Mission</TableHead>
+                        <TableHead>Memorials</TableHead>
+                        <TableHead>Debt</TableHead>
+                        <TableHead>School</TableHead>
+                        <TableHead>Miscellaneous</TableHead>
+                        <TableHead>Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bulkInputRows.map((row, index) => {
+                        const total = calculateTotal(
+                          row.currentAmount || null,
+                          row.missionAmount || null,
+                          row.memorialsAmount || null,
+                          row.debtAmount || null,
+                          row.schoolAmount || null,
+                          row.miscellaneousAmount || null
+                        );
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeBulkInputRow(index)}
+                                className="h-8 w-8"
+                                disabled={bulkInputRows.length <= 1}
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={row.envelopeNumber}
+                                onValueChange={(value) => updateBulkInputRow(index, "envelopeNumber", value)}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {envelopeNumbers.map((num) => (
+                                    <SelectItem key={num} value={num.toString()}>
+                                      {num}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="date"
+                                value={row.dateGiven}
+                                onChange={(e) => updateBulkInputRow(index, "dateGiven", e.target.value)}
+                                className="w-40"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.currentAmount}
+                                onChange={(e) => updateBulkInputRow(index, "currentAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.missionAmount}
+                                onChange={(e) => updateBulkInputRow(index, "missionAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.memorialsAmount}
+                                onChange={(e) => updateBulkInputRow(index, "memorialsAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.debtAmount}
+                                onChange={(e) => updateBulkInputRow(index, "debtAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.schoolAmount}
+                                onChange={(e) => updateBulkInputRow(index, "schoolAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={row.miscellaneousAmount}
+                                onChange={(e) => updateBulkInputRow(index, "miscellaneousAmount", e.target.value)}
+                                className="w-32"
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {formatCurrency(total.toString())}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addBulkInputRow}
+                  className="cursor-pointer"
+                >
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  Add Row
+                </Button>
+
+                {bulkInputResults && (
+                  <div className={`p-4 rounded-md ${bulkInputResults.failed > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
+                    <p className={`text-sm font-medium mb-2 ${bulkInputResults.failed > 0 ? "text-destructive" : "text-green-600"}`}>
+                      Results: {bulkInputResults.success} successful, {bulkInputResults.failed} failed
+                    </p>
+                    {bulkInputResults.errors.length > 0 && (
+                      <div className="max-h-40 overflow-y-auto">
+                        <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
+                          {bulkInputResults.errors.slice(0, 10).map((error, idx) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                          {bulkInputResults.errors.length > 10 && (
+                            <li>... and {bulkInputResults.errors.length - 10} more errors</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBulkInputDialogOpen(false)}
+                    disabled={bulkInputSubmitting}
+                    className="cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleBulkInput}
+                    disabled={bulkInputSubmitting}
+                    className="cursor-pointer"
+                  >
+                    {bulkInputSubmitting ? "Submitting..." : "Submit Records"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog
             open={bulkImportDialogOpen}
             onOpenChange={(open) => {
@@ -574,7 +1071,12 @@ export default function GivingPage() {
                 // Reset form and filtered members when dialog closes
                 form.reset({
                   envelopeNumber: "",
-                  amount: "",
+                  currentAmount: "",
+                  missionAmount: "",
+                  memorialsAmount: "",
+                  debtAmount: "",
+                  schoolAmount: "",
+                  miscellaneousAmount: "",
                   dateGiven: new Date().toISOString().split("T")[0],
                   notes: "",
                 });
@@ -588,7 +1090,7 @@ export default function GivingPage() {
                 Add Giving Record
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-[50vw] max-h-[90vh] overflow-auto">
               <DialogHeader>
                 <DialogTitle>Add Giving Record</DialogTitle>
                 <DialogDescription>
@@ -648,15 +1150,15 @@ export default function GivingPage() {
                   )}
                   <FormField
                     control={form.control}
-                    name="amount"
+                    name="currentAmount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Amount *</FormLabel>
+                        <FormLabel>Current Amount</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
                             step="0.01"
-                            min="0.01"
+                            min="0"
                             placeholder="0.00"
                             {...field}
                           />
@@ -665,6 +1167,104 @@ export default function GivingPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="missionAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Mission Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="memorialsAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Memorials Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="debtAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Debt Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="schoolAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>School Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="miscellaneousAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Miscellaneous Amount</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    * At least one amount is required
+                  </p>
                   <FormField
                     control={form.control}
                     name="dateGiven"
@@ -730,29 +1330,51 @@ export default function GivingPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Member Name</TableHead>
-                    <TableHead>Amount</TableHead>
+                    <TableHead>Current</TableHead>
+                    <TableHead>Mission</TableHead>
+                    <TableHead>Memorials</TableHead>
+                    <TableHead>Debt</TableHead>
+                    <TableHead>School</TableHead>
+                    <TableHead>Miscellaneous</TableHead>
+                    <TableHead>Total</TableHead>
                     <TableHead>Date Given</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {givingRecords.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/giving/${record.memberId}`}
-                          className="text-primary hover:underline"
-                        >
-                          {record.member.firstName} {record.member.lastName}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{formatCurrency(record.amount)}</TableCell>
-                      <TableCell>{formatDate(record.dateGiven)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {record.notes || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {givingRecords.map((record) => {
+                    const total = calculateTotal(
+                      record.currentAmount,
+                      record.missionAmount,
+                      record.memorialsAmount,
+                      record.debtAmount,
+                      record.schoolAmount,
+                      record.miscellaneousAmount
+                    );
+                    return (
+                      <TableRow key={record.id}>
+                        <TableCell className="font-medium">
+                          <Link
+                            href={`/giving/${record.memberId}`}
+                            className="text-primary hover:underline"
+                          >
+                            {record.member.firstName} {record.member.lastName}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{formatCurrency(record.currentAmount)}</TableCell>
+                        <TableCell>{formatCurrency(record.missionAmount)}</TableCell>
+                        <TableCell>{formatCurrency(record.memorialsAmount)}</TableCell>
+                        <TableCell>{formatCurrency(record.debtAmount)}</TableCell>
+                        <TableCell>{formatCurrency(record.schoolAmount)}</TableCell>
+                        <TableCell>{formatCurrency(record.miscellaneousAmount)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(total.toString())}</TableCell>
+                        <TableCell>{formatDate(record.dateGiven)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {record.notes || "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
 

@@ -45,15 +45,26 @@ export async function POST(request: Request) {
       headerMap[header.trim().toLowerCase()] = index;
     });
 
-    // Validate required columns - need either envelopeNumber or memberId, plus amount and dateGiven
+    // Validate required columns - need either envelopeNumber or memberId, plus dateGiven
+    // Check for new format (six amount columns) or old formats (single amount or three amounts)
     const hasEnvelopeNumber = headerMap.hasOwnProperty("envelope number") || headerMap.hasOwnProperty("envelopenumber");
     const hasMemberId = headerMap.hasOwnProperty("member id") || headerMap.hasOwnProperty("memberid");
     const hasAmount = headerMap.hasOwnProperty("amount");
+    const hasGeneralFund = headerMap.hasOwnProperty("general fund") || headerMap.hasOwnProperty("generalfund");
+    const hasCurrent = headerMap.hasOwnProperty("current");
+    const hasMemorials = headerMap.hasOwnProperty("memorials");
+    const hasDistrictSynod = headerMap.hasOwnProperty("district synod") || headerMap.hasOwnProperty("districtsynod");
+    const hasMission = headerMap.hasOwnProperty("mission");
+    const hasDebt = headerMap.hasOwnProperty("debt");
+    const hasSchool = headerMap.hasOwnProperty("school");
+    const hasMiscellaneous = headerMap.hasOwnProperty("miscellaneous");
     const hasDateGiven = headerMap.hasOwnProperty("date given") || headerMap.hasOwnProperty("dategiven") || headerMap.hasOwnProperty("date");
 
-    if (!hasAmount) {
+    // Must have at least one amount column (support old and new formats)
+    const hasAnyAmount = hasAmount || hasGeneralFund || hasCurrent || hasMemorials || hasDistrictSynod || hasMission || hasDebt || hasSchool || hasMiscellaneous;
+    if (!hasAnyAmount) {
       return NextResponse.json(
-        { error: "Missing required column: amount" },
+        { error: "Missing required column: at least one amount column is required" },
         { status: 400 },
       );
     }
@@ -113,7 +124,12 @@ export async function POST(request: Request) {
 
     const recordsToInsert: Array<{
       memberId: string;
-      amount: string;
+      currentAmount: string | null;
+      missionAmount: string | null;
+      memorialsAmount: string | null;
+      debtAmount: string | null;
+      schoolAmount: string | null;
+      miscellaneousAmount: string | null;
       dateGiven: string;
       notes: string | null;
     }> = [];
@@ -142,25 +158,97 @@ export async function POST(request: Request) {
         const memberIdStr = getValue("member id", ["memberid", "member_id"]);
 
         // Get required fields
-        const amountStr = getValue("amount");
         const dateGivenStr = getValue("date given", ["dategiven", "date", "dategiven"]);
         const notesStr = getValue("notes", ["note"]);
 
+        // Get amount fields - support old formats (single amount or three amounts) and new format (six amounts)
+        const amountStr = getValue("amount");
+        const generalFundStr = getValue("general fund", ["generalfund"]);
+        const currentStr = getValue("current");
+        const memorialsStr = getValue("memorials");
+        const districtSynodStr = getValue("district synod", ["districtsynod"]);
+        const missionStr = getValue("mission");
+        const debtStr = getValue("debt");
+        const schoolStr = getValue("school");
+        const miscellaneousStr = getValue("miscellaneous");
+
         // Validate required fields
-        if (!amountStr || !dateGivenStr) {
+        if (!dateGivenStr) {
           results.failed++;
           results.errors.push(
-            `Row ${i + 1}: Missing required fields (amount or dateGiven)`,
+            `Row ${i + 1}: Missing required field (dateGiven)`,
           );
           continue;
         }
 
-        // Validate amount
-        const amount = parseFloat(amountStr);
-        if (isNaN(amount) || amount <= 0) {
+        // Parse amounts - support backward compatibility
+        let currentAmount: number | null = null;
+        let missionAmount: number | null = null;
+        let memorialsAmount: number | null = null;
+        let debtAmount: number | null = null;
+        let schoolAmount: number | null = null;
+        let miscellaneousAmount: number | null = null;
+
+        const parseAmountField = (value: string | null, fieldName: string): number | null => {
+          if (!value) return null;
+          const amount = parseFloat(value);
+          if (isNaN(amount) || amount < 0) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: Invalid ${fieldName} amount (must be a non-negative number)`,
+            );
+            throw new Error("Invalid amount");
+          }
+          return amount > 0 ? amount : null;
+        };
+
+        try {
+          // Old format 1: single "amount" column -> map to currentAmount
+          if (amountStr) {
+            currentAmount = parseAmountField(amountStr, "amount");
+          }
+          // Old format 2: "general fund" -> map to currentAmount
+          else if (generalFundStr) {
+            currentAmount = parseAmountField(generalFundStr, "general fund");
+          }
+          // New format: use current field directly
+          else if (currentStr) {
+            currentAmount = parseAmountField(currentStr, "current");
+          }
+
+          // Old format: "district synod" -> map to missionAmount
+          if (districtSynodStr) {
+            missionAmount = parseAmountField(districtSynodStr, "district synod");
+          }
+          // New format: use mission field directly
+          else if (missionStr) {
+            missionAmount = parseAmountField(missionStr, "mission");
+          }
+
+          // Memorials (same in both formats)
+          if (memorialsStr) {
+            memorialsAmount = parseAmountField(memorialsStr, "memorials");
+          }
+
+          // New fields
+          if (debtStr) {
+            debtAmount = parseAmountField(debtStr, "debt");
+          }
+          if (schoolStr) {
+            schoolAmount = parseAmountField(schoolStr, "school");
+          }
+          if (miscellaneousStr) {
+            miscellaneousAmount = parseAmountField(miscellaneousStr, "miscellaneous");
+          }
+        } catch {
+          continue; // Error already added to results.errors
+        }
+
+        // Validate at least one amount is provided
+        if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
           results.failed++;
           results.errors.push(
-            `Row ${i + 1}: Invalid amount (must be a positive number)`,
+            `Row ${i + 1}: At least one amount is required`,
           );
           continue;
         }
@@ -256,7 +344,12 @@ export async function POST(request: Request) {
         // Create one record per envelope number (household level)
         recordsToInsert.push({
           memberId: targetMemberId,
-          amount: amount.toString(),
+          currentAmount: currentAmount !== null ? currentAmount.toString() : null,
+          missionAmount: missionAmount !== null ? missionAmount.toString() : null,
+          memorialsAmount: memorialsAmount !== null ? memorialsAmount.toString() : null,
+          debtAmount: debtAmount !== null ? debtAmount.toString() : null,
+          schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
+          miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
           dateGiven,
           notes: notesStr || null,
         });

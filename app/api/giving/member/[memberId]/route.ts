@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { giving, members, families } from "@/db/schema";
+import { giving, members } from "@/db/schema";
 
 export async function GET(
   request: Request,
@@ -37,23 +37,40 @@ export async function GET(
     }
 
     // Determine which member's giving records to fetch
+    // Use the member's envelope number to find head of household if applicable
     let targetMemberId = memberId;
 
-    // If member is not head of household, find the head of household in their family
-    if (!member.headOfHousehold && member.familyId) {
-      const [headOfHousehold] = await db
-        .select()
+    if (member.envelopeNumber) {
+      // Find all members with this envelope number
+      const householdMembers = await db
+        .select({
+          id: members.id,
+          sex: members.sex,
+          dateOfBirth: members.dateOfBirth,
+        })
         .from(members)
-        .where(
-          and(
-            eq(members.familyId, member.familyId),
-            eq(members.headOfHousehold, true),
-          ),
-        )
-        .limit(1);
+        .where(eq(members.envelopeNumber, member.envelopeNumber));
 
-      if (headOfHousehold) {
-        targetMemberId = headOfHousehold.id;
+      if (householdMembers.length > 0) {
+        // Find head of household: oldest male member
+        const males = householdMembers.filter(m => m.sex === "male");
+        
+        if (males.length > 0) {
+          const sortedMales = males.sort((a, b) => {
+            if (!a.dateOfBirth) return 1;
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          targetMemberId = sortedMales[0].id;
+        } else {
+          // No males, use oldest member overall
+          const sortedAll = householdMembers.sort((a, b) => {
+            if (!a.dateOfBirth) return 1;
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          targetMemberId = sortedAll[0].id;
+        }
       }
     }
 
@@ -62,7 +79,12 @@ export async function GET(
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        amount: giving.amount,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
