@@ -5,7 +5,6 @@ import { desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
-import { invitations } from "@/db/schema";
 
 export async function GET() {
   try {

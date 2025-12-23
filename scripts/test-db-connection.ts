@@ -34,7 +34,10 @@ async function testConnection() {
     if (tables.length === 0) {
       console.log("   No tables found");
     } else {
-      tables.forEach((table: any) => {
+      interface TableInfo {
+        table_name: string;
+      }
+      tables.forEach((table: TableInfo) => {
         console.log(`   - ${table.table_name}`);
       });
     }

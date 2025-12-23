@@ -173,8 +173,6 @@ export default function ReportsPage() {
 
   // Calculate date ranges for congressional statistics report
   useEffect(() => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
     let startDate = "";
     let endDate = "";
 

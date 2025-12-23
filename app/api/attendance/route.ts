@@ -118,7 +118,12 @@ export async function POST(request: Request) {
     }
 
     // Filter to only process records for members who attended
-    const attendedRecords = body.records.filter((record: any) => record.attended === true);
+    interface AttendanceRecord {
+      memberId: string;
+      attended: boolean;
+      tookCommunion: boolean;
+    }
+    const attendedRecords = (body.records as AttendanceRecord[]).filter((record) => record.attended === true);
 
     // If no attendees, return early
     if (attendedRecords.length === 0) {

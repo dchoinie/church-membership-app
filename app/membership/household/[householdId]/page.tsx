@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -66,7 +65,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Member {
@@ -295,23 +293,6 @@ export default function HouseholdViewPage({
       return `${h.members[0].firstName} ${h.members[0].lastName}`;
     }
     return `${h.members[0].firstName} ${h.members[0].lastName} (+${h.memberCount - 1})`;
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    try {
-      const parts = dateString.split("-");
-      if (parts.length === 3) {
-        const year = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const day = parseInt(parts[2], 10);
-        const localDate = new Date(year, month, day);
-        return format(localDate, "MMM d, yyyy");
-      }
-      return format(new Date(dateString), "MMM d, yyyy");
-    } catch {
-      return dateString;
-    }
   };
 
   const formatDateInput = (dateString: string | null) => {

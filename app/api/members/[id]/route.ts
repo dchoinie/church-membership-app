@@ -9,7 +9,9 @@ import { members, household } from "@/db/schema";
 const VALID_PARTICIPATION_STATUSES = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
 
 function isValidParticipationStatus(status: string | null | undefined): status is typeof VALID_PARTICIPATION_STATUSES[number] {
-  return status !== null && status !== undefined && VALID_PARTICIPATION_STATUSES.includes(status.toLowerCase() as any);
+  if (status === null || status === undefined) return false;
+  const normalizedStatus = status.toLowerCase();
+  return VALID_PARTICIPATION_STATUSES.some((validStatus) => validStatus === normalizedStatus);
 }
 
 export async function GET(

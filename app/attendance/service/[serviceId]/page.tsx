@@ -26,12 +26,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 
-interface Member {
-  id: string;
-  firstName: string;
-  lastName: string;
-}
-
 interface Service {
   id: string;
   serviceDate: string;
@@ -357,7 +351,7 @@ export default function ServiceAttendancePage() {
               </div>
               {!editingRecord.attended && editingRecord.tookCommunion && (
                 <p className="text-sm text-muted-foreground">
-                  Note: Members must attend to take communion. Checking "Attended" will enable this option.
+                  Note: Members must attend to take communion. Checking &quot;Attended&quot; will enable this option.
                 </p>
               )}
             </div>

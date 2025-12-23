@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
@@ -38,7 +38,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -187,20 +186,7 @@ export default function MemberDetailPage({
     }
   };
 
-  useEffect(() => {
-    const init = async () => {
-      const resolvedParams = await params;
-      const id = resolvedParams.id;
-      setMemberId(id);
-      const editParam = searchParams.get("edit");
-      setIsEditMode(editParam === "true");
-      await fetchMember(id);
-      await fetchHouseholds();
-    };
-    init();
-  }, [params, searchParams]);
-
-  const fetchMember = async (id: string) => {
+  const fetchMember = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/members/${id}`);
       if (response.ok) {
@@ -241,7 +227,20 @@ export default function MemberDetailPage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [form]);
+
+  useEffect(() => {
+    const init = async () => {
+      const resolvedParams = await params;
+      const id = resolvedParams.id;
+      setMemberId(id);
+      const editParam = searchParams.get("edit");
+      setIsEditMode(editParam === "true");
+      await fetchMember(id);
+      await fetchHouseholds();
+    };
+    init();
+  }, [params, searchParams, fetchMember]);
 
   const fetchHouseholds = async () => {
     try {

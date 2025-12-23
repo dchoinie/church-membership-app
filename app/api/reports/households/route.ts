@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // Check authentication
     const session = await auth.api.getSession({

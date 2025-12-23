@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -80,7 +79,6 @@ export default function MemberGivingPage({
 }: {
   params: Promise<{ memberId: string }>;
 }) {
-  const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
   const [loading, setLoading] = useState(true);

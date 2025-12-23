@@ -252,7 +252,7 @@ export default function AttendancePage() {
     setFormData((prev) => {
       const currentData = prev[memberId] || { attended: false, tookCommunion: false };
       
-      // If unchecking "attended", also uncheck "tookCommunion" (can't take communion without attending)
+      // If unchecking "attended", also uncheck "tookCommunion" (can&apos;t take communion without attending)
       if (field === "attended" && !checked) {
         return {
           ...prev,
@@ -394,11 +394,6 @@ export default function AttendancePage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleEdit = (record: AttendanceRecord) => {
-    setEditingRecord(record);
-    setEditDialogOpen(true);
   };
 
   const handleEditSubmit = async () => {
@@ -826,7 +821,7 @@ export default function AttendancePage() {
               </div>
               {!editingRecord.attended && editingRecord.tookCommunion && (
                 <p className="text-sm text-muted-foreground">
-                  Note: Members must attend to take communion. Checking "Attended" will enable this option.
+                  Note: Members must attend to take communion. Checking &quot;Attended&quot; will enable this option.
                 </p>
               )}
             </div>

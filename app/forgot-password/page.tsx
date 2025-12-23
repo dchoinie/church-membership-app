@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
               <span className="text-primary">Password</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Enter your email address and we'll send you a link to reset your password.
+              Enter your email address and we&apos;ll send you a link to reset your password.
             </p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function ForgotPasswordPage() {
                   <div className="rounded-md bg-green-50 dark:bg-green-900/20 p-4 text-sm text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800">
                     <p className="font-medium mb-2">Check your email</p>
                     <p>
-                      If an account exists with the email <strong>{email}</strong>, we've sent you a password reset link. 
+                      If an account exists with the email <strong>{email}</strong>, we&apos;ve sent you a password reset link. 
                       Please check your inbox and follow the instructions to reset your password.
                     </p>
                     <p className="mt-3 text-xs">

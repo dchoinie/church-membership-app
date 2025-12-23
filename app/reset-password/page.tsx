@@ -117,7 +117,7 @@ export default function ResetPasswordPage() {
               <span className="text-primary">Password</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Enter your new password below. Make sure it's strong and secure.
+              Enter your new password below. Make sure it&apos;s strong and secure.
             </p>
           </div>
         </div>

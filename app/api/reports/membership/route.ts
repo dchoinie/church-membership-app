@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { eq, and, inArray, count } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -47,7 +47,8 @@ const VALID_PARTICIPATION_STATUSES = [
 function isValidParticipationStatus(
   status: string | null | undefined,
 ): status is typeof VALID_PARTICIPATION_STATUSES[number] {
-  return status !== null && status !== undefined && VALID_PARTICIPATION_STATUSES.includes(status as any);
+  if (status === null || status === undefined) return false;
+  return VALID_PARTICIPATION_STATUSES.some((validStatus) => validStatus === status);
 }
 
 export async function GET(request: Request) {
@@ -118,7 +119,7 @@ export async function GET(request: Request) {
           const memberConditions = [eq(members.householdId, h.id)];
           
           if (participationStatuses.length > 0) {
-            memberConditions.push(inArray(members.participation, participationStatuses as any));
+            memberConditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
           }
 
           const householdMembers = await db
@@ -195,7 +196,7 @@ export async function GET(request: Request) {
       const conditions = [];
 
       if (participationStatuses.length > 0) {
-        conditions.push(inArray(members.participation, participationStatuses as any));
+        conditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
       }
 
       if (householdId) {

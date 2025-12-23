@@ -4,7 +4,7 @@ import { eq, and, ne } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { services, attendance } from "@/db/schema";
+import { services } from "@/db/schema";
 
 export async function GET(
   request: Request,

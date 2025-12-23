@@ -18,7 +18,6 @@ export async function sendInvitationEmail({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${baseUrl}/signup?invite=${inviteCode}`;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-  const isDevMode = process.env.NODE_ENV === "development" || !process.env.RESEND_FROM_EMAIL;
   
   // Check if using default Resend test domain
   const isUsingTestDomain = fromEmail.includes("@resend.dev");

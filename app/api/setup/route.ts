@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { user } from "@/auth-schema";
 
 export async function GET() {
   try {

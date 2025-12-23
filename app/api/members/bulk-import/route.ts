@@ -71,7 +71,6 @@ export async function POST(request: Request) {
     );
 
     if (missingColumns.length > 0) {
-      const foundHeaders = csvHeaders.map((h, i) => `${h} (normalized: "${normalizeHeader(h)}")`).join(", ");
       return NextResponse.json(
         {
           error: `Missing required columns: ${missingColumns.join(", ")}`,

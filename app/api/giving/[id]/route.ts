@@ -179,7 +179,7 @@ export async function PUT(
     }
 
     // Update giving record
-    const [updatedGiving] = await db
+    await db
       .update(giving)
       .set({
         currentAmount,

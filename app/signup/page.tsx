@@ -116,7 +116,7 @@ export default function SignupPage() {
           <CardTitle className="text-2xl font-bold">Create Your Account</CardTitle>
           <CardDescription>
             {inviteCode
-              ? "You've been invited! Complete your registration below."
+              ? "You&apos;ve been invited! Complete your registration below."
               : "Enter your invitation code and account details to get started."}
           </CardDescription>
         </CardHeader>
