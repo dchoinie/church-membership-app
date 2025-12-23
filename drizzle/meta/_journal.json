@@ -99,6 +99,13 @@
       "when": 1766528009151,
       "tag": "0013_quick_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1766533484146,
+      "tag": "0014_curvy_mastermind",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."removed_by_enum" AS ENUM('death', 'excommunication', 'inactivity', 'moved_no_transfer', 'released', 'removed_by_request', 'transfer', 'other');--> statement-breakpoint
+ALTER TABLE "members" ALTER COLUMN "removed_by" SET DATA TYPE "public"."removed_by_enum" USING "removed_by"::"public"."removed_by_enum";
