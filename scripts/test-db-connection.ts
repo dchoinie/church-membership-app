@@ -23,7 +23,10 @@ async function testConnection() {
     console.log("📊 PostgreSQL version:", result[0].version);
     
     // Check if tables exist
-    const tables = await client`
+    interface TableInfo {
+      table_name: string;
+    }
+    const tables = await client<TableInfo[]>`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
@@ -34,10 +37,7 @@ async function testConnection() {
     if (tables.length === 0) {
       console.log("   No tables found");
     } else {
-      interface TableInfo {
-        table_name: string;
-      }
-      tables.forEach((table: TableInfo) => {
+      tables.forEach((table) => {
         console.log(`   - ${table.table_name}`);
       });
     }

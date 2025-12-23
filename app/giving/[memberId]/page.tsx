@@ -223,12 +223,15 @@ export default function MemberGivingPage({
     if (!memberId) return;
 
     // Validate at least one amount is provided
-    const generalFund = data.generalFundAmount ? parseFloat(data.generalFundAmount) : null;
+    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
+    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
     const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
-    const districtSynod = data.districtSynodAmount ? parseFloat(data.districtSynodAmount) : null;
+    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
+    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
+    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
 
-    if (!generalFund && !memorials && !districtSynod) {
-      alert("At least one amount (general fund, memorials, or district synod) is required");
+    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+      alert("At least one amount is required");
       return;
     }
 

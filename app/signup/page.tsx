@@ -152,7 +152,7 @@ export default function SignupPage() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                disabled={isSubmitting || isLoadingInvite || (inviteCode && formData.email !== "")}
+                disabled={isSubmitting || isLoadingInvite || !!(inviteCode && formData.email !== "")}
                 className={inviteCode && formData.email ? "bg-muted" : ""}
               />
               {isLoadingInvite && (

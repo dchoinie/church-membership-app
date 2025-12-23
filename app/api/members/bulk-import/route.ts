@@ -400,7 +400,11 @@ export async function POST(request: Request) {
           confirmationDate: parsedConfirmationDate
             ? parsedConfirmationDate.toISOString().split("T")[0]
             : null,
-          receivedBy: getValue("received by") || null,
+          receivedBy: (() => {
+            const receivedByValue = getValue("received by")?.toLowerCase();
+            const validReceivedByValues = ["baptism", "confirmation", "transfer", "profession", "other"];
+            return receivedByValue && validReceivedByValues.includes(receivedByValue) ? receivedByValue as "baptism" | "confirmation" | "transfer" | "profession" | "other" : null;
+          })(),
           dateReceived: parsedDateReceived
             ? parsedDateReceived.toISOString().split("T")[0]
             : null,
@@ -415,8 +419,8 @@ export async function POST(request: Request) {
           envelopeNumber: getValue("envelope number") ? parseInt(getValue("envelope number")!) : null,
           participation: (() => {
             const status = getValue("participation") || getValue("membership status")?.toLowerCase();
-            const validStatuses = ["active", "visitor", "inactive", "transferred", "deceased"];
-            return validStatuses.includes(status || "") ? status : "active";
+            const validStatuses = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
+            return validStatuses.includes(status as typeof validStatuses[number]) ? status as typeof validStatuses[number] : "active";
           })(),
           householdId,
         };
