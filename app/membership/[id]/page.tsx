@@ -72,6 +72,12 @@ interface Member {
   participation: string;
   createdAt: string;
   updatedAt: string;
+  headOfHousehold: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    isCurrentMember: boolean;
+  } | null;
 }
 
 interface HouseholdMember {
@@ -1102,6 +1108,25 @@ export default function MemberDetailPage({
                       </div>
                     )}
                   </div>
+                  {member.headOfHousehold && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Head of Household
+                      </label>
+                      <p className="mt-1 text-sm">
+                        {member.headOfHousehold.isCurrentMember ? (
+                          <span className="font-medium">You (this member)</span>
+                        ) : (
+                          <Link
+                            href={`/membership/${member.headOfHousehold.id}`}
+                            className="text-primary hover:underline"
+                          >
+                            {member.headOfHousehold.firstName} {member.headOfHousehold.lastName}
+                          </Link>
+                        )}
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     {member.confirmationDate && (
                       <div>

@@ -68,7 +68,78 @@ export async function GET(
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ member });
+    // Compute head of household
+    let headOfHousehold: { id: string; firstName: string; lastName: string; isCurrentMember: boolean } | null = null;
+
+    if (member.householdId) {
+      // Fetch all members in the household
+      const householdMembers = await db
+        .select({
+          id: members.id,
+          firstName: members.firstName,
+          lastName: members.lastName,
+          sex: members.sex,
+          dateOfBirth: members.dateOfBirth,
+        })
+        .from(members)
+        .where(eq(members.householdId, member.householdId));
+
+      if (householdMembers.length > 0) {
+        // Helper function to find head of household (oldest male, or oldest member overall)
+        const findHeadOfHousehold = (
+          members: Array<{
+            id: string;
+            firstName: string;
+            lastName: string;
+            sex: "male" | "female" | "other" | null;
+            dateOfBirth: string | null;
+          }>
+        ): { id: string; firstName: string; lastName: string } => {
+          // Filter for males
+          const males = members.filter(m => m.sex === "male");
+          
+          if (males.length > 0) {
+            // Sort males by dateOfBirth (oldest first)
+            const sortedMales = males.sort((a, b) => {
+              if (!a.dateOfBirth) return 1; // No date goes to end
+              if (!b.dateOfBirth) return -1;
+              return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+            });
+            return {
+              id: sortedMales[0].id,
+              firstName: sortedMales[0].firstName,
+              lastName: sortedMales[0].lastName,
+            };
+          }
+          
+          // No males found, use oldest member overall
+          const sortedAll = members.sort((a, b) => {
+            if (!a.dateOfBirth) return 1; // No date goes to end
+            if (!b.dateOfBirth) return -1;
+            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+          });
+          
+          return {
+            id: sortedAll[0].id,
+            firstName: sortedAll[0].firstName,
+            lastName: sortedAll[0].lastName,
+          };
+        };
+
+        const head = findHeadOfHousehold(householdMembers);
+        headOfHousehold = {
+          ...head,
+          isCurrentMember: head.id === member.id,
+        };
+      }
+    }
+
+    return NextResponse.json({ 
+      member: {
+        ...member,
+        headOfHousehold,
+      }
+    });
   } catch (error) {
     console.error("Error fetching member:", error);
     return NextResponse.json(
