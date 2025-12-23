@@ -42,26 +42,12 @@ export async function GET() {
     };
 
     const ageGroups = {
-      "0-5": 0,
-      "6-10": 0,
-      "11-15": 0,
-      "16-20": 0,
-      "21-25": 0,
-      "26-30": 0,
-      "31-35": 0,
-      "36-40": 0,
-      "41-45": 0,
-      "46-50": 0,
-      "51-55": 0,
-      "56-60": 0,
-      "61-65": 0,
-      "66-70": 0,
-      "71-75": 0,
-      "76-80": 0,
-      "81-85": 0,
-      "86-90": 0,
-      "91-95": 0,
-      "96+": 0,
+      "under 15": 0,
+      "15-18": 0,
+      "19-34": 0,
+      "35-49": 0,
+      "50-64": 0,
+      "65+": 0,
       unknown: 0,
     };
 
@@ -101,46 +87,18 @@ export async function GET() {
         const dayDiff = currentDate.getDate() - birthDate.getDate();
         const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
-        if (actualAge <= 5) {
-          ageGroups["0-5"]++;
-        } else if (actualAge <= 10) {
-          ageGroups["6-10"]++;
-        } else if (actualAge <= 15) {
-          ageGroups["11-15"]++;
-        } else if (actualAge <= 20) {
-          ageGroups["16-20"]++;
-        } else if (actualAge <= 25) {
-          ageGroups["21-25"]++;
-        } else if (actualAge <= 30) {
-          ageGroups["26-30"]++;
-        } else if (actualAge <= 35) {
-          ageGroups["31-35"]++;
-        } else if (actualAge <= 40) {
-          ageGroups["36-40"]++;
-        } else if (actualAge <= 45) {
-          ageGroups["41-45"]++;
-        } else if (actualAge <= 50) {
-          ageGroups["46-50"]++;
-        } else if (actualAge <= 55) {
-          ageGroups["51-55"]++;
-        } else if (actualAge <= 60) {
-          ageGroups["56-60"]++;
-        } else if (actualAge <= 65) {
-          ageGroups["61-65"]++;
-        } else if (actualAge <= 70) {
-          ageGroups["66-70"]++;
-        } else if (actualAge <= 75) {
-          ageGroups["71-75"]++;
-        } else if (actualAge <= 80) {
-          ageGroups["76-80"]++;
-        } else if (actualAge <= 85) {
-          ageGroups["81-85"]++;
-        } else if (actualAge <= 90) {
-          ageGroups["86-90"]++;
-        } else if (actualAge <= 95) {
-          ageGroups["91-95"]++;
+        if (actualAge < 15) {
+          ageGroups["under 15"]++;
+        } else if (actualAge >= 15 && actualAge <= 18) {
+          ageGroups["15-18"]++;
+        } else if (actualAge >= 19 && actualAge <= 34) {
+          ageGroups["19-34"]++;
+        } else if (actualAge >= 35 && actualAge <= 49) {
+          ageGroups["35-49"]++;
+        } else if (actualAge >= 50 && actualAge <= 64) {
+          ageGroups["50-64"]++;
         } else {
-          ageGroups["96+"]++;
+          ageGroups["65+"]++;
         }
       } else {
         ageGroups.unknown++;

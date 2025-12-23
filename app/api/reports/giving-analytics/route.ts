@@ -280,14 +280,12 @@ export async function GET(request: Request) {
 
     // Age group giving trends
     const ageGroups: Record<string, { totalAmount: number; recordCount: number; averageAmount: number }> = {
-      "0-17": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "18-25": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "26-35": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "36-45": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "46-55": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "56-65": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "66-75": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "76+": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "under 15": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "15-18": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "19-34": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "35-49": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "50-64": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
+      "65+": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
       "unknown": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
     };
 
@@ -298,14 +296,12 @@ export async function GET(request: Request) {
       
       let ageGroup = "unknown";
       if (age !== null) {
-        if (age <= 17) ageGroup = "0-17";
-        else if (age <= 25) ageGroup = "18-25";
-        else if (age <= 35) ageGroup = "26-35";
-        else if (age <= 45) ageGroup = "36-45";
-        else if (age <= 55) ageGroup = "46-55";
-        else if (age <= 65) ageGroup = "56-65";
-        else if (age <= 75) ageGroup = "66-75";
-        else ageGroup = "76+";
+        if (age < 15) ageGroup = "under 15";
+        else if (age >= 15 && age <= 18) ageGroup = "15-18";
+        else if (age >= 19 && age <= 34) ageGroup = "19-34";
+        else if (age >= 35 && age <= 49) ageGroup = "35-49";
+        else if (age >= 50 && age <= 64) ageGroup = "50-64";
+        else ageGroup = "65+";
       }
 
       ageGroups[ageGroup].totalAmount += total;

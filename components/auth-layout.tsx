@@ -16,7 +16,7 @@ const navItems = [
   { label: "Reports", href: "/reports" },
 ];
 
-const publicRoutes = ["/", "/login", "/signup", "/setup"];
+const publicRoutes = ["/", "/login", "/signup", "/setup", "/forgot-password", "/reset-password"];
 
 export default function AuthLayout({
   children,
@@ -42,6 +42,7 @@ export default function AuthLayout({
         router.push("/dashboard");
         return;
       }
+      // Don't redirect authenticated users from forgot/reset password pages - they might be helping someone else
       
       // Defer state update to avoid cascading renders
       startTransition(() => {

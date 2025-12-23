@@ -46,6 +46,12 @@ interface MembershipReportFormData {
   type: string;
 }
 
+interface CongressionalStatisticsFormData {
+  dateRange: string;
+  startDate: string;
+  endDate: string;
+}
+
 const PARTICIPATION_STATUSES = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
@@ -61,6 +67,7 @@ export default function ReportsPage() {
   const [loadingHouseholds, setLoadingHouseholds] = useState(true);
   const [generatingGivingReport, setGeneratingGivingReport] = useState(false);
   const [generatingMembershipReport, setGeneratingMembershipReport] = useState(false);
+  const [generatingCongressionalReport, setGeneratingCongressionalReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -81,7 +88,30 @@ export default function ReportsPage() {
     },
   });
 
+  // Calculate default date range for congressional statistics (last full year)
+  const getLastFullYear = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed (0 = January)
+    
+    // If it's January, use previous year. Otherwise use current year minus 1.
+    const reportYear = currentMonth === 0 ? currentYear - 1 : currentYear - 1;
+    return {
+      startDate: `${reportYear}-01-01`,
+      endDate: `${reportYear}-12-31`,
+    };
+  };
+
+  const congressionalForm = useForm<CongressionalStatisticsFormData>({
+    defaultValues: {
+      dateRange: "last-full-year",
+      startDate: getLastFullYear().startDate,
+      endDate: getLastFullYear().endDate,
+    },
+  });
+
   const selectedDateRange = givingForm.watch("dateRange");
+  const selectedCongressionalDateRange = congressionalForm.watch("dateRange");
 
   // Fetch households for dropdown
   useEffect(() => {
@@ -140,6 +170,36 @@ export default function ReportsPage() {
       givingForm.setValue("endDate", endDate);
     }
   }, [selectedDateRange, givingForm]);
+
+  // Calculate date ranges for congressional statistics report
+  useEffect(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    let startDate = "";
+    let endDate = "";
+
+    switch (selectedCongressionalDateRange) {
+      case "last-full-year": {
+        const lastFullYear = getLastFullYear();
+        startDate = lastFullYear.startDate;
+        endDate = lastFullYear.endDate;
+        break;
+      }
+      case "custom":
+        // Don't auto-fill for custom
+        return;
+      default: {
+        const lastFullYear = getLastFullYear();
+        startDate = lastFullYear.startDate;
+        endDate = lastFullYear.endDate;
+      }
+    }
+
+    if (selectedCongressionalDateRange !== "custom") {
+      congressionalForm.setValue("startDate", startDate);
+      congressionalForm.setValue("endDate", endDate);
+    }
+  }, [selectedCongressionalDateRange, congressionalForm]);
 
   // Helper function to download CSV
   const downloadCsv = async (url: string, filename: string) => {
@@ -241,6 +301,41 @@ export default function ReportsPage() {
       setError(error instanceof Error ? error.message : "Failed to generate membership report");
     } finally {
       setGeneratingMembershipReport(false);
+    }
+  };
+
+  const onCongressionalStatisticsSubmit = async (data: CongressionalStatisticsFormData) => {
+    setError(null);
+    setSuccess(null);
+    setGeneratingCongressionalReport(true);
+
+    try {
+      const startDate = data.startDate || congressionalForm.getValues("startDate");
+      const endDate = data.endDate || congressionalForm.getValues("endDate");
+
+      if (!startDate || !endDate) {
+        throw new Error("Please select a date range");
+      }
+
+      if (new Date(startDate) > new Date(endDate)) {
+        throw new Error("Start date must be before or equal to end date");
+      }
+
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+      });
+
+      const url = `/api/reports/congressional-statistics?${params.toString()}`;
+      const filename = `congressional-statistics-report-${startDate}-to-${endDate}.csv`;
+
+      await downloadCsv(url, filename);
+      setSuccess("Congressional Statistics report generated successfully!");
+    } catch (error) {
+      console.error("Error generating congressional statistics report:", error);
+      setError(error instanceof Error ? error.message : "Failed to generate congressional statistics report");
+    } finally {
+      setGeneratingCongressionalReport(false);
     }
   };
 
@@ -535,6 +630,91 @@ export default function ReportsPage() {
                   <>
                     <DownloadIcon className="mr-2 h-4 w-4" />
                     Generate Membership Report
+                  </>
+                )}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {/* Congressional Statistics Report Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileTextIcon className="h-5 w-5" />
+            Congressional Statistics Report
+          </CardTitle>
+          <CardDescription>
+            Generate a comprehensive statistics report including membership, baptisms, confirmations, losses, and attendance metrics
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...congressionalForm}>
+            <form onSubmit={congressionalForm.handleSubmit(onCongressionalStatisticsSubmit)} className="space-y-4">
+              <FormField
+                control={congressionalForm.control}
+                name="dateRange"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date Range</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select date range" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="last-full-year">Last Full Year</SelectItem>
+                        <SelectItem value="custom">Custom Date Range</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {selectedCongressionalDateRange === "custom" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={congressionalForm.control}
+                    name="startDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Start Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={congressionalForm.control}
+                    name="endDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>End Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
+              <Button type="submit" disabled={generatingCongressionalReport} className="cursor-pointer">
+                {generatingCongressionalReport ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <DownloadIcon className="mr-2 h-4 w-4" />
+                    Generate Congressional Statistics Report
                   </>
                 )}
               </Button>
