@@ -331,7 +331,7 @@ export async function POST(request: Request) {
           // Ensure all values are properly typed before insertion
           const householdData = {
             name: finalHouseholdName, // Guaranteed to be a string
-            type: householdType as "family" | "single" | "couple" | "other",
+            type: householdType as "family" | "single" | "other",
             isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
             personAssigned: getStringValue("person assigned") || null,
             ministryGroup: getStringValue("ministry group") || null,

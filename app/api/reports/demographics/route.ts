@@ -54,7 +54,6 @@ export async function GET() {
     const householdTypeBreakdown: Record<string, number> = {
       family: 0,
       single: 0,
-      couple: 0,
       other: 0,
       unknown: 0,
     };

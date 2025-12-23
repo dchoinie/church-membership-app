@@ -126,7 +126,7 @@ export default function MembershipPage() {
   const createForm = useForm<HouseholdFormData>({
     defaultValues: {
       name: "",
-      type: "individual",
+      type: "single",
       address1: "",
       address2: "",
       city: "",
@@ -138,7 +138,7 @@ export default function MembershipPage() {
   const editForm = useForm<HouseholdFormData>({
     defaultValues: {
       name: "",
-      type: "individual",
+      type: "single",
       address1: "",
       address2: "",
       city: "",
@@ -335,7 +335,7 @@ export default function MembershipPage() {
     setSelectedHousehold(household);
     editForm.reset({
       name: household.name || "",
-      type: household.type || "individual",
+        type: household.type || "single",
       address1: household.address1 || "",
       address2: "",
       city: household.city || "",
@@ -455,9 +455,8 @@ export default function MembershipPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="individual">Individual</SelectItem>
+                            <SelectItem value="single">Single</SelectItem>
                             <SelectItem value="family">Family</SelectItem>
-                            <SelectItem value="couple">Couple</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
@@ -954,9 +953,8 @@ export default function MembershipPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="single">Single</SelectItem>
                         <SelectItem value="family">Family</SelectItem>
-                        <SelectItem value="couple">Couple</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>

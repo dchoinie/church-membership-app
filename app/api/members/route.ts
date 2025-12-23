@@ -150,7 +150,7 @@ export async function POST(request: Request) {
         .insert(household)
         .values({
           name: body.householdName || null,
-          type: body.householdType || "individual", // Default to "individual" for new households
+          type: body.householdType || "single", // Default to "single" for new households
         })
         .returning();
       

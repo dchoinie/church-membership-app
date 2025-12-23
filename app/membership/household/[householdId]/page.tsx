@@ -160,7 +160,7 @@ export default function HouseholdViewPage({
   const editForm = useForm<HouseholdFormData>({
     defaultValues: {
       name: "",
-      type: "individual",
+      type: "single",
       address1: "",
       address2: "",
       city: "",
@@ -346,7 +346,7 @@ export default function HouseholdViewPage({
     if (household) {
       editForm.reset({
         name: household.name || "",
-        type: household.type || "individual",
+        type: household.type || "single",
         address1: household.address1 || "",
         address2: household.address2 || "",
         city: household.city || "",
@@ -464,7 +464,7 @@ export default function HouseholdViewPage({
           },
           body: JSON.stringify({
             name: `${selectedMember.firstName} ${selectedMember.lastName}`,
-            type: "individual",
+            type: "single",
           }),
         });
 
@@ -1150,9 +1150,8 @@ export default function HouseholdViewPage({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="single">Single</SelectItem>
                         <SelectItem value="family">Family</SelectItem>
-                        <SelectItem value="couple">Couple</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
