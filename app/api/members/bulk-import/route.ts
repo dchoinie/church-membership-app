@@ -402,8 +402,12 @@ export async function POST(request: Request) {
             : null,
           receivedBy: (() => {
             const receivedByValue = getValue("received by")?.toLowerCase();
-            const validReceivedByValues = ["baptism", "confirmation", "transfer", "profession", "other"];
-            return receivedByValue && validReceivedByValues.includes(receivedByValue) ? receivedByValue as "baptism" | "confirmation" | "transfer" | "profession" | "other" : null;
+            const validReceivedByValues = ["adult_confirmation", "affirmation_of_faith", "baptism", "junior_confirmation", "transfer", "with_parents", "other_denomination", "unknown"];
+            // Handle both underscore and space formats for CSV input
+            const normalizedValue = receivedByValue?.replace(/\s+/g, "_");
+            return normalizedValue && validReceivedByValues.includes(normalizedValue) 
+              ? normalizedValue as "adult_confirmation" | "affirmation_of_faith" | "baptism" | "junior_confirmation" | "transfer" | "with_parents" | "other_denomination" | "unknown"
+              : null;
           })(),
           dateReceived: parsedDateReceived
             ? parsedDateReceived.toISOString().split("T")[0]
@@ -421,6 +425,15 @@ export async function POST(request: Request) {
             const status = getValue("participation") || getValue("membership status")?.toLowerCase();
             const validStatuses = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
             return validStatuses.includes(status as typeof validStatuses[number]) ? status as typeof validStatuses[number] : "active";
+          })(),
+          sequence: (() => {
+            const sequenceValue = getValue("sequence")?.toLowerCase();
+            const validSequenceValues = ["head_of_house", "spouse", "child"];
+            // Handle both underscore and space formats for CSV input
+            const normalizedValue = sequenceValue?.replace(/\s+/g, "_");
+            return normalizedValue && validSequenceValues.includes(normalizedValue)
+              ? normalizedValue as "head_of_house" | "spouse" | "child"
+              : null;
           })(),
           householdId,
         };
