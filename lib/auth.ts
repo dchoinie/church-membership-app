@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { sendPasswordResetEmail } from "@/lib/email";
 
 export const auth = betterAuth({
+    baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    secret: process.env.BETTER_AUTH_SECRET, // Required for production
     database: drizzleAdapter(db, {
         provider: "pg",
     }),
@@ -23,5 +25,16 @@ export const auth = betterAuth({
                 throw error;
             }
         },
+    },
+    trustedOrigins: process.env.NODE_ENV === "production" 
+        ? ["https://admin.goodshepherdmankato.org", "https://goodshepherdmankato.org"]
+        : undefined,
+    advanced: {
+        useSecureCookies: process.env.NODE_ENV === "production",
+        // If you need cookies to work across subdomains:
+        // crossSubDomainCookies: {
+        //     enabled: true,
+        //     domain: "goodshepherdmankato.org",
+        // },
     },
 });
