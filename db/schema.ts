@@ -15,7 +15,6 @@ import {
 export const householdTypeEnum = pgEnum("household_type_enum", [
   "family",
   "single",
-  "couple",
   "other",
 ]);
 
@@ -27,18 +26,28 @@ export const sexEnum = pgEnum("sex_enum", [
 
 export const participationStatusEnum = pgEnum("participation_status_enum", [
   "active",
-  "visitor",
-  "inactive",
-  "transferred",
   "deceased",
+  "homebound",
+  "military",
+  "inactive",
+  "school",
 ]);
 
 export const receivedByEnum = pgEnum("received_by_enum", [
+  "adult_confirmation",
+  "affirmation_of_faith",
   "baptism",
-  "confirmation",
+  "junior_confirmation",
   "transfer",
-  "profession",
-  "other",
+  "with_parents",
+  "other_denomination",
+  "unknown",
+]);
+
+export const sequenceEnum = pgEnum("sequence_enum", [
+  "head_of_house",
+  "spouse",
+  "child",
 ]);
 
 export const serviceTypeEnum = pgEnum("service_type_enum", [
@@ -111,6 +120,7 @@ export const members = pgTable(
     participation: participationStatusEnum("participation")
       .notNull()
       .default("active"),
+    sequence: sequenceEnum("sequence"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

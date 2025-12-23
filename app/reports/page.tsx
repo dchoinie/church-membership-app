@@ -54,10 +54,11 @@ interface CongressionalStatisticsFormData {
 
 const PARTICIPATION_STATUSES = [
   { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
   { value: "deceased", label: "Deceased" },
-  { value: "transferred", label: "Transferred" },
-  { value: "visitor", label: "Visitor" },
+  { value: "homebound", label: "Homebound" },
+  { value: "military", label: "Military" },
+  { value: "inactive", label: "Inactive" },
+  { value: "school", label: "School" },
 ];
 
 const ALL_STATUS_VALUES = PARTICIPATION_STATUSES.map(s => s.value);

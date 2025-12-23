@@ -1,0 +1,2 @@
+CREATE TYPE "public"."participation_status_detail_enum" AS ENUM('active', 'deceased', 'homebound', 'military', 'inactive', 'school');--> statement-breakpoint
+ALTER TABLE "members" ADD COLUMN "participation_status" "participation_status_detail_enum";

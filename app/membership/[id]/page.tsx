@@ -892,10 +892,11 @@ export default function MemberDetailPage({
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="visitor">Visitor</SelectItem>
-                              <SelectItem value="inactive">Inactive</SelectItem>
-                              <SelectItem value="transferred">Transferred</SelectItem>
-                              <SelectItem value="deceased">Deceased</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                            <SelectItem value="deceased">Deceased</SelectItem>
+                            <SelectItem value="homebound">Homebound</SelectItem>
+                            <SelectItem value="military">Military</SelectItem>
+                            <SelectItem value="school">School</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -1077,13 +1078,14 @@ export default function MemberDetailPage({
                           className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
                             member.participation?.toLowerCase() === "active"
                               ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : member.participation?.toLowerCase() === "visitor"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                : member.participation?.toLowerCase() === "inactive"
-                                  ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                                  : member.participation?.toLowerCase() === "deceased" ||
-                                      member.participation?.toLowerCase() === "transferred"
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                              : member.participation?.toLowerCase() === "inactive"
+                                ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                                : member.participation?.toLowerCase() === "deceased"
+                                  ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                  : member.participation?.toLowerCase() === "homebound" ||
+                                      member.participation?.toLowerCase() === "military" ||
+                                      member.participation?.toLowerCase() === "school"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                                     : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
                           }`}
                         >

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -74,77 +74,48 @@ export async function GET(request: Request) {
       ? await queryBuilder.where(whereCondition)
       : await queryBuilder;
 
-    // Helper function to find head of household (oldest male)
-    const findHeadOfHousehold = (
-      members: Array<{
-        id: string;
-        firstName: string;
-        lastName: string;
-        sex: "male" | "female" | "other" | null;
-        dateOfBirth: string | null;
-      }>
-    ): { id: string; firstName: string; lastName: string } => {
-      // Filter for males
-      const males = members.filter(m => m.sex === "male");
-      
-      if (males.length > 0) {
-        // Sort males by dateOfBirth (oldest first)
-        const sortedMales = males.sort((a, b) => {
-          if (!a.dateOfBirth) return 1; // No date goes to end
-          if (!b.dateOfBirth) return -1;
-          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-        });
-        return {
-          id: sortedMales[0].id,
-          firstName: sortedMales[0].firstName,
-          lastName: sortedMales[0].lastName,
-        };
-      }
-      
-      // No males found, use oldest member overall
-      const sortedAll = members.sort((a, b) => {
-        if (!a.dateOfBirth) return 1; // No date goes to end
-        if (!b.dateOfBirth) return -1;
-        return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-      });
-      
-      return {
-        id: sortedAll[0].id,
-        firstName: sortedAll[0].firstName,
-        lastName: sortedAll[0].lastName,
-      };
-    };
-
-    // For each giving record, find the head of household
+    // For each giving record, find the head of household using sequence column
     const givingRecords = await Promise.all(
       givingRecordsRaw.map(async (record) => {
-        // If the member has an envelope number, find all members with that envelope number
+        // If the member has an envelope number, find head of household with sequence = "head_of_house"
         if (record.member.envelopeNumber) {
-          const householdMembers = await db
-            .select({
-              id: members.id,
-              firstName: members.firstName,
-              lastName: members.lastName,
-              sex: members.sex,
-              dateOfBirth: members.dateOfBirth,
-            })
+          // First get the household ID from the record's member
+          const [recordMember] = await db
+            .select({ householdId: members.householdId })
             .from(members)
-            .where(eq(members.envelopeNumber, record.member.envelopeNumber));
+            .where(eq(members.id, record.member.id))
+            .limit(1);
 
-          if (householdMembers.length > 0) {
-            const headOfHousehold = findHeadOfHousehold(householdMembers);
-            return {
-              ...record,
-              member: {
-                id: headOfHousehold.id,
-                firstName: headOfHousehold.firstName,
-                lastName: headOfHousehold.lastName,
-              },
-            };
+          if (recordMember?.householdId) {
+            const [headOfHousehold] = await db
+              .select({
+                id: members.id,
+                firstName: members.firstName,
+                lastName: members.lastName,
+              })
+              .from(members)
+              .where(
+                and(
+                  eq(members.householdId, recordMember.householdId),
+                  eq(members.sequence, "head_of_house")
+                )
+              )
+              .limit(1);
+
+            if (headOfHousehold) {
+              return {
+                ...record,
+                member: {
+                  id: headOfHousehold.id,
+                  firstName: headOfHousehold.firstName,
+                  lastName: headOfHousehold.lastName,
+                },
+              };
+            }
           }
         }
 
-        // Fallback: use the record's member if no envelope number or household members found
+        // Fallback: use the record's member if no envelope number or head of household not found
         return {
           ...record,
           member: {
@@ -279,34 +250,31 @@ export async function POST(request: Request) {
         );
       }
 
-      // Find head of household: oldest male member in the household
-      // If no males, fallback to oldest member overall
-      // If no dates, fallback to first member
-      const findHeadOfHousehold = (members: typeof membersWithEnvelope): string => {
-        // Filter for males
-        const males = members.filter(m => m.sex === "male");
-        
-        if (males.length > 0) {
-          // Sort males by dateOfBirth (oldest first)
-          const sortedMales = males.sort((a, b) => {
-            if (!a.dateOfBirth) return 1; // No date goes to end
-            if (!b.dateOfBirth) return -1;
-            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-          });
-          return sortedMales[0].id;
-        }
-        
-        // No males found, use oldest member overall
-        const sortedAll = members.sort((a, b) => {
-          if (!a.dateOfBirth) return 1; // No date goes to end
-          if (!b.dateOfBirth) return -1;
-          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-        });
-        
-        return sortedAll[0].id;
-      };
+      // Find head of household using sequence column
+      // Get household ID from first member with this envelope number
+      const firstMember = membersWithEnvelope[0];
+      if (firstMember.householdId) {
+        const [headOfHousehold] = await db
+          .select({ id: members.id })
+          .from(members)
+          .where(
+            and(
+              eq(members.householdId, firstMember.householdId),
+              eq(members.sequence, "head_of_house")
+            )
+          )
+          .limit(1);
 
-      targetMemberId = findHeadOfHousehold(membersWithEnvelope);
+        if (headOfHousehold) {
+          targetMemberId = headOfHousehold.id;
+        } else {
+          // Fallback to first member if no head of house found
+          targetMemberId = firstMember.id;
+        }
+      } else {
+        // Fallback to first member if no household ID
+        targetMemberId = firstMember.id;
+      }
     } else {
       // Use provided memberId
       targetMemberId = body.memberId;
@@ -371,54 +339,42 @@ export async function POST(request: Request) {
       .where(eq(giving.id, newGiving.id))
       .limit(1);
 
-    // Find head of household (oldest male) if envelope number exists
+    // Find head of household using sequence column
     let headOfHouseholdMember = {
       id: givingWithMemberRaw.member.id,
       firstName: givingWithMemberRaw.member.firstName,
       lastName: givingWithMemberRaw.member.lastName,
     };
 
-    if (givingWithMemberRaw.member.envelopeNumber) {
-      const householdMembers = await db
+    // Get household ID from the member
+    const [memberRecord] = await db
+      .select({ householdId: members.householdId })
+      .from(members)
+      .where(eq(members.id, givingWithMemberRaw.member.id))
+      .limit(1);
+
+    if (memberRecord?.householdId) {
+      const [headMember] = await db
         .select({
           id: members.id,
           firstName: members.firstName,
           lastName: members.lastName,
-          sex: members.sex,
-          dateOfBirth: members.dateOfBirth,
         })
         .from(members)
-        .where(eq(members.envelopeNumber, givingWithMemberRaw.member.envelopeNumber));
+        .where(
+          and(
+            eq(members.householdId, memberRecord.householdId),
+            eq(members.sequence, "head_of_house")
+          )
+        )
+        .limit(1);
 
-      if (householdMembers.length > 0) {
-        // Filter for males
-        const males = householdMembers.filter(m => m.sex === "male");
-        
-        if (males.length > 0) {
-          // Sort males by dateOfBirth (oldest first)
-          const sortedMales = males.sort((a, b) => {
-            if (!a.dateOfBirth) return 1;
-            if (!b.dateOfBirth) return -1;
-            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-          });
-          headOfHouseholdMember = {
-            id: sortedMales[0].id,
-            firstName: sortedMales[0].firstName,
-            lastName: sortedMales[0].lastName,
-          };
-        } else {
-          // No males, use oldest member overall
-          const sortedAll = householdMembers.sort((a, b) => {
-            if (!a.dateOfBirth) return 1;
-            if (!b.dateOfBirth) return -1;
-            return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-          });
-          headOfHouseholdMember = {
-            id: sortedAll[0].id,
-            firstName: sortedAll[0].firstName,
-            lastName: sortedAll[0].lastName,
-          };
-        }
+      if (headMember) {
+        headOfHouseholdMember = {
+          id: headMember.id,
+          firstName: headMember.firstName,
+          lastName: headMember.lastName,
+        };
       }
     }
 

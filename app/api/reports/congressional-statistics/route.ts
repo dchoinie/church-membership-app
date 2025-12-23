@@ -215,40 +215,9 @@ export async function GET(request: Request) {
       ? Math.round((totalDivineServiceAttendance / divineServiceCount) * 100) / 100
       : 0;
 
-    // 7. Average visitors per service - average visitors (participation = "visitor") per service
-    // First get the count of services
-    const serviceCountResult = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(services)
-      .where(
-        and(
-          gte(services.serviceDate, startDate),
-          lte(services.serviceDate, endDate)
-        )
-      );
-
-    const serviceCount = serviceCountResult[0]?.count || 0;
-
-    // Then get total visitors for those services
-    const totalVisitorsResult = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(attendance)
-      .innerJoin(services, eq(attendance.serviceId, services.id))
-      .innerJoin(members, eq(attendance.memberId, members.id))
-      .where(
-        and(
-          gte(services.serviceDate, startDate),
-          lte(services.serviceDate, endDate),
-          eq(attendance.attended, true),
-          eq(members.participation, "visitor")
-        )
-      );
-
-    const totalVisitors = totalVisitorsResult[0]?.count || 0;
-
-    const averageVisitorsPerService = serviceCount > 0
-      ? Math.round((totalVisitors / serviceCount) * 100) / 100
-      : 0;
+    // 7. Average visitors per service - removed as "visitor" status no longer exists
+    // (visitor status was consolidated into "active")
+    const averageVisitorsPerService = 0;
 
     // Generate CSV
     const csvRows = [

@@ -138,65 +138,33 @@ export async function GET(request: Request) {
 
     const givingRecords = await queryBuilder;
 
-    // Helper function to find head of household (oldest male)
-    const findHeadOfHousehold = (
-      members: Array<{
-        id: string;
-        firstName: string;
-        lastName: string;
-        sex: "male" | "female" | "other" | null;
-        dateOfBirth: string | null;
-      }>
-    ): { id: string; firstName: string; lastName: string } => {
-      // Filter for males
-      const males = members.filter(m => m.sex === "male");
-      
-      if (males.length > 0) {
-        // Sort males by dateOfBirth (oldest first)
-        const sortedMales = males.sort((a, b) => {
-          if (!a.dateOfBirth) return 1; // No date goes to end
-          if (!b.dateOfBirth) return -1;
-          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-        });
-        return {
-          id: sortedMales[0].id,
-          firstName: sortedMales[0].firstName,
-          lastName: sortedMales[0].lastName,
-        };
-      }
-      
-      // No males found, use oldest member overall
-      const sortedAll = members.sort((a, b) => {
-        if (!a.dateOfBirth) return 1; // No date goes to end
-        if (!b.dateOfBirth) return -1;
-        return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-      });
-      
-      return {
-        id: sortedAll[0].id,
-        firstName: sortedAll[0].firstName,
-        lastName: sortedAll[0].lastName,
-      };
-    };
-
-    // For each giving record, find the head of household (oldest male)
+    // For each giving record, find the head of household using sequence column
     const recordsWithHeadOfHousehold = await Promise.all(
       givingRecords.map(async (record) => {
-        // If the member has an envelope number, find all members with that envelope number
-        if (record.member.envelopeNumber) {
-          const householdMembers = await db
+        // Get household ID from the record's member
+        const [recordMember] = await db
+          .select({ householdId: members.householdId })
+          .from(members)
+          .where(eq(members.id, record.member.id))
+          .limit(1);
+
+        if (recordMember?.householdId) {
+          const [headOfHousehold] = await db
             .select({
               id: members.id,
               firstName: members.firstName,
               lastName: members.lastName,
-              sex: members.sex,
-              dateOfBirth: members.dateOfBirth,
             })
             .from(members)
-            .where(eq(members.envelopeNumber, record.member.envelopeNumber));
+            .where(
+              and(
+                eq(members.householdId, recordMember.householdId),
+                eq(members.sequence, "head_of_house")
+              )
+            )
+            .limit(1);
 
-          if (householdMembers.length > 0) {
-            const headOfHousehold = findHeadOfHousehold(householdMembers);
+          if (headOfHousehold) {
             return {
               ...record,
               member: {
@@ -209,7 +177,7 @@ export async function GET(request: Request) {
           }
         }
 
-        // Fallback: use the record's member if no envelope number or household members found
+        // Fallback: use the record's member if no household ID or head of household not found
         return record;
       })
     );

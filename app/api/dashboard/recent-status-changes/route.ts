@@ -17,8 +17,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get recent transfers (participation = "transferred")
-    const transfers = await db
+    // Get recent inactive members (participation = "inactive", which includes former "transferred")
+    const inactiveMembers = await db
       .select({
         id: members.id,
         firstName: members.firstName,
@@ -31,7 +31,7 @@ export async function GET() {
       })
       .from(members)
       .leftJoin(household, eq(members.householdId, household.id))
-      .where(eq(members.participation, "transferred"))
+      .where(eq(members.participation, "inactive"))
       .orderBy(desc(members.updatedAt))
       .limit(5);
 
@@ -55,9 +55,9 @@ export async function GET() {
 
     // Combine and sort by most recent date
     const allChanges = [
-      ...transfers.map((t) => ({
+      ...inactiveMembers.map((t) => ({
         ...t,
-        type: "transferred" as const,
+        type: "inactive" as const,
         date: t.dateRemoved || t.updatedAt,
       })),
       ...newMembers.map((m) => ({

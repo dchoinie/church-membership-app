@@ -38,10 +38,11 @@ function generateCsv(rows: Array<Record<string, string | null>>, headers?: strin
 
 const VALID_PARTICIPATION_STATUSES = [
   "active",
-  "visitor",
-  "inactive",
-  "transferred",
   "deceased",
+  "homebound",
+  "military",
+  "inactive",
+  "school",
 ] as const;
 
 function isValidParticipationStatus(

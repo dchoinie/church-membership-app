@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { eq, and } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -57,26 +58,22 @@ export async function POST(request: Request) {
       membersById.set(member.id, member);
     });
 
-    // Helper function to find head of household
-    const findHeadOfHousehold = (members: typeof allMembers): string => {
-      const males = members.filter(m => m.sex === "male");
+    // Helper function to find head of household using sequence column
+    const findHeadOfHousehold = async (householdId: string | null): Promise<string | null> => {
+      if (!householdId) return null;
       
-      if (males.length > 0) {
-        const sortedMales = males.sort((a, b) => {
-          if (!a.dateOfBirth) return 1;
-          if (!b.dateOfBirth) return -1;
-          return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-        });
-        return sortedMales[0].id;
-      }
-      
-      const sortedAll = members.sort((a, b) => {
-        if (!a.dateOfBirth) return 1;
-        if (!b.dateOfBirth) return -1;
-        return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-      });
-      
-      return sortedAll[0].id;
+      const [headOfHousehold] = await db
+        .select({ id: members.id })
+        .from(members)
+        .where(
+          and(
+            eq(members.householdId, householdId),
+            eq(members.sequence, "head_of_house")
+          )
+        )
+        .limit(1);
+
+      return headOfHousehold?.id || null;
     };
 
     const results = {
@@ -130,8 +127,9 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Find head of household
-        const targetMemberId = findHeadOfHousehold(membersForEnvelope);
+        // Find head of household using sequence column
+        const firstMember = membersForEnvelope[0];
+        const targetMemberId = await findHeadOfHousehold(firstMember.householdId) || firstMember.id;
 
         // Parse amounts
         const currentAmount = record.currentAmount ? parseFloat(record.currentAmount) : null;

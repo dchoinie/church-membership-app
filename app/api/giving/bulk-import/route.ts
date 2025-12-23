@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { eq, and } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
@@ -294,34 +295,30 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // Find head of household: oldest male member in the household
-          // If no males, fallback to oldest member overall
-          // If no dates, fallback to first member
-          const findHeadOfHousehold = (members: typeof membersForEnvelope): string => {
-            // Filter for males
-            const males = members.filter(m => m.sex === "male");
-            
-            if (males.length > 0) {
-              // Sort males by dateOfBirth (oldest first)
-              const sortedMales = males.sort((a, b) => {
-                if (!a.dateOfBirth) return 1; // No date goes to end
-                if (!b.dateOfBirth) return -1;
-                return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-              });
-              return sortedMales[0].id;
-            }
-            
-            // No males found, use oldest member overall
-            const sortedAll = members.sort((a, b) => {
-              if (!a.dateOfBirth) return 1; // No date goes to end
-              if (!b.dateOfBirth) return -1;
-              return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
-            });
-            
-            return sortedAll[0].id;
-          };
+          // Find head of household using sequence column
+          const firstMember = membersForEnvelope[0];
+          if (firstMember.householdId) {
+            const [headOfHousehold] = await db
+              .select({ id: members.id })
+              .from(members)
+              .where(
+                and(
+                  eq(members.householdId, firstMember.householdId),
+                  eq(members.sequence, "head_of_house")
+                )
+              )
+              .limit(1);
 
-          targetMemberId = findHeadOfHousehold(membersForEnvelope);
+            if (headOfHousehold) {
+              targetMemberId = headOfHousehold.id;
+            } else {
+              // Fallback to first member if no head of house found
+              targetMemberId = firstMember.id;
+            }
+          } else {
+            // Fallback to first member if no household ID
+            targetMemberId = firstMember.id;
+          }
         } else if (memberIdStr) {
           const member = membersById.get(memberIdStr);
           if (!member) {

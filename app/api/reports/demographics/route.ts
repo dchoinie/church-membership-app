@@ -61,10 +61,11 @@ export async function GET() {
 
     const memberStatusBreakdown: Record<string, number> = {
       active: 0,
-      visitor: 0,
       inactive: 0,
-      transferred: 0,
       deceased: 0,
+      homebound: 0,
+      military: 0,
+      school: 0,
     };
 
     allMembers.forEach((member) => {

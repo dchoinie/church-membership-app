@@ -247,7 +247,7 @@ export async function POST(request: Request) {
         } else if (createNewHousehold) {
           // Validate and normalize household type
           const householdTypeRaw = getValue("household type");
-          const validHouseholdTypes = ["family", "single", "couple", "other"];
+          const validHouseholdTypes = ["family", "single", "other"];
           const householdType = householdTypeRaw && validHouseholdTypes.includes(householdTypeRaw.toLowerCase())
             ? householdTypeRaw.toLowerCase()
             : "single"; // Default to "single" instead of invalid "individual"
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
             .insert(household)
             .values({
               name: householdName,
-              type: householdType as "family" | "single" | "couple" | "other",
+              type: householdType as "family" | "single" | "other",
               isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
               personAssigned: getStringValue("person assigned") || null,
               ministryGroup: getStringValue("ministry group") || null,
@@ -323,7 +323,7 @@ export async function POST(request: Request) {
             : String(householdName || memberName || "New Household");
           
           const householdTypeRaw = getValue("household type");
-          const validHouseholdTypes = ["family", "single", "couple", "other"];
+          const validHouseholdTypes = ["family", "single", "other"];
           const householdType = householdTypeRaw && validHouseholdTypes.includes(householdTypeRaw.toLowerCase())
             ? householdTypeRaw.toLowerCase()
             : "single";
@@ -419,7 +419,7 @@ export async function POST(request: Request) {
           envelopeNumber: getValue("envelope number") ? parseInt(getValue("envelope number")!) : null,
           participation: (() => {
             const status = getValue("participation") || getValue("membership status")?.toLowerCase();
-            const validStatuses = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
+            const validStatuses = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
             return validStatuses.includes(status as typeof validStatuses[number]) ? status as typeof validStatuses[number] : "active";
           })(),
           householdId,

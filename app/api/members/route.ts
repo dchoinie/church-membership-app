@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
 
-const VALID_PARTICIPATION_STATUSES = ["active", "visitor", "inactive", "transferred", "deceased"] as const;
+const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
 function isValidParticipationStatus(status: string | null | undefined): status is typeof VALID_PARTICIPATION_STATUSES[number] {
   if (status === null || status === undefined) return false;
