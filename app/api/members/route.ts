@@ -183,7 +183,12 @@ export async function POST(request: Request) {
         preferredName: body.preferredName || null,
         maidenName: body.maidenName || null,
         title: body.title || null,
-        sex: body.sex || null,
+        sex: (() => {
+          if (!body.sex) return null;
+          const sexValue = typeof body.sex === "string" ? body.sex.toLowerCase() : null;
+          const validSexValues = ["male", "female", "other"];
+          return sexValue && validSexValues.includes(sexValue) ? sexValue as "male" | "female" | "other" : null;
+        })(),
         dateOfBirth: body.dateOfBirth || null,
         email1: body.email1 || null,
         email2: body.email2 || null,

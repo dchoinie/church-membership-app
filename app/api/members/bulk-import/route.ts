@@ -382,7 +382,11 @@ export async function POST(request: Request) {
           preferredName: getValue("preferred name") || null,
           maidenName: getValue("maiden name") || null,
           title: getValue("title") || null,
-          sex: getValue("sex") || null,
+          sex: (() => {
+            const sexValue = getValue("sex")?.toLowerCase();
+            const validSexValues = ["male", "female", "other"];
+            return validSexValues.includes(sexValue || "") ? sexValue as "male" | "female" | "other" : null;
+          })(),
           dateOfBirth: parsedDateOfBirth
             ? parsedDateOfBirth.toISOString().split("T")[0]
             : null,
