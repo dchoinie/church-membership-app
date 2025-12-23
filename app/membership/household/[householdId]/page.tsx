@@ -873,9 +873,23 @@ export default function HouseholdViewPage({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Removed By</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select reason" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="death">Death</SelectItem>
+                              <SelectItem value="excommunication">Excommunication</SelectItem>
+                              <SelectItem value="inactivity">Inactivity</SelectItem>
+                              <SelectItem value="moved_no_transfer">Moved (No Transfer)</SelectItem>
+                              <SelectItem value="released">Released</SelectItem>
+                              <SelectItem value="removed_by_request">Removed by Request</SelectItem>
+                              <SelectItem value="transfer">Transfer</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}

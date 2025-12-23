@@ -412,7 +412,15 @@ export async function POST(request: Request) {
           dateReceived: parsedDateReceived
             ? parsedDateReceived.toISOString().split("T")[0]
             : null,
-          removedBy: getValue("removed by") || null,
+          removedBy: (() => {
+            const removedByValue = getValue("removed by")?.toLowerCase();
+            const validRemovedByValues = ["death", "excommunication", "inactivity", "moved_no_transfer", "released", "removed_by_request", "transfer", "other"];
+            // Handle both underscore and space formats for CSV input
+            const normalizedValue = removedByValue?.replace(/\s+/g, "_").replace(/\(no\s+transfer\)/gi, "_no_transfer");
+            return normalizedValue && validRemovedByValues.includes(normalizedValue)
+              ? normalizedValue as "death" | "excommunication" | "inactivity" | "moved_no_transfer" | "released" | "removed_by_request" | "transfer" | "other"
+              : null;
+          })(),
           dateRemoved: parsedDateRemoved
             ? parsedDateRemoved.toISOString().split("T")[0]
             : null,

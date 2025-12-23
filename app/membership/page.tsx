@@ -651,7 +651,7 @@ export default function MembershipPage() {
                   <p className="text-xs text-muted-foreground mt-2">
                     Required columns: First Name, Last Name, Household ID (or create new household)
                     <br />
-                    Optional columns: Middle Name, Suffix, Preferred Name, Maiden Name, Title, Sex, Date of Birth, Email1, Email2, Phone Home, Phone Cell1, Phone Cell2, Baptism Date, Confirmation Date, Received By (adult_confirmation, affirmation_of_faith, baptism, junior_confirmation, transfer, with_parents, other_denomination, unknown), Date Received, Removed By, Date Removed, Deceased Date, Membership Code, Participation (active, deceased, homebound, military, inactive, school), Sequence (head_of_house, spouse, child)
+                    Optional columns: Middle Name, Suffix, Preferred Name, Maiden Name, Title, Sex, Date of Birth, Email1, Email2, Phone Home, Phone Cell1, Phone Cell2, Baptism Date, Confirmation Date, Received By (adult_confirmation, affirmation_of_faith, baptism, junior_confirmation, transfer, with_parents, other_denomination, unknown), Date Received, Removed By (death, excommunication, inactivity, moved_no_transfer, released, removed_by_request, transfer, other), Date Removed, Deceased Date, Membership Code, Participation (active, deceased, homebound, military, inactive, school), Sequence (head_of_house, spouse, child)
                   </p>
                 </div>
                 {importResults && (

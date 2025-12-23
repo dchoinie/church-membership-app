@@ -50,6 +50,17 @@ export const sequenceEnum = pgEnum("sequence_enum", [
   "child",
 ]);
 
+export const removedByEnum = pgEnum("removed_by_enum", [
+  "death",
+  "excommunication",
+  "inactivity",
+  "moved_no_transfer",
+  "released",
+  "removed_by_request",
+  "transfer",
+  "other",
+]);
+
 export const serviceTypeEnum = pgEnum("service_type_enum", [
   "divine_service",
   "midweek_lent",
@@ -112,7 +123,7 @@ export const members = pgTable(
     confirmationDate: date("confirmation_date"),
     receivedBy: receivedByEnum("received_by"),
     dateReceived: date("date_received"),
-    removedBy: text("removed_by"),
+    removedBy: removedByEnum("removed_by"),
     dateRemoved: date("date_removed"),
     deceasedDate: date("deceased_date"),
     membershipCode: text("membership_code"),
