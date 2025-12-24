@@ -3,8 +3,17 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
 import { sendPasswordResetEmail } from "@/lib/email";
 
+const getBaseURL = () => {
+    // Use localhost:3000 for local development
+    if (process.env.NODE_ENV === "development") {
+        return "http://localhost:3000"
+    }
+    // Use environment variable for production
+    return process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+}
+
 export const auth = betterAuth({
-    baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    baseURL: getBaseURL(),
     secret: process.env.BETTER_AUTH_SECRET, // Required for production
     database: drizzleAdapter(db, {
         provider: "pg",
