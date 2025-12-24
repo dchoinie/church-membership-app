@@ -141,7 +141,7 @@ export default function AuthLayout({
   // Protected routes - show sidebar
   if (isAuthenticated) {
     return (
-      <div className="flex md:h-screen md:max-h-screen md:overflow-hidden flex-col md:flex-row min-h-screen md:min-h-0">
+      <div className="flex md:h-screen md:max-h-screen md:overflow-hidden flex-col md:flex-row">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <h1 className="text-lg font-semibold text-sidebar-foreground">Good Shepherd Admin</h1>
@@ -174,7 +174,7 @@ export default function AuthLayout({
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 md:overflow-y-auto bg-background min-h-0">
+        <main className="w-full md:flex-1 md:overflow-y-auto bg-background md:min-h-0">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">{children}</div>
         </main>
       </div>
