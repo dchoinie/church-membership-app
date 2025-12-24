@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Good Shepherd Admin",
-  description: "Admin tools for managing Good Shepherd Lutheran Church.",
+  title: "Church Admin",
+  description: "Church management system for membership, giving, and attendance.",
 };
 
 export default function RootLayout({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,15 @@ import { Shield, Users, DollarSign, FileText } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  
+  // Redirect to signup if on root domain
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    // If not a subdomain (localhost or root domain), redirect to signup
+    if (!hostname.includes(".") || hostname.split(".").length <= 2) {
+      router.push("/signup");
+    }
+  }, [router]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",

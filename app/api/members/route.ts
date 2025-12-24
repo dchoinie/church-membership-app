@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, asc, count } from "drizzle-orm";
+import { eq, asc, count, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -16,14 +15,7 @@ function isValidParticipationStatus(status: string | null | undefined): status i
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -35,14 +27,15 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
     const offset = (validPage - 1) * validPageSize;
 
-    // Get total count
+    // Get total count (filtered by churchId)
     const [totalResult] = await db
       .select({ count: count() })
-      .from(members);
+      .from(members)
+      .where(eq(members.churchId, churchId));
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
-    // Get paginated members, sorted alphabetically by last name, then first name
+    // Get paginated members, sorted alphabetically by last name, then first name (filtered by churchId)
     const paginatedMembers = await db
       .select({
         id: members.id,
@@ -75,6 +68,7 @@ export async function GET(request: Request) {
         updatedAt: members.updatedAt,
       })
       .from(members)
+      .where(eq(members.churchId, churchId))
       .orderBy(asc(members.lastName), asc(members.firstName))
       .limit(validPageSize)
       .offset(offset);
@@ -89,6 +83,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching members:", error);
     return NextResponse.json(
       { error: "Failed to fetch members" },
@@ -99,14 +96,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const body = await request.json();
 
@@ -126,12 +116,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check email uniqueness if provided
+    // Check email uniqueness if provided (within same church)
     if (body.email1) {
       const existingMember = await db
         .select()
         .from(members)
-        .where(eq(members.email1, body.email1))
+        .where(and(eq(members.email1, body.email1), eq(members.churchId, churchId)))
         .limit(1);
 
       if (existingMember.length > 0) {
@@ -149,6 +139,7 @@ export async function POST(request: Request) {
       const [newHousehold] = await db
         .insert(household)
         .values({
+          churchId,
           name: body.householdName || null,
           type: body.householdType || "single", // Default to "single" for new households
         })
@@ -157,12 +148,12 @@ export async function POST(request: Request) {
       householdId = newHousehold.id;
     }
 
-    // Validate that householdId exists if provided
+    // Validate that householdId exists and belongs to church if provided
     if (householdId) {
       const [existingHousehold] = await db
         .select()
         .from(household)
-        .where(eq(household.id, householdId))
+        .where(and(eq(household.id, householdId), eq(household.churchId, churchId)))
         .limit(1);
 
       if (!existingHousehold) {
@@ -177,6 +168,7 @@ export async function POST(request: Request) {
     const [newMember] = await db
       .insert(members)
       .values({
+        churchId,
         householdId: householdId,
         firstName: body.firstName,
         middleName: body.middleName || null,
@@ -214,6 +206,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ member: newMember }, { status: 201 });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error creating member:", error);
     return NextResponse.json(
       { error: "Failed to create member" },

@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, desc, count, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -28,21 +20,24 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
     const offset = (validPage - 1) * validPageSize;
 
-    // Build where conditions
-    const whereCondition = memberId ? eq(giving.memberId, memberId) : undefined;
+    // Build where conditions (always filter by churchId via member relationship)
+    const whereConditions = [eq(members.churchId, churchId)];
+    if (memberId) {
+      whereConditions.push(eq(giving.memberId, memberId));
+    }
+    const whereCondition = and(...whereConditions);
 
-    // Get total count
-    const countQuery = db
+    // Get total count (filtered by churchId)
+    const [totalResult] = await db
       .select({ count: count() })
-      .from(giving);
-    const [totalResult] = whereCondition
-      ? await countQuery.where(whereCondition)
-      : await countQuery;
+      .from(giving)
+      .innerJoin(members, eq(giving.memberId, members.id))
+      .where(whereCondition);
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
-    // Get paginated giving records with member info
-    const queryBuilder = db
+    // Get paginated giving records with member info (filtered by churchId)
+    const givingRecordsRaw = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
@@ -66,13 +61,10 @@ export async function GET(request: Request) {
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
+      .where(whereCondition)
       .orderBy(desc(giving.dateGiven), desc(giving.createdAt))
       .limit(validPageSize)
       .offset(offset);
-
-    const givingRecordsRaw = whereCondition
-      ? await queryBuilder.where(whereCondition)
-      : await queryBuilder;
 
     // For each giving record, find the head of household using sequence column
     const givingRecords = await Promise.all(
@@ -137,6 +129,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching giving records:", error);
     return NextResponse.json(
       { error: "Failed to fetch giving records" },
@@ -147,14 +142,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const body = await request.json();
 
@@ -232,7 +220,7 @@ export async function POST(request: Request) {
         );
       }
 
-      // Find all members with this envelope number (with full details for age/sex determination)
+      // Find all members with this envelope number (filtered by churchId)
       const membersWithEnvelope = await db
         .select({
           id: members.id,
@@ -241,7 +229,7 @@ export async function POST(request: Request) {
           dateOfBirth: members.dateOfBirth,
         })
         .from(members)
-        .where(eq(members.envelopeNumber, envelopeNum));
+        .where(and(eq(members.envelopeNumber, envelopeNum), eq(members.churchId, churchId)));
 
       if (membersWithEnvelope.length === 0) {
         return NextResponse.json(
@@ -280,11 +268,11 @@ export async function POST(request: Request) {
       targetMemberId = body.memberId;
     }
 
-    // Check if member exists
+    // Check if member exists and belongs to church
     const [member] = await db
       .select()
       .from(members)
-      .where(eq(members.id, targetMemberId))
+      .where(and(eq(members.id, targetMemberId), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!member) {
@@ -385,6 +373,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ giving: givingWithMember }, { status: 201 });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error creating giving record:", error);
     return NextResponse.json(
       { error: "Failed to create giving record" },

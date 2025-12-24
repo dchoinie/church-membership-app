@@ -14,6 +14,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
+interface Church {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  primaryColor: string | null;
+}
+
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Member Directory", href: "/membership" },
@@ -23,20 +30,24 @@ const navItems = [
   { label: "Reports", href: "/reports" },
 ];
 
-const publicRoutes = ["/", "/login", "/signup", "/setup", "/forgot-password", "/reset-password", "/verify-email"];
+const publicRoutes = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
 
 // Sidebar content component
 function SidebarContent({
   pathname,
   onNavigate,
+  church,
 }: {
   pathname: string;
   onNavigate: () => void;
+  church: Church | null;
 }) {
+  const churchName = church?.name || "Church Admin";
+  
   return (
     <>
       <div className="border-b border-sidebar-border px-6 py-5 text-lg font-semibold shrink-0">
-        Good Shepherd Admin
+        {churchName}
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
         {navItems.map((item) => {
@@ -90,6 +101,27 @@ export default function AuthLayout({
   const { data: session, isPending } = authClient.useSession();
   const [isChecking, setIsChecking] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [church, setChurch] = useState<Church | null>(null);
+
+  // Fetch church data for branding
+  useEffect(() => {
+    const fetchChurch = async () => {
+      try {
+        const response = await fetch("/api/church");
+        if (response.ok) {
+          const data = await response.json();
+          setChurch(data.church);
+        }
+      } catch (error) {
+        console.error("Error fetching church data:", error);
+      }
+    };
+
+    const isPublicRoute = publicRoutes.includes(pathname);
+    if (!isPublicRoute && session?.user) {
+      fetchChurch();
+    }
+  }, [pathname, session]);
 
   useEffect(() => {
     if (!isPending) {
@@ -165,7 +197,7 @@ export default function AuthLayout({
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <Link href="/dashboard" className="text-lg font-semibold text-sidebar-foreground hover:text-sidebar-accent-foreground transition-colors">
-            Good Shepherd Admin
+            {church?.name || "Church Admin"}
           </Link>
           <Button
             variant="ghost"
@@ -185,14 +217,14 @@ export default function AuthLayout({
               <SheetTitle>Navigation Menu</SheetTitle>
             </SheetHeader>
             <div className="flex h-full flex-col">
-              <SidebarContent pathname={pathname} onNavigate={() => setMobileMenuOpen(false)} />
+              <SidebarContent pathname={pathname} onNavigate={() => setMobileMenuOpen(false)} church={church} />
             </div>
           </SheetContent>
         </Sheet>
 
         {/* Desktop Sidebar */}
         <aside className="hidden md:flex bg-sidebar text-sidebar-foreground border-r border-sidebar-border w-64 shrink-0 flex-col max-h-screen overflow-hidden">
-          <SidebarContent pathname={pathname} onNavigate={() => {}} />
+          <SidebarContent pathname={pathname} onNavigate={() => {}} church={church} />
         </aside>
 
         {/* Main Content */}

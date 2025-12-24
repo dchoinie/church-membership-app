@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, count } from "drizzle-orm";
+import { eq, count, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -27,14 +19,15 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
     const offset = (validPage - 1) * validPageSize;
 
-    // Get total count
+    // Get total count (filtered by churchId)
     const [totalResult] = await db
       .select({ count: count() })
-      .from(household);
+      .from(household)
+      .where(eq(household.churchId, churchId));
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
-    // Get paginated households
+    // Get paginated households (filtered by churchId)
     const paginatedHouseholds = await db
       .select({
         id: household.id,
@@ -45,6 +38,7 @@ export async function GET(request: Request) {
         state: household.state,
       })
       .from(household)
+      .where(eq(household.churchId, churchId))
       .limit(validPageSize)
       .offset(offset);
 
@@ -54,7 +48,7 @@ export async function GET(request: Request) {
         const [memberCountResult] = await db
           .select({ count: count() })
           .from(members)
-          .where(eq(members.householdId, h.id));
+          .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)));
 
         const householdMembers = await db
           .select({
@@ -62,7 +56,7 @@ export async function GET(request: Request) {
             lastName: members.lastName,
           })
           .from(members)
-          .where(eq(members.householdId, h.id))
+          .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)))
           .limit(3); // Get first 3 members for display
 
         return {
@@ -83,6 +77,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching households:", error);
     return NextResponse.json(
       { error: "Failed to fetch households" },
@@ -93,14 +90,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const body = await request.json();
 
@@ -108,6 +98,7 @@ export async function POST(request: Request) {
     const [newHousehold] = await db
       .insert(household)
       .values({
+        churchId,
         name: body.name || null,
         type: body.type || null,
         isNonHousehold: body.isNonHousehold || false,
@@ -126,6 +117,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ household: newHousehold }, { status: 201 });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error creating household:", error);
     return NextResponse.json(
       { error: "Failed to create household" },

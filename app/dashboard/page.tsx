@@ -11,7 +11,7 @@ export default function Dashboard() {
       <div className="md:shrink-0 pb-4 md:pb-6 pt-4 md:pt-8">
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-2 text-sm md:text-base">
-          Welcome to Good Shepherd Church Admin Dashboard
+          Welcome to your Church Admin Dashboard
         </p>
       </div>
 

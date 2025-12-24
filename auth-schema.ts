@@ -1,17 +1,33 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, pgEnum, index } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
-    .notNull(),
-});
+export const userRoleEnum = pgEnum("user_role_enum", [
+  "super_admin",
+  "admin",
+  "viewer",
+]);
+
+export const user = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    churchId: uuid("church_id"),
+    role: userRoleEnum("role").notNull().default("viewer"),
+    isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("user_church_id_idx").on(table.churchId),
+    index("user_email_idx").on(table.email),
+  ],
+);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),

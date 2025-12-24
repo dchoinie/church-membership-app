@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,55 +12,75 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 export default function SignupPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const inviteCode = searchParams.get("invite");
-
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    name: "",
-    inviteCode: inviteCode || "",
+    churchName: "",
+    subdomain: "",
+    adminName: "",
+    adminEmail: "",
+    adminPassword: "",
+    plan: "basic",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoadingInvite, setIsLoadingInvite] = useState(false);
+  const [checkingSubdomain, setCheckingSubdomain] = useState(false);
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(
+    null
+  );
 
-  // Update invite code when URL param changes
+  // Check for error/cancel params
   useEffect(() => {
-    if (inviteCode) {
-      setFormData((prev) => ({ ...prev, inviteCode }));
+    const errorParam = searchParams.get("error");
+    const canceled = searchParams.get("canceled");
+    if (errorParam === "church_not_found") {
+      setError("Church not found. Please sign up to create your church.");
+    } else if (canceled) {
+      setError("Subscription setup was canceled. You can complete it later in settings.");
     }
-  }, [inviteCode]);
+  }, [searchParams]);
 
-  // Fetch invite details to pre-fill email
+  // Check subdomain availability
   useEffect(() => {
-    if (inviteCode) {
-      setIsLoadingInvite(true);
-      fetch(`/api/invite/validate?code=${encodeURIComponent(inviteCode)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.valid && data.email) {
-            setFormData((prev) => ({ ...prev, email: data.email }));
-          } else if (data.error) {
-            setError(data.error);
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching invite details:", err);
-        })
-        .finally(() => {
-          setIsLoadingInvite(false);
-        });
-    }
-  }, [inviteCode]);
+    const checkSubdomain = async () => {
+      if (!formData.subdomain || formData.subdomain.length < 3) {
+        setSubdomainAvailable(null);
+        return;
+      }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCheckingSubdomain(true);
+      try {
+        const response = await fetch(
+          `/api/signup/check-subdomain?subdomain=${encodeURIComponent(
+            formData.subdomain
+          )}`
+        );
+        const data = await response.json();
+        setSubdomainAvailable(data.available);
+      } catch (err) {
+        setSubdomainAvailable(null);
+      } finally {
+        setCheckingSubdomain(false);
+      }
+    };
+
+    const timeoutId = setTimeout(checkSubdomain, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData.subdomain]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user starts typing
+    let processedValue = value;
+
+    // Normalize subdomain input
+    if (name === "subdomain") {
+      processedValue = value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (error) setError(null);
   };
 
@@ -70,40 +90,64 @@ export default function SignupPage() {
     setError(null);
 
     // Validation
-    if (!formData.email || !formData.password || !formData.name || !formData.inviteCode) {
+    if (
+      !formData.churchName ||
+      !formData.subdomain ||
+      !formData.adminName ||
+      !formData.adminEmail ||
+      !formData.adminPassword
+    ) {
       setError("All fields are required");
       setIsSubmitting(false);
       return;
     }
 
-    if (formData.password.length < 8) {
+    if (formData.subdomain.length < 3) {
+      setError("Subdomain must be at least 3 characters");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (subdomainAvailable === false) {
+      setError("Subdomain is not available");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (formData.adminPassword.length < 8) {
       setError("Password must be at least 8 characters");
       setIsSubmitting(false);
       return;
     }
 
     try {
-      const response = await fetch("/api/invite-signup", {
+      const response = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-          inviteCode: formData.inviteCode,
-        }),
+        body: JSON.stringify(formData),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create account");
+        throw new Error(data.error || "Failed to create church");
       }
 
-      // Success - redirect to verify-email page
-      router.push("/verify-email");
+      // If checkout URL provided, redirect to Stripe
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      // Otherwise, redirect to subdomain login
+      const baseUrl = window.location.origin;
+      const subdomainUrl = `${baseUrl.replace(
+        /^https?:\/\//,
+        `https://${data.subdomain}.`
+      )}/dashboard`;
+      window.location.href = subdomainUrl;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create account");
+      setError(err instanceof Error ? err.message : "Failed to create church");
     } finally {
       setIsSubmitting(false);
     }
@@ -111,70 +155,23 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create Your Account</CardTitle>
-          <CardDescription>
-            {inviteCode
-              ? "You&apos;ve been invited! Complete your registration below."
-              : "Enter your invitation code and account details to get started."}
+      <Card className="w-full max-w-2xl">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-3xl font-bold">Create Your Church</CardTitle>
+          <CardDescription className="text-base">
+            Sign up to get started with your church management system
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="inviteCode">Invitation Code</Label>
+              <Label htmlFor="churchName">Church Name</Label>
               <Input
-                id="inviteCode"
-                name="inviteCode"
+                id="churchName"
+                name="churchName"
                 type="text"
-                placeholder="Enter your invitation code"
-                value={formData.inviteCode}
-                onChange={handleChange}
-                required
-                disabled={!!inviteCode || isSubmitting}
-                className={inviteCode ? "bg-muted" : ""}
-              />
-              {inviteCode && (
-                <p className="text-xs text-muted-foreground">
-                  Invitation code from email link
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                disabled={isSubmitting || isLoadingInvite || !!(inviteCode && formData.email !== "")}
-                className={inviteCode && formData.email ? "bg-muted" : ""}
-              />
-              {isLoadingInvite && (
-                <p className="text-xs text-muted-foreground">
-                  Validating invitation...
-                </p>
-              )}
-              {inviteCode && formData.email && !isLoadingInvite && (
-                <p className="text-xs text-muted-foreground">
-                  Email from invitation
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                placeholder="John Doe"
-                value={formData.name}
+                placeholder="Good Shepherd Lutheran Church"
+                value={formData.churchName}
                 onChange={handleChange}
                 required
                 disabled={isSubmitting}
@@ -182,13 +179,101 @@ export default function SignupPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="subdomain">Subdomain</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="subdomain"
+                  name="subdomain"
+                  type="text"
+                  placeholder="goodshepherd"
+                  value={formData.subdomain}
+                  onChange={handleChange}
+                  required
+                  disabled={isSubmitting}
+                  minLength={3}
+                  maxLength={30}
+                  pattern="[a-z0-9-]+"
+                  className="flex-1"
+                />
+                <span className="text-muted-foreground whitespace-nowrap">
+                  .yourapp.com
+                </span>
+                {formData.subdomain.length >= 3 && (
+                  <div className="flex-shrink-0">
+                    {checkingSubdomain ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : subdomainAvailable === true ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    ) : subdomainAvailable === false ? (
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    ) : null}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose a unique subdomain for your church (3-30 characters, letters, numbers, and hyphens only)
+              </p>
+              {subdomainAvailable === false && (
+                <p className="text-xs text-red-500">This subdomain is not available</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="plan">Subscription Plan</Label>
+              <select
+                id="plan"
+                name="plan"
+                value={formData.plan}
+                onChange={handleChange}
+                disabled={isSubmitting}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="free">Free - Up to 50 members</option>
+                <option value="basic">Basic - $29/month - Up to 500 members</option>
+                <option value="premium">Premium - $99/month - Unlimited members</option>
+              </select>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-semibold mb-4">Admin Account</h3>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminName">Your Name</Label>
               <Input
-                id="password"
-                name="password"
+                id="adminName"
+                name="adminName"
+                type="text"
+                placeholder="John Doe"
+                value={formData.adminName}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminEmail">Email Address</Label>
+              <Input
+                id="adminEmail"
+                name="adminEmail"
+                type="email"
+                placeholder="admin@example.com"
+                value={formData.adminEmail}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">Password</Label>
+              <Input
+                id="adminPassword"
+                name="adminPassword"
                 type="password"
                 placeholder="Minimum 8 characters"
-                value={formData.password}
+                value={formData.adminPassword}
                 onChange={handleChange}
                 required
                 disabled={isSubmitting}
@@ -205,16 +290,20 @@ export default function SignupPage() {
               </div>
             )}
 
-            <Button type="submit" className="w-full cursor-pointer" disabled={isSubmitting}>
-              {isSubmitting ? "Creating Account..." : "Create Account"}
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={isSubmitting || subdomainAvailable === false}
+            >
+              {isSubmitting ? "Creating Church..." : "Create Church"}
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             <p>
               Already have an account?{" "}
-              <a href="/login" className="text-primary hover:underline">
-                Sign in
+              <a href="/" className="text-primary hover:underline font-medium">
+                Sign in to your church
               </a>
             </p>
           </div>
@@ -223,4 +312,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

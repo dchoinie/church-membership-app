@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, desc, and, gte, lte, count } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { services } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -29,8 +21,8 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize));
     const offset = (validPage - 1) * validPageSize;
 
-    // Build where conditions
-    const whereConditions = [];
+    // Build where conditions (always include churchId)
+    const whereConditions = [eq(services.churchId, churchId)];
     if (startDate) {
       whereConditions.push(gte(services.serviceDate, startDate));
     }
@@ -38,29 +30,24 @@ export async function GET(request: Request) {
       whereConditions.push(lte(services.serviceDate, endDate));
     }
 
-    const whereCondition = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+    const whereCondition = and(...whereConditions);
 
     // Get total count
-    const countQuery = db
+    const [totalResult] = await db
       .select({ count: count() })
-      .from(services);
-    const [totalResult] = whereCondition
-      ? await countQuery.where(whereCondition)
-      : await countQuery;
+      .from(services)
+      .where(whereCondition);
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
     // Get paginated services
-    const queryBuilder = db
+    const servicesList = await db
       .select()
       .from(services)
+      .where(whereCondition)
       .orderBy(desc(services.serviceDate), desc(services.createdAt))
       .limit(validPageSize)
       .offset(offset);
-
-    const servicesList = whereCondition
-      ? await queryBuilder.where(whereCondition)
-      : await queryBuilder;
 
     return NextResponse.json({
       services: servicesList,
@@ -72,6 +59,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching services:", error);
     return NextResponse.json(
       { error: "Failed to fetch services" },
@@ -82,14 +72,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const body = await request.json();
 
@@ -128,12 +111,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if service already exists for this date and type
+    // Check if service already exists for this date and type (within same church)
     const [existingService] = await db
       .select()
       .from(services)
       .where(
         and(
+          eq(services.churchId, churchId),
           eq(services.serviceDate, serviceDate),
           eq(services.serviceType, body.serviceType),
         ),
@@ -151,6 +135,7 @@ export async function POST(request: Request) {
     const [newService] = await db
       .insert(services)
       .values({
+        churchId,
         serviceDate,
         serviceType: body.serviceType,
       })
@@ -158,6 +143,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ service: newService }, { status: 201 });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error creating service:", error);
     return NextResponse.json(
       { error: "Failed to create service" },

@@ -61,14 +61,13 @@ export const auth = betterAuth({
         autoSignInAfterVerification: true,
     },
     trustedOrigins: process.env.NODE_ENV === "production" 
-        ? ["https://admin.goodshepherdmankato.org", "https://goodshepherdmankato.org"]
+        ? undefined // Will be set dynamically based on subdomain
         : undefined,
     advanced: {
         useSecureCookies: process.env.NODE_ENV === "production",
-        // If you need cookies to work across subdomains:
-        // crossSubDomainCookies: {
-        //     enabled: true,
-        //     domain: "goodshepherdmankato.org",
-        // },
+        crossSubDomainCookies: {
+            enabled: true,
+            domain: process.env.NEXT_PUBLIC_APP_DOMAIN?.replace(/^https?:\/\//, "") || "localhost",
+        },
     },
 });
