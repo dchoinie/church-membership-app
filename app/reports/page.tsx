@@ -339,10 +339,10 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Reports</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl md:text-3xl font-bold">Reports</h1>
+        <p className="text-muted-foreground mt-2 text-sm md:text-base">
           Generate giving and membership reports
         </p>
       </div>
@@ -362,11 +362,11 @@ export default function ReportsPage() {
       {/* Giving Reports Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileTextIcon className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+            <FileTextIcon className="h-4 w-4 md:h-5 md:w-5" />
             Giving Reports
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs md:text-sm">
             Generate reports of giving records by household and date range
           </CardDescription>
         </CardHeader>
@@ -429,7 +429,7 @@ export default function ReportsPage() {
               />
 
               {selectedDateRange === "custom" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={givingForm.control}
                     name="startDate"
@@ -480,8 +480,8 @@ export default function ReportsPage() {
       {/* Membership Reports Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileTextIcon className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+            <FileTextIcon className="h-4 w-4 md:h-5 md:w-5" />
             Membership Reports
           </CardTitle>
           <CardDescription>
@@ -674,7 +674,7 @@ export default function ReportsPage() {
               />
 
               {selectedCongressionalDateRange === "custom" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={congressionalForm.control}
                     name="startDate"

@@ -401,15 +401,15 @@ export default function MembershipPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Membership</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl md:text-3xl font-bold">Membership</h1>
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
             Manage households and their members
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button className="cursor-pointer">
@@ -417,7 +417,7 @@ export default function MembershipPage() {
                 Create Household
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Household</DialogTitle>
                 <DialogDescription>
@@ -464,7 +464,7 @@ export default function MembershipPage() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={createForm.control}
                       name="address1"
@@ -492,7 +492,7 @@ export default function MembershipPage() {
                       )}
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <FormField
                       control={createForm.control}
                       name="city"
@@ -612,7 +612,7 @@ export default function MembershipPage() {
                 Bulk Import
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-[95vw] md:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Bulk Import Members</DialogTitle>
                 <DialogDescription>
@@ -709,24 +709,25 @@ export default function MembershipPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Households</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Households</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               Loading households...
             </div>
           ) : households.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               No households found. Create your first household to get started.
             </div>
           ) : (
             <>
-              <Table>
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-xs md:text-sm"
                       onClick={() => handleSort("name")}
                     >
                       <div className="flex items-center gap-2">
@@ -743,7 +744,7 @@ export default function MembershipPage() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-xs md:text-sm"
                       onClick={() => handleSort("type")}
                     >
                       <div className="flex items-center gap-2">
@@ -759,9 +760,9 @@ export default function MembershipPage() {
                         )}
                       </div>
                     </TableHead>
-                    <TableHead>Address</TableHead>
+                    <TableHead className="text-xs md:text-sm">Address</TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      className="cursor-pointer hover:bg-muted/50 select-none text-xs md:text-sm"
                       onClick={() => handleSort("members")}
                     >
                       <div className="flex items-center gap-2">
@@ -777,7 +778,7 @@ export default function MembershipPage() {
                         )}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right text-xs md:text-sm">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -787,18 +788,18 @@ export default function MembershipPage() {
                       className="cursor-pointer"
                       onClick={() => router.push(`/membership/household/${household.id}`)}
                     >
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-xs md:text-sm">
                         {getHouseholdDisplayName(household)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-xs md:text-sm">
                         {household.type ? (
                           <span className="capitalize">{household.type}</span>
                         ) : (
                           "N/A"
                         )}
                       </TableCell>
-                      <TableCell>{getAddressDisplay(household)}</TableCell>
-                      <TableCell>{household.memberCount}</TableCell>
+                      <TableCell className="text-xs md:text-sm">{getAddressDisplay(household)}</TableCell>
+                      <TableCell className="text-xs md:text-sm">{household.memberCount}</TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <Button
@@ -825,6 +826,7 @@ export default function MembershipPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination Controls */}
               {!loading && pagination.totalPages > 0 && (
@@ -915,7 +917,7 @@ export default function MembershipPage() {
 
       {/* Edit Household Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Household</DialogTitle>
             <DialogDescription>
@@ -962,7 +964,7 @@ export default function MembershipPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={editForm.control}
                   name="address1"
@@ -990,7 +992,7 @@ export default function MembershipPage() {
                   )}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={editForm.control}
                   name="city"

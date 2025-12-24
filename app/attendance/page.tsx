@@ -451,8 +451,8 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Attendance</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl md:text-3xl font-bold">Attendance</h1>
+        <p className="text-muted-foreground mt-2 text-sm md:text-base">
           Track member attendance and communion participation
         </p>
       </div>
@@ -460,7 +460,7 @@ export default function AttendancePage() {
       {/* Input Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Record Attendance</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Record Attendance</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {!selectedServiceId ? (
@@ -561,7 +561,8 @@ export default function AttendancePage() {
               )}
 
               <div className="border rounded-md max-h-[600px] overflow-auto">
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[300px]">Member Name</TableHead>
@@ -628,42 +629,42 @@ export default function AttendancePage() {
       {/* View Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Attendance History</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Attendance History</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
               Loading attendance records...
             </div>
           ) : servicesWithStats.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               No attendance records found
             </div>
           ) : (
             <>
-              <div className="border rounded-md">
+              <div className="border rounded-md overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Service Date</TableHead>
-                      <TableHead className="text-center">Members Attended</TableHead>
-                      <TableHead className="text-center">Took Communion</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-xs md:text-sm">Service</TableHead>
+                      <TableHead className="text-xs md:text-sm">Service Date</TableHead>
+                      <TableHead className="text-center text-xs md:text-sm">Members Attended</TableHead>
+                      <TableHead className="text-center text-xs md:text-sm">Took Communion</TableHead>
+                      <TableHead className="text-right text-xs md:text-sm">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {servicesWithStats.map((service) => (
                       <TableRow key={service.serviceId}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-xs md:text-sm">
                           {formatServiceType(service.serviceType)}
                         </TableCell>
-                        <TableCell>{formatDate(service.serviceDate)}</TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-xs md:text-sm">{formatDate(service.serviceDate)}</TableCell>
+                        <TableCell className="text-center text-xs md:text-sm">
                           {service.attendeesCount}
                         </TableCell>
-                        <TableCell className="text-center">
+                        <TableCell className="text-center text-xs md:text-sm">
                           {service.communionCount}
                         </TableCell>
                         <TableCell className="text-right">

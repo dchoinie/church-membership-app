@@ -706,15 +706,15 @@ export default function GivingPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Giving</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl md:text-3xl font-bold">Giving</h1>
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
             Track weekly giving amounts for members
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
           <Dialog
             open={bulkInputDialogOpen}
             onOpenChange={(open) => {
@@ -729,15 +729,15 @@ export default function GivingPage() {
                 Bulk Input
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-h-[80vh] max-w-[95vw] sm:max-w-[95vw] overflow-auto">
+            <DialogContent className="max-h-[80vh] max-w-[95vw] md:max-w-6xl overflow-auto">
               <DialogHeader>
-                <DialogTitle>Bulk Input Giving Records</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg md:text-xl">Bulk Input Giving Records</DialogTitle>
+                <DialogDescription className="text-sm md:text-base">
                   Enter multiple giving records in a spreadsheet-like format. Fill in envelope number, date, and at least one amount type per row.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="border rounded-md">
+                <div className="border rounded-md overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -950,10 +950,10 @@ export default function GivingPage() {
                 Bulk Import
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Bulk Import Giving Records</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg md:text-xl">Bulk Import Giving Records</DialogTitle>
+                <DialogDescription className="text-sm md:text-base">
                   Upload a CSV file to import multiple giving records at once. The CSV should include envelope numbers (or member IDs), amounts, dates, and optional notes.
                 </DialogDescription>
               </DialogHeader>
@@ -1090,10 +1090,10 @@ export default function GivingPage() {
                 Add Giving Record
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[50vw] max-h-[90vh] overflow-auto">
+            <DialogContent className="max-w-[95vw] md:max-w-[50vw] max-h-[90vh] overflow-auto">
               <DialogHeader>
-                <DialogTitle>Add Giving Record</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg md:text-xl">Add Giving Record</DialogTitle>
+                <DialogDescription className="text-sm md:text-base">
                   Enter the giving amount by selecting an envelope number. One giving record will be created at the household level, associated with the head of household member.
                 </DialogDescription>
               </DialogHeader>
@@ -1313,34 +1313,35 @@ export default function GivingPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Giving Records</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Recent Giving Records</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               Loading giving records...
             </div>
           ) : givingRecords.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
               No giving records found. Add your first giving record to get started.
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Member Name</TableHead>
-                    <TableHead>Current</TableHead>
-                    <TableHead>Mission</TableHead>
-                    <TableHead>Memorials</TableHead>
-                    <TableHead>Debt</TableHead>
-                    <TableHead>School</TableHead>
-                    <TableHead>Miscellaneous</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Date Given</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs md:text-sm">Member Name</TableHead>
+                      <TableHead className="text-xs md:text-sm">Current</TableHead>
+                      <TableHead className="text-xs md:text-sm">Mission</TableHead>
+                      <TableHead className="text-xs md:text-sm">Memorials</TableHead>
+                      <TableHead className="text-xs md:text-sm">Debt</TableHead>
+                      <TableHead className="text-xs md:text-sm">School</TableHead>
+                      <TableHead className="text-xs md:text-sm">Miscellaneous</TableHead>
+                      <TableHead className="text-xs md:text-sm">Total</TableHead>
+                      <TableHead className="text-xs md:text-sm">Date Given</TableHead>
+                      <TableHead className="text-xs md:text-sm">Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
                 <TableBody>
                   {givingRecords.map((record) => {
                     const total = calculateTotal(
@@ -1353,7 +1354,7 @@ export default function GivingPage() {
                     );
                     return (
                       <TableRow key={record.id}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-xs md:text-sm">
                           <Link
                             href={`/giving/${record.memberId}`}
                             className="text-primary hover:underline"
@@ -1361,15 +1362,15 @@ export default function GivingPage() {
                             {record.member.firstName} {record.member.lastName}
                           </Link>
                         </TableCell>
-                        <TableCell>{formatCurrency(record.currentAmount)}</TableCell>
-                        <TableCell>{formatCurrency(record.missionAmount)}</TableCell>
-                        <TableCell>{formatCurrency(record.memorialsAmount)}</TableCell>
-                        <TableCell>{formatCurrency(record.debtAmount)}</TableCell>
-                        <TableCell>{formatCurrency(record.schoolAmount)}</TableCell>
-                        <TableCell>{formatCurrency(record.miscellaneousAmount)}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(total.toString())}</TableCell>
-                        <TableCell>{formatDate(record.dateGiven)}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.currentAmount)}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.missionAmount)}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.memorialsAmount)}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.debtAmount)}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.schoolAmount)}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.miscellaneousAmount)}</TableCell>
+                        <TableCell className="font-medium text-xs md:text-sm">{formatCurrency(total.toString())}</TableCell>
+                        <TableCell className="text-xs md:text-sm">{formatDate(record.dateGiven)}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs md:text-sm">
                           {record.notes || "-"}
                         </TableCell>
                       </TableRow>
@@ -1377,6 +1378,7 @@ export default function GivingPage() {
                   })}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination Controls */}
               {pagination.totalPages > 0 && (

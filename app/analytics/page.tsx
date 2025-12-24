@@ -408,10 +408,10 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Analytics</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl md:text-3xl font-bold">Analytics</h1>
+        <p className="text-muted-foreground mt-2 text-sm md:text-base">
           Comprehensive insights into membership, giving, and attendance
           {(analytics || givingAnalytics) && (analytics?.year || givingAnalytics?.year) 
             ? ` for ${analytics?.year || givingAnalytics?.year || new Date().getFullYear()}`
@@ -420,39 +420,39 @@ export default function AnalyticsPage() {
       </div>
 
       <Tabs defaultValue="membership" className="w-full">
-        <TabsList>
-          <TabsTrigger className="cursor-pointer" value="membership">
-            <UsersIcon className="h-4 w-4 mr-2" />
+        <TabsList className="w-full md:w-auto overflow-x-auto">
+          <TabsTrigger className="cursor-pointer text-xs md:text-sm" value="membership">
+            <UsersIcon className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
             Membership
           </TabsTrigger>
-          <TabsTrigger className="cursor-pointer" value="giving">
-            <DollarSignIcon className="h-4 w-4 mr-2" />
+          <TabsTrigger className="cursor-pointer text-xs md:text-sm" value="giving">
+            <DollarSignIcon className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
             Giving
           </TabsTrigger>
-          <TabsTrigger className="cursor-pointer" value="attendance">
-            <CalendarIcon className="h-4 w-4 mr-2" />
+          <TabsTrigger className="cursor-pointer text-xs md:text-sm" value="attendance">
+            <CalendarIcon className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
             Attendance
           </TabsTrigger>
         </TabsList>
 
         {/* Membership Tab */}
-        <TabsContent value="membership" className="space-y-6 mt-6">
+        <TabsContent value="membership" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
           {demographics && (
             <>
               {/* Gender Distribution */}
               {demographics.gender.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <UsersIcon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
                       Gender Distribution
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-xs md:text-sm">
                       Total active members: {demographics.totalMembers}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <PieChart>
                         <Pie
                           data={demographics.gender}
@@ -479,14 +479,14 @@ export default function AnalyticsPage() {
               {demographics.ageGroups.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3Icon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                       Age Group Distribution
                     </CardTitle>
-                    <CardDescription>Members grouped by age ranges</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Members grouped by age ranges</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <BarChart data={demographics.ageGroups}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -503,14 +503,14 @@ export default function AnalyticsPage() {
               {demographics.householdTypes.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <UsersIcon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
                       Household Type Distribution
                     </CardTitle>
-                    <CardDescription>Members grouped by household type</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Members grouped by household type</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <PieChart>
                         <Pie
                           data={demographics.householdTypes}
@@ -537,14 +537,14 @@ export default function AnalyticsPage() {
               {demographics.memberStatus && demographics.memberStatus.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3Icon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                       Member Status Distribution
                     </CardTitle>
-                    <CardDescription>Total number of members by participation status</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Total number of members by participation status</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <BarChart data={demographics.memberStatus}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -561,7 +561,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         {/* Giving Tab */}
-        <TabsContent value="giving" className="space-y-6 mt-6">
+        <TabsContent value="giving" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
           {givingAnalytics && (
             <>
               {/* Date Range Selection */}
@@ -657,14 +657,14 @@ export default function AnalyticsPage() {
               {/* Monthly Giving Trend */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUpIcon className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <TrendingUpIcon className="h-4 w-4 md:h-5 md:w-5" />
                     Monthly Giving Trend
                   </CardTitle>
-                  <CardDescription>Total giving amount by month</CardDescription>
+                  <CardDescription className="text-xs md:text-sm">Total giving amount by month</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                     <LineChart data={monthlyGivingTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
@@ -686,14 +686,14 @@ export default function AnalyticsPage() {
               {/* Monthly Giving by Service Type */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3Icon className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                     Monthly Giving by Service Type
                   </CardTitle>
-                  <CardDescription>Giving trends by service type per month</CardDescription>
+                  <CardDescription className="text-xs md:text-sm">Giving trends by service type per month</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
+                  <ResponsiveContainer width="100%" height={300} className="md:h-[400px]">
                     <BarChart data={monthlyGivingByServiceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
@@ -715,14 +715,14 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3Icon className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                        <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                         Total Giving by Service Type
                       </CardTitle>
-                      <CardDescription>Total giving amount per service type</CardDescription>
+                      <CardDescription className="text-xs md:text-sm">Total giving amount per service type</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                         <BarChart data={givingAnalytics.serviceTypeData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
@@ -736,14 +736,14 @@ export default function AnalyticsPage() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3Icon className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                        <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                         Average Giving by Service Type
                       </CardTitle>
-                      <CardDescription>Average giving amount per service type</CardDescription>
+                      <CardDescription className="text-xs md:text-sm">Average giving amount per service type</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                         <BarChart data={givingAnalytics.serviceTypeData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
@@ -762,14 +762,14 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <UsersIcon className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                        <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
                         Total Giving by Age Group
                       </CardTitle>
-                      <CardDescription>Total giving amount by age group</CardDescription>
+                      <CardDescription className="text-xs md:text-sm">Total giving amount by age group</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                         <BarChart data={givingByAgeGroupData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
@@ -783,14 +783,14 @@ export default function AnalyticsPage() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <UsersIcon className="h-5 w-5" />
+                      <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                        <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
                         Average Giving by Age Group
                       </CardTitle>
-                      <CardDescription>Average giving amount per record by age group</CardDescription>
+                      <CardDescription className="text-xs md:text-sm">Average giving amount per record by age group</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                         <BarChart data={givingByAgeGroupData}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" />
@@ -808,14 +808,14 @@ export default function AnalyticsPage() {
               {givingAnalytics.categoryBreakdown.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSignIcon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <DollarSignIcon className="h-4 w-4 md:h-5 md:w-5" />
                       Giving Category Breakdown
                     </CardTitle>
-                    <CardDescription>Distribution of giving across different categories</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Distribution of giving across different categories</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <PieChart>
                         <Pie
                           data={givingAnalytics.categoryBreakdown}
@@ -842,7 +842,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         {/* Attendance Tab */}
-        <TabsContent value="attendance" className="space-y-6 mt-6">
+        <TabsContent value="attendance" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
           {analytics && (
             <>
               {/* Date Range Selection */}
@@ -896,14 +896,14 @@ export default function AnalyticsPage() {
               {/* Monthly Attendance Trend */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUpIcon className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <TrendingUpIcon className="h-4 w-4 md:h-5 md:w-5" />
                     Monthly Attendance Trend (Average Per Service)
                   </CardTitle>
-                  <CardDescription>Average attendance and communion per service by month</CardDescription>
+                  <CardDescription className="text-xs md:text-sm">Average attendance and communion per service by month</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                     <LineChart data={monthlyTrendData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
@@ -941,14 +941,14 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3Icon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                       Total Attendance Comparison
                     </CardTitle>
-                    <CardDescription>Divine Service vs Other Service Types</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Divine Service vs Other Service Types</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
                       <BarChart data={divineVsOtherData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -962,14 +962,14 @@ export default function AnalyticsPage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3Icon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                       Average Attendance Comparison
                     </CardTitle>
-                    <CardDescription>Average attendance per service type</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Average attendance per service type</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
                       <BarChart data={divineVsOtherData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -985,14 +985,14 @@ export default function AnalyticsPage() {
               {/* Service Type Distribution */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarIcon className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <CalendarIcon className="h-4 w-4 md:h-5 md:w-5" />
                     Service Type Distribution
                   </CardTitle>
-                  <CardDescription>Number of services and total attendance by type</CardDescription>
+                  <CardDescription className="text-xs md:text-sm">Number of services and total attendance by type</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                     <BarChart data={serviceTypeData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
@@ -1011,14 +1011,14 @@ export default function AnalyticsPage() {
               {genderPieData.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <UsersIcon className="h-5 w-5" />
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
                       Gender Distribution (Attendance)
                     </CardTitle>
-                    <CardDescription>Overall male vs female attendance</CardDescription>
+                    <CardDescription className="text-xs md:text-sm">Overall male vs female attendance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                       <PieChart>
                         <Pie
                           data={genderPieData}
@@ -1044,14 +1044,14 @@ export default function AnalyticsPage() {
               {/* Recent Services Attendance */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3Icon className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                    <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
                     Recent Services Attendance
                   </CardTitle>
-                  <CardDescription>Attendance and communion for the last 20 services</CardDescription>
+                  <CardDescription className="text-xs md:text-sm">Attendance and communion for the last 20 services</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
+                  <ResponsiveContainer width="100%" height={300} className="md:h-[400px]">
                     <BarChart data={attendancePerServiceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" angle={-45} textAnchor="end" height={100} />

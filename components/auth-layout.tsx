@@ -3,9 +3,16 @@
 import { useEffect, useState, startTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
@@ -18,6 +25,61 @@ const navItems = [
 
 const publicRoutes = ["/", "/login", "/signup", "/setup", "/forgot-password", "/reset-password"];
 
+// Sidebar content component
+function SidebarContent({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  return (
+    <>
+      <div className="border-b border-sidebar-border px-6 py-5 text-lg font-semibold shrink-0">
+        Good Shepherd Admin
+      </div>
+      <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                  : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+        <div className="mt-auto">
+          <Link
+            href="/manage-admin-access"
+            onClick={onNavigate}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
+              pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
+                ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            }`}
+          >
+            <Settings className="size-4" />
+            Manage Admin Access
+          </Link>
+          <div className="border-t border-sidebar-border pt-4">
+            <div className="px-3">
+              <UserMenu />
+            </div>
+          </div>
+        </div>
+      </nav>
+    </>
+  );
+}
+
 export default function AuthLayout({
   children,
 }: {
@@ -27,6 +89,7 @@ export default function AuthLayout({
   const pathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
   const [isChecking, setIsChecking] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isPending) {
@@ -51,6 +114,13 @@ export default function AuthLayout({
     }
   }, [session, isPending, pathname, router]);
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    startTransition(() => {
+      setMobileMenuOpen(false);
+    });
+  }, [pathname]);
+
   // Show loading state while checking auth
   if (isChecking || isPending) {
     return (
@@ -71,50 +141,41 @@ export default function AuthLayout({
   // Protected routes - show sidebar
   if (isAuthenticated) {
     return (
-      <div className="flex h-screen max-h-screen overflow-hidden">
-        <aside className="bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex w-64 shrink-0 flex-col max-h-screen overflow-hidden">
-          <div className="border-b border-sidebar-border px-6 py-5 text-lg font-semibold shrink-0">
-            Good Shepherd Admin
-          </div>
-          <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`rounded-md px-4 py-2 text-sm transition-colors ${
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-            <div className="mt-auto">
-              <Link
-                href="/manage-admin-access"
-                className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
-                  pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                    : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
-              >
-                <Settings className="size-4" />
-                Manage Admin Access
-              </Link>
-              <div className="border-t border-sidebar-border pt-4">
-                <div className="px-3">
-                  <UserMenu />
-                </div>
-              </div>
+      <div className="flex md:h-screen max-h-screen overflow-hidden flex-col md:flex-row">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
+          <h1 className="text-lg font-semibold text-sidebar-foreground">Good Shepherd Admin</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(true)}
+            className="text-sidebar-foreground"
+          >
+            <Menu className="size-5" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </div>
+
+        {/* Mobile Sidebar (Sheet) */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Navigation Menu</SheetTitle>
+            </SheetHeader>
+            <div className="flex h-full flex-col">
+              <SidebarContent pathname={pathname} onNavigate={() => setMobileMenuOpen(false)} />
             </div>
-          </nav>
+          </SheetContent>
+        </Sheet>
+
+        {/* Desktop Sidebar */}
+        <aside className="hidden md:flex bg-sidebar text-sidebar-foreground border-r border-sidebar-border w-64 shrink-0 flex-col max-h-screen overflow-hidden">
+          <SidebarContent pathname={pathname} onNavigate={() => {}} />
         </aside>
+
+        {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-background min-h-0">
-          <div className="mx-auto w-full max-w-6xl px-4 py-8 min-h-0">{children}</div>
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8 min-h-0">{children}</div>
         </main>
       </div>
     );
