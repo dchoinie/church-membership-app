@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function Dashboard() {
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col -my-8">
+    <div className="md:h-[calc(100vh-4rem)] flex flex-col -my-8">
       <div className="shrink-0 pb-4 md:pb-6 pt-4 md:pt-8">
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-2 text-sm md:text-base">
