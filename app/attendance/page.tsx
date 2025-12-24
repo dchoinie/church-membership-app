@@ -605,6 +605,7 @@ export default function AttendancePage() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </div>
 
               <Button
