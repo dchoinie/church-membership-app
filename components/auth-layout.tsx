@@ -144,7 +144,9 @@ export default function AuthLayout({
       <div className="flex md:h-screen md:max-h-screen md:overflow-hidden flex-col md:flex-row">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
-          <h1 className="text-lg font-semibold text-sidebar-foreground">Good Shepherd Admin</h1>
+          <Link href="/dashboard" className="text-lg font-semibold text-sidebar-foreground hover:text-sidebar-accent-foreground transition-colors">
+            Good Shepherd Admin
+          </Link>
           <Button
             variant="ghost"
             size="icon"

@@ -7,8 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function Dashboard() {
 
   return (
-    <div className="md:h-[calc(100vh-4rem)] flex flex-col -my-8">
-      <div className="shrink-0 pb-4 md:pb-6 pt-4 md:pt-8">
+    <div className="md:h-[calc(100vh-4rem)] md:flex md:flex-col -my-8">
+      <div className="md:shrink-0 pb-4 md:pb-6 pt-4 md:pt-8">
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-2 text-sm md:text-base">
           Welcome to Good Shepherd Church Admin Dashboard
@@ -16,7 +16,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Links */}
-      <div className="flex-1 grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3 min-h-0 pb-4 md:pb-8">
+      <div className="md:flex-1 grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3 md:min-h-0 pb-4 md:pb-8">
         <Link href="/membership">
           <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
             <CardContent className="p-4 md:p-6">
