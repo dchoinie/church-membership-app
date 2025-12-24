@@ -100,8 +100,8 @@ export default function SignupPage() {
         throw new Error(data.error || "Failed to create account");
       }
 
-      // Success - redirect to dashboard
-      router.push("/");
+      // Success - redirect to verify-email page
+      router.push("/verify-email");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {

@@ -42,10 +42,26 @@ export async function POST(request: Request) {
     });
 
     if (response.ok) {
+      // Mark invitation as accepted
       await db
         .update(invitations)
         .set({ acceptedAt: new Date() })
         .where(eq(invitations.id, invite.id));
+
+      // Send verification email
+      try {
+        await auth.api.sendVerificationEmail({
+          body: { email },
+          headers: request.headers,
+        });
+      } catch (emailError) {
+        console.error("Error sending verification email:", emailError);
+        // Don't fail the signup if email fails - user can resend from verify-email page
+      }
+
+      // Return the auth response which includes the session cookie
+      // The user will be signed in but redirected to verify-email page by auth-layout
+      return response;
     }
 
     return response;

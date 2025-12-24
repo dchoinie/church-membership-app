@@ -43,7 +43,7 @@ export default function LoginPage() {
     }
 
     try {
-      const { error: signInError } = await authClient.signIn.email({
+      const { error: signInError, data: signInData } = await authClient.signIn.email({
         email: formData.email,
         password: formData.password,
         callbackURL: "/dashboard",
@@ -53,8 +53,14 @@ export default function LoginPage() {
         throw new Error(signInError.message || "Failed to sign in");
       }
 
-      // Success - redirect to dashboard
-      router.push("/dashboard");
+      // Check email verification status
+      if (signInData?.user && !signInData.user.emailVerified) {
+        // User is not verified, redirect to verification page
+        router.push("/verify-email");
+      } else {
+        // User is verified, redirect to dashboard
+        router.push("/dashboard");
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in");

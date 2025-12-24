@@ -209,3 +209,100 @@ This password reset link will expire in 1 hour. If you didn't request a password
   return data;
 }
 
+export async function sendVerificationEmail({
+  email,
+  verificationUrl,
+  userName,
+}: {
+  email: string;
+  verificationUrl: string;
+  userName?: string;
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not set in environment variables");
+  }
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const isUsingTestDomain = fromEmail.includes("@resend.dev");
+
+  const { data, error } = await resend.emails.send({
+    from: fromEmail,
+    to: email,
+    subject: "Verify Your Email Address - Good Shepherd Admin",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Verify Your Email Address</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Good Shepherd Admin</h1>
+          </div>
+          
+          <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #1f2937; margin-top: 0;">Verify Your Email Address</h2>
+            
+            <p style="color: #4b5563; font-size: 16px;">
+              ${userName ? `Hello ${userName},` : "Hello,"}
+            </p>
+            
+            <p style="color: #4b5563; font-size: 16px;">
+              Thank you for creating your Good Shepherd Admin account. Please verify your email address by clicking the button below:
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationUrl}" 
+                 style="display: inline-block; background: #667eea; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                Verify Email Address
+              </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+              Or copy and paste this link into your browser:
+            </p>
+            <p style="color: #667eea; font-size: 12px; word-break: break-all; background: #f3f4f6; padding: 12px; border-radius: 4px;">
+              ${verificationUrl}
+            </p>
+            
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              This verification link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+            </p>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+Verify Your Email Address - Good Shepherd Admin
+
+${userName ? `Hello ${userName},` : "Hello,"}
+
+Thank you for creating your Good Shepherd Admin account. Please verify your email address by visiting:
+
+${verificationUrl}
+
+This verification link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+    `.trim(),
+  });
+
+  if (error) {
+    // Provide helpful error messages for common Resend issues
+    if (error.message?.includes("only send testing emails to your own email address")) {
+      const helpfulMessage = isUsingTestDomain
+        ? `Resend Test Domain Limitation: When using "onboarding@resend.dev" (or any @resend.dev address), you can only send emails to your own verified email address.\n\n` +
+          `To send emails to other recipients:\n` +
+          `1. Verify your domain at https://resend.com/domains\n` +
+          `2. Set RESEND_FROM_EMAIL in your .env file to use your verified domain (e.g., "noreply@yourdomain.com")`
+        : `Failed to send email: ${error.message}`;
+      
+      throw new Error(helpfulMessage);
+    }
+    
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+
+  return data;
+}
+

@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, CheckCircle2, XCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,19 @@ export function UserMenu() {
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.name || "User"}</p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+            <div className="pt-1">
+              {user.emailVerified ? (
+                <Badge variant="outline" className="border-green-500 text-green-700 text-xs">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-gray-400 text-gray-600 text-xs">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Verified
+                </Badge>
+              )}
+            </div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

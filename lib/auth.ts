@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 
 const getBaseURL = () => {
     // Use localhost:3000 for local development
@@ -34,6 +34,31 @@ export const auth = betterAuth({
                 throw error;
             }
         },
+    },
+    emailVerification: {
+        sendVerificationEmail: async ({ user, url, token }, request) => {
+            try {
+                // Better-auth provides the URL with callbackURL already included
+                // We'll configure it to redirect to /verify-email?verified=true
+                const baseUrl = getBaseURL();
+                const callbackUrl = `${baseUrl}/verify-email?verified=true`;
+                // Append callbackURL if not already present
+                const verificationUrl = url.includes("callbackURL") 
+                    ? url 
+                    : `${url}${url.includes("?") ? "&" : "?"}callbackURL=${encodeURIComponent(callbackUrl)}`;
+                
+                await sendVerificationEmail({
+                    email: user.email,
+                    verificationUrl: verificationUrl,
+                    userName: user.name || undefined,
+                });
+            } catch (error) {
+                console.error("Error sending verification email:", error);
+                throw error;
+            }
+        },
+        sendOnSignUp: false, // We'll handle sending manually for invite signups
+        autoSignInAfterVerification: true,
     },
     trustedOrigins: process.env.NODE_ENV === "production" 
         ? ["https://admin.goodshepherdmankato.org", "https://goodshepherdmankato.org"]

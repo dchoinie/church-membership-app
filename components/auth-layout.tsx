@@ -23,7 +23,7 @@ const navItems = [
   { label: "Reports", href: "/reports" },
 ];
 
-const publicRoutes = ["/", "/login", "/signup", "/setup", "/forgot-password", "/reset-password"];
+const publicRoutes = ["/", "/login", "/signup", "/setup", "/forgot-password", "/reset-password", "/verify-email"];
 
 // Sidebar content component
 function SidebarContent({
@@ -100,10 +100,30 @@ export default function AuthLayout({
         router.push("/");
         return;
       }
-      // If authenticated and on login/signup/setup, redirect to dashboard
-      if (session?.user && (pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/setup")) {
-        router.push("/dashboard");
-        return;
+      
+      // If authenticated, check email verification status
+      if (session?.user) {
+        // If on login/signup/setup, redirect to dashboard (if verified) or verify-email (if not verified)
+        if (pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/setup") {
+          if (session.user.emailVerified) {
+            router.push("/dashboard");
+          } else {
+            router.push("/verify-email");
+          }
+          return;
+        }
+        
+        // If not verified and trying to access protected route, redirect to verify-email
+        if (!isPublicRoute && !session.user.emailVerified) {
+          router.push("/verify-email");
+          return;
+        }
+        
+        // If verified and on verify-email page, redirect to dashboard
+        if (pathname === "/verify-email" && session.user.emailVerified) {
+          router.push("/dashboard");
+          return;
+        }
       }
       // Don't redirect authenticated users from forgot/reset password pages - they might be helping someone else
       

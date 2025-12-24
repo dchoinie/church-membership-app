@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PencilIcon, Loader2, PlusIcon, EyeIcon } from "lucide-react";
+import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,16 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -141,6 +151,9 @@ export default function AttendancePage() {
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [creatingService, setCreatingService] = useState(false);
   const [createServiceDialogOpen, setCreateServiceDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedServiceForDelete, setSelectedServiceForDelete] = useState<ServiceWithStats | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState<AttendanceFormData>({});
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
@@ -245,6 +258,38 @@ export default function AttendancePage() {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
       fetchServicesWithStats(newPage);
+    }
+  };
+
+  const handleDeleteClick = (service: ServiceWithStats) => {
+    setSelectedServiceForDelete(service);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedServiceForDelete) return;
+
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/services/${selectedServiceForDelete.serviceId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Failed to delete service");
+        return;
+      }
+
+      // Refresh the services list
+      fetchServicesWithStats(currentPage);
+      setDeleteDialogOpen(false);
+      setSelectedServiceForDelete(null);
+    } catch (error) {
+      console.error("Error deleting service:", error);
+      alert("Failed to delete service. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -656,42 +701,70 @@ export default function AttendancePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {servicesWithStats.map((service) => (
-                      <TableRow key={service.serviceId}>
-                        <TableCell className="font-medium text-xs md:text-sm">
-                          {formatServiceType(service.serviceType)}
-                        </TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatDate(service.serviceDate)}</TableCell>
-                        <TableCell className="text-center text-xs md:text-sm">
-                          {service.attendeesCount}
-                        </TableCell>
-                        <TableCell className="text-center text-xs md:text-sm">
-                          {service.communionCount}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              asChild
-                            >
-                              <Link href={`/attendance/service/${service.serviceId}?mode=view`}>
-                                <EyeIcon className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              asChild
-                            >
-                              <Link href={`/attendance/service/${service.serviceId}?mode=edit`}>
-                                <PencilIcon className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {servicesWithStats.map((service) => {
+                      const isDeleting = deleting && selectedServiceForDelete?.serviceId === service.serviceId;
+                      return (
+                        <TableRow key={service.serviceId} className={isDeleting ? "opacity-50" : ""}>
+                          <TableCell className="font-medium text-xs md:text-sm">
+                            {isDeleting ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>{formatServiceType(service.serviceType)}</span>
+                              </div>
+                            ) : (
+                              formatServiceType(service.serviceType)
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs md:text-sm">{formatDate(service.serviceDate)}</TableCell>
+                          <TableCell className="text-center text-xs md:text-sm">
+                            {service.attendeesCount}
+                          </TableCell>
+                          <TableCell className="text-center text-xs md:text-sm">
+                            {service.communionCount}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                asChild
+                                title="View"
+                                disabled={isDeleting}
+                              >
+                                <Link href={`/attendance/service/${service.serviceId}?mode=view`}>
+                                  <EyeIcon className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                asChild
+                                title="Edit"
+                                disabled={isDeleting}
+                              >
+                                <Link href={`/attendance/service/${service.serviceId}?mode=edit`}>
+                                  <PencilIcon className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteClick(service)}
+                                title="Delete"
+                                disabled={isDeleting}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <TrashIcon className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -845,6 +918,43 @@ export default function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Service Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedServiceForDelete && (
+                <>
+                  This will permanently delete the service from{" "}
+                  <strong>{formatDate(selectedServiceForDelete.serviceDate)}</strong> (
+                  {formatServiceType(selectedServiceForDelete.serviceType)}) and all associated
+                  attendance records ({selectedServiceForDelete.attendeesCount} attendees).
+                  This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="cursor-pointer">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
