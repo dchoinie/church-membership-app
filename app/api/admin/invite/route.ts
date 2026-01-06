@@ -11,11 +11,20 @@ import { eq, and } from "drizzle-orm";
 export async function POST(request: Request) {
   try {
     const { churchId, user: currentUser } = await getAuthContext(request);
-    const { email } = await request.json();
+    const { email, role = "viewer" } = await request.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(
         { error: "Email is required" },
+        { status: 400 },
+      );
+    }
+
+    // Validate role
+    const validRoles = ["admin", "viewer"];
+    if (role && !validRoles.includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role. Must be 'admin' or 'viewer'" },
         { status: 400 },
       );
     }

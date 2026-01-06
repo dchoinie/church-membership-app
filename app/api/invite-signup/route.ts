@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { invitations } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { user } from "@/auth-schema";
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +43,23 @@ export async function POST(request: Request) {
     });
 
     if (response.ok) {
+      // Clone the response to read the body without consuming it
+      const clonedResponse = response.clone();
+      const signupData = await clonedResponse.json();
+      const userId = signupData.user?.id;
+
+      if (userId && invite.churchId) {
+        // Update user with churchId and default role (viewer)
+        // Role can be updated later by admin via the manage-admin-access page
+        await db
+          .update(user)
+          .set({
+            churchId: invite.churchId,
+            role: "viewer", // Default role, can be changed by admin later
+          })
+          .where(eq(user.id, userId));
+      }
+
       // Mark invitation as accepted
       await db
         .update(invitations)
@@ -59,7 +77,7 @@ export async function POST(request: Request) {
         // Don't fail the signup if email fails - user can resend from verify-email page
       }
 
-      // Return the auth response which includes the session cookie
+      // Return the original auth response which includes the session cookie
       // The user will be signed in but redirected to verify-email page by auth-layout
       return response;
     }

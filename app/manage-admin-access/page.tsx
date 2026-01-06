@@ -31,13 +31,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TrashIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type UserStatus = "active" | "invited" | "expired";
+type UserRole = "admin" | "viewer";
 
 interface User {
   id: string | null;
   name: string | null;
   email: string;
+  role?: UserRole;
   status: UserStatus;
   createdAt: Date | string | null;
   emailVerified: boolean;
@@ -45,6 +54,7 @@ interface User {
 
 export default function ManageAdminAccessPage() {
   const [email, setEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<UserRole>("viewer");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +63,7 @@ export default function ManageAdminAccessPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
 
   const fetchUsers = async () => {
     try {
@@ -84,7 +95,7 @@ export default function ManageAdminAccessPage() {
       const response = await fetch("/api/admin/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, role: inviteRole }),
       });
 
       const data = await response.json();
@@ -101,6 +112,7 @@ export default function ManageAdminAccessPage() {
         );
       }
       setEmail("");
+      setInviteRole("viewer");
       // Refresh the users list
       await fetchUsers();
     } catch (err) {
@@ -170,20 +182,68 @@ export default function ManageAdminAccessPage() {
     }
   };
 
+  const getRoleBadge = (role?: UserRole) => {
+    const displayRole = role || "viewer";
+    return (
+      <Badge
+        variant={displayRole === "admin" ? "default" : "outline"}
+        className={
+          displayRole === "admin"
+            ? "bg-blue-500 hover:bg-blue-600"
+            : "border-gray-400 text-gray-700"
+        }
+      >
+        {displayRole === "admin" ? "Admin" : "Viewer"}
+      </Badge>
+    );
+  };
+
+  const handleRoleChange = async (userEmail: string, newRole: UserRole) => {
+    setUpdatingRoles((prev) => new Set(prev).add(userEmail));
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/users/update-role", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail, role: newRole }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update role");
+      }
+
+      setSuccessMessage(data.message);
+      // Refresh the users list
+      await fetchUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update role");
+    } finally {
+      setUpdatingRoles((prev) => {
+        const next = new Set(prev);
+        next.delete(userEmail);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Manage Admin Access</h1>
+        <h1 className="text-3xl font-bold">Manage User Access</h1>
         <p className="text-muted-foreground mt-2">
-          Invite new administrators and manage existing user access.
+          Invite new users and manage existing user access and roles for your church.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Invite New Admin</CardTitle>
+          <CardTitle>Invite New User</CardTitle>
           <CardDescription>
-            Send an invitation to a new administrator by email address.
+            Send an invitation to a new user by email address. Choose their role (Admin or Viewer).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -193,12 +253,31 @@ export default function ManageAdminAccessPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="user@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isSubmitting}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                value={inviteRole}
+                onValueChange={(value) => setInviteRole(value as UserRole)}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger id="role" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Viewers can view data but cannot make changes. Admins have full access.
+              </p>
             </div>
             {error && (
               <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
@@ -219,9 +298,9 @@ export default function ManageAdminAccessPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Admin Users</CardTitle>
+          <CardTitle>Church Users</CardTitle>
           <CardDescription>
-            View all users with admin access and their current status.
+            View all users for your church and manage their roles and access.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -239,6 +318,7 @@ export default function ManageAdminAccessPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Email Verified</TableHead>
                   <TableHead>Created</TableHead>
@@ -252,6 +332,27 @@ export default function ManageAdminAccessPage() {
                       {user.name || "—"}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      {user.status === "active" && user.id ? (
+                        <Select
+                          value={user.role || "viewer"}
+                          onValueChange={(value) =>
+                            handleRoleChange(user.email, value as UserRole)
+                          }
+                          disabled={updatingRoles.has(user.email)}
+                        >
+                          <SelectTrigger className="w-[120px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="viewer">Viewer</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        getRoleBadge(user.role)
+                      )}
+                    </TableCell>
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>
                       {user.emailVerified ? (
@@ -275,7 +376,7 @@ export default function ManageAdminAccessPage() {
                         size="icon"
                         onClick={() => handleDeleteClick(user)}
                         className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                        title="Remove admin access"
+                        title="Remove access"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </Button>

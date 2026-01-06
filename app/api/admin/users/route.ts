@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         id: u.id,
         name: u.name,
         email: u.email,
+        role: u.role,
         status,
         createdAt: u.createdAt,
         emailVerified: u.emailVerified,
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
         id: null,
         name: null,
         email: inv.email,
+        role: "viewer" as const, // Default role for pending invitations
         status: isExpired ? ("expired" as const) : ("invited" as const),
         createdAt: inv.expiresAt || null,
         emailVerified: false,
