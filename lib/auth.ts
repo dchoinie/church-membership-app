@@ -27,6 +27,7 @@ export const auth = betterAuth({
                     email: user.email,
                     resetUrl: url,
                     userName: user.name || undefined,
+                    churchId: (user as any).churchId || null,
                 });
             } catch (error) {
                 console.error("Error sending password reset email:", error);
@@ -51,6 +52,7 @@ export const auth = betterAuth({
                     email: user.email,
                     verificationUrl: verificationUrl,
                     userName: user.name || undefined,
+                    churchId: (user as any).churchId || null,
                 });
             } catch (error) {
                 console.error("Error sending verification email:", error);

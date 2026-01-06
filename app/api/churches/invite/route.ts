@@ -73,6 +73,7 @@ export async function POST(request: Request) {
         email,
         inviteCode,
         inviterName: user.email,
+        churchId,
       });
     } catch (emailError) {
       console.error("Error sending invitation email:", emailError);
