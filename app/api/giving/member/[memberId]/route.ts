@@ -1,32 +1,23 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ memberId: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { memberId } = await params;
 
-    // Get member info
+    // Get member info and verify it belongs to church
     const [member] = await db
       .select()
       .from(members)
-      .where(eq(members.id, memberId))
+      .where(and(eq(members.id, memberId), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!member) {
@@ -41,7 +32,7 @@ export async function GET(
     let targetMemberId = memberId;
 
     if (member.envelopeNumber) {
-      // Find all members with this envelope number
+      // Find all members with this envelope number (filtered by churchId)
       const householdMembers = await db
         .select({
           id: members.id,
@@ -49,7 +40,7 @@ export async function GET(
           dateOfBirth: members.dateOfBirth,
         })
         .from(members)
-        .where(eq(members.envelopeNumber, member.envelopeNumber));
+        .where(and(eq(members.envelopeNumber, member.envelopeNumber), eq(members.churchId, churchId)));
 
       if (householdMembers.length > 0) {
         // Find head of household: oldest male member
@@ -97,11 +88,14 @@ export async function GET(
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
-      .where(eq(giving.memberId, targetMemberId))
+      .where(and(eq(giving.memberId, targetMemberId), eq(members.churchId, churchId)))
       .orderBy(desc(giving.dateGiven), desc(giving.createdAt));
 
     return NextResponse.json({ giving: givingRecords });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching member giving records:", error);
     return NextResponse.json(
       { error: "Failed to fetch member giving records" },

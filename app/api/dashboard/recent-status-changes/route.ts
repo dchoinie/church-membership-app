@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, desc, isNotNull } from "drizzle-orm";
+import { eq, desc, isNotNull, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get recent inactive members (participation = "inactive", which includes former "transferred")
+    // Get recent inactive members (participation = "inactive", which includes former "transferred") - filtered by churchId
     const inactiveMembers = await db
       .select({
         id: members.id,
@@ -31,11 +23,11 @@ export async function GET() {
       })
       .from(members)
       .leftJoin(household, eq(members.householdId, household.id))
-      .where(eq(members.participation, "inactive"))
+      .where(and(eq(members.participation, "inactive"), eq(members.churchId, churchId)))
       .orderBy(desc(members.updatedAt))
       .limit(5);
 
-    // Get recent new members (dateReceived is not null)
+    // Get recent new members (dateReceived is not null) - filtered by churchId
     const newMembers = await db
       .select({
         id: members.id,
@@ -49,7 +41,7 @@ export async function GET() {
       })
       .from(members)
       .leftJoin(household, eq(members.householdId, household.id))
-      .where(isNotNull(members.dateReceived))
+      .where(and(isNotNull(members.dateReceived), eq(members.churchId, churchId)))
       .orderBy(desc(members.dateReceived))
       .limit(5);
 
@@ -75,6 +67,9 @@ export async function GET() {
 
     return NextResponse.json({ changes: allChanges });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching recent status changes:", error);
     return NextResponse.json(
       { error: "Failed to fetch recent status changes" },

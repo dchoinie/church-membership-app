@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and, gte, lte } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { attendance, services, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -27,19 +19,20 @@ export async function GET(request: Request) {
     const yearStart = startDateParam || `${currentYear}-01-01`;
     const yearEnd = endDateParam || `${currentYear}-12-31`;
 
-    // Get all services for the current year
+    // Get all services for the current year (filtered by churchId)
     const allServices = await db
       .select()
       .from(services)
       .where(
         and(
+          eq(services.churchId, churchId),
           gte(services.serviceDate, yearStart),
           lte(services.serviceDate, yearEnd),
         ),
       )
       .orderBy(services.serviceDate);
 
-    // Get all attendance records with member and service info for current year
+    // Get all attendance records with member and service info for current year (filtered by churchId)
     const allAttendance = await db
       .select({
         attendanceId: attendance.id,
@@ -57,6 +50,8 @@ export async function GET(request: Request) {
       .innerJoin(members, eq(attendance.memberId, members.id))
       .where(
         and(
+          eq(services.churchId, churchId),
+          eq(members.churchId, churchId),
           gte(services.serviceDate, yearStart),
           lte(services.serviceDate, yearEnd),
         ),
@@ -183,6 +178,9 @@ export async function GET(request: Request) {
       endDate: yearEnd,
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error generating attendance analytics:", error);
     return NextResponse.json(
       { error: "Failed to generate attendance analytics" },

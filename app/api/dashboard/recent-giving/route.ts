@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get 5 most recent giving records with household name
+    // Get 5 most recent giving records with household name (filtered by churchId)
     const recentGiving = await db
       .select({
         id: giving.id,
@@ -30,6 +22,7 @@ export async function GET() {
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
       .leftJoin(household, eq(members.householdId, household.id))
+      .where(eq(members.churchId, churchId))
       .orderBy(desc(giving.dateGiven), desc(giving.createdAt))
       .limit(5);
 
@@ -49,6 +42,9 @@ export async function GET() {
 
     return NextResponse.json({ giving: formattedGiving });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching recent giving:", error);
     return NextResponse.json(
       { error: "Failed to fetch recent giving" },

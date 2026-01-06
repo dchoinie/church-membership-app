@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and, ne } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Get attendance record with member and service info
+    // Get attendance record with member and service info (filtered by churchId)
     const [attendanceRecord] = await db
       .select({
         id: attendance.id,
@@ -46,7 +37,11 @@ export async function GET(
       .from(attendance)
       .innerJoin(members, eq(attendance.memberId, members.id))
       .innerJoin(services, eq(attendance.serviceId, services.id))
-      .where(eq(attendance.id, id))
+      .where(and(
+        eq(attendance.id, id),
+        eq(members.churchId, churchId),
+        eq(services.churchId, churchId)
+      ))
       .limit(1);
 
     if (!attendanceRecord) {
@@ -58,6 +53,9 @@ export async function GET(
 
     return NextResponse.json({ attendance: attendanceRecord });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching attendance record:", error);
     return NextResponse.json(
       { error: "Failed to fetch attendance record" },
@@ -71,23 +69,27 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
     const body = await request.json();
 
-    // Check if attendance record exists
+    // Check if attendance record exists and belongs to church
     const [existingAttendance] = await db
-      .select()
+      .select({
+        id: attendance.id,
+        memberId: attendance.memberId,
+        serviceId: attendance.serviceId,
+        attended: attendance.attended,
+        tookCommunion: attendance.tookCommunion,
+      })
       .from(attendance)
-      .where(eq(attendance.id, id))
+      .innerJoin(members, eq(attendance.memberId, members.id))
+      .innerJoin(services, eq(attendance.serviceId, services.id))
+      .where(and(
+        eq(attendance.id, id),
+        eq(members.churchId, churchId),
+        eq(services.churchId, churchId)
+      ))
       .limit(1);
 
     if (!existingAttendance) {
@@ -123,14 +125,14 @@ export async function PUT(
       );
     }
 
-    // If serviceId is being changed, validate it exists and check for uniqueness
+    // If serviceId is being changed, validate it exists and belongs to church
     let serviceId = existingAttendance.serviceId;
     if (body.serviceId !== undefined && body.serviceId !== existingAttendance.serviceId) {
-      // Check if service exists
+      // Check if service exists and belongs to church
       const [service] = await db
         .select()
         .from(services)
-        .where(eq(services.id, body.serviceId))
+        .where(and(eq(services.id, body.serviceId), eq(services.churchId, churchId)))
         .limit(1);
 
       if (!service) {
@@ -198,11 +200,18 @@ export async function PUT(
       .from(attendance)
       .innerJoin(members, eq(attendance.memberId, members.id))
       .innerJoin(services, eq(attendance.serviceId, services.id))
-      .where(eq(attendance.id, id))
+      .where(and(
+        eq(attendance.id, id),
+        eq(members.churchId, churchId),
+        eq(services.churchId, churchId)
+      ))
       .limit(1);
 
     return NextResponse.json({ attendance: attendanceWithMember });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error updating attendance record:", error);
     return NextResponse.json(
       { error: "Failed to update attendance record" },

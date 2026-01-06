@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -261,6 +253,7 @@ export async function POST(request: Request) {
           const [newHousehold] = await db
             .insert(household)
             .values({
+              churchId,
               name: householdName,
               type: householdType as "family" | "single" | "other",
               isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
@@ -287,11 +280,11 @@ export async function POST(request: Request) {
             householdGroupMap.set(householdGroup, householdId);
           }
         } else if (householdIdStr) {
-          // Check if household exists
+          // Check if household exists and belongs to church
           const [existingHousehold] = await db
             .select()
             .from(household)
-            .where(eq(household.id, householdIdStr))
+            .where(and(eq(household.id, householdIdStr), eq(household.churchId, churchId)))
             .limit(1);
 
           if (!existingHousehold) {
@@ -330,6 +323,7 @@ export async function POST(request: Request) {
 
           // Ensure all values are properly typed before insertion
           const householdData = {
+            churchId,
             name: finalHouseholdName, // Guaranteed to be a string
             type: householdType as "family" | "single" | "other",
             isNonHousehold: getValue("is non household")?.toLowerCase() === "true" || false,
@@ -446,12 +440,12 @@ export async function POST(request: Request) {
           householdId,
         };
 
-        // Check for duplicate email if email1 is provided
+        // Check for duplicate email if email1 is provided (within same church)
         if (memberData.email1) {
           const [existingMember] = await db
             .select()
             .from(members)
-            .where(eq(members.email1, memberData.email1))
+            .where(and(eq(members.email1, memberData.email1), eq(members.churchId, churchId)))
             .limit(1);
 
           if (existingMember) {
@@ -463,8 +457,11 @@ export async function POST(request: Request) {
           }
         }
 
-        // Insert member
-        await db.insert(members).values(memberData);
+        // Insert member with churchId
+        await db.insert(members).values({
+          ...memberData,
+          churchId,
+        });
         results.success++;
       } catch (error) {
         results.failed++;
@@ -476,6 +473,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error importing members:", error);
     return NextResponse.json(
       {

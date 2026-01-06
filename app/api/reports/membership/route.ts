@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and, inArray } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | null | undefined): string {
@@ -54,14 +53,7 @@ function isValidParticipationStatus(
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -90,14 +82,14 @@ export async function GET(request: Request) {
 
     if (type === "household") {
       // Generate household report
-      const conditions = [];
+      const conditions = [eq(household.churchId, churchId)];
       
       if (householdId) {
         conditions.push(eq(household.id, householdId));
       }
 
-      // Get all households
-      const householdsQuery = db
+      // Get all households (filtered by churchId)
+      const allHouseholds = await db
         .select({
           id: household.id,
           name: household.name,
@@ -108,16 +100,16 @@ export async function GET(request: Request) {
           state: household.state,
           zip: household.zip,
         })
-        .from(household);
+        .from(household)
+        .where(and(...conditions));
 
-      const allHouseholds = conditions.length > 0
-        ? await householdsQuery.where(and(...conditions))
-        : await householdsQuery;
-
-      // For each household, get members with matching participation statuses
+      // For each household, get members with matching participation statuses (filtered by churchId)
       const householdsWithMembers = await Promise.all(
         allHouseholds.map(async (h) => {
-          const memberConditions = [eq(members.householdId, h.id)];
+          const memberConditions = [
+            eq(members.householdId, h.id),
+            eq(members.churchId, churchId),
+          ];
           
           if (participationStatuses.length > 0) {
             memberConditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
@@ -194,7 +186,7 @@ export async function GET(request: Request) {
       });
     } else {
       // Generate member report
-      const conditions = [];
+      const conditions = [eq(members.churchId, churchId)];
 
       if (participationStatuses.length > 0) {
         conditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
@@ -204,7 +196,7 @@ export async function GET(request: Request) {
         conditions.push(eq(members.householdId, householdId));
       }
 
-      // Get members with household info
+      // Get members with household info (filtered by churchId)
       const queryBuilder = db
         .select({
           id: members.id,
@@ -338,6 +330,9 @@ export async function GET(request: Request) {
       });
     }
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error generating membership report:", error);
     return NextResponse.json(
       { error: "Failed to generate membership report" },

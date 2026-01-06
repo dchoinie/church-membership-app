@@ -1,32 +1,23 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and, ne } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { services } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Get service by ID
+    // Get service by ID and verify it belongs to church
     const [service] = await db
       .select()
       .from(services)
-      .where(eq(services.id, id))
+      .where(and(eq(services.id, id), eq(services.churchId, churchId)))
       .limit(1);
 
     if (!service) {
@@ -38,6 +29,9 @@ export async function GET(
 
     return NextResponse.json({ service });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching service:", error);
     return NextResponse.json(
       { error: "Failed to fetch service" },
@@ -51,23 +45,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
     const body = await request.json();
 
-    // Check if service exists
+    // Check if service exists and belongs to church
     const [existingService] = await db
       .select()
       .from(services)
-      .where(eq(services.id, id))
+      .where(and(eq(services.id, id), eq(services.churchId, churchId)))
       .limit(1);
 
     if (!existingService) {
@@ -110,13 +96,14 @@ export async function PUT(
 
     const finalServiceType = body.serviceType !== undefined ? body.serviceType : existingService.serviceType;
 
-    // Check if another service exists with same date and type
+    // Check if another service exists with same date and type (within same church)
     if (body.serviceDate !== undefined || body.serviceType !== undefined) {
       const [duplicate] = await db
         .select()
         .from(services)
         .where(
           and(
+            eq(services.churchId, churchId),
             eq(services.serviceDate, serviceDate),
             eq(services.serviceType, finalServiceType),
             ne(services.id, id),
@@ -145,6 +132,9 @@ export async function PUT(
 
     return NextResponse.json({ service: updatedService });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error updating service:", error);
     return NextResponse.json(
       { error: "Failed to update service" },
@@ -158,22 +148,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Check if service exists
+    // Check if service exists and belongs to church
     const [existingService] = await db
       .select()
       .from(services)
-      .where(eq(services.id, id))
+      .where(and(eq(services.id, id), eq(services.churchId, churchId)))
       .limit(1);
 
     if (!existingService) {
@@ -190,6 +172,9 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Service deleted successfully" });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error deleting service:", error);
     return NextResponse.json(
       { error: "Failed to delete service" },

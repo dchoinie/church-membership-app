@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { and, gte, lte, eq, sql, isNotNull } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, services, attendance } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | number | null | undefined): string {
@@ -51,14 +50,7 @@ function calculateAgeAtDate(birthDate: string | null, targetDate: string): numbe
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -75,11 +67,11 @@ export async function GET(request: Request) {
     const startDate = startDateParam;
     const endDate = endDateParam;
 
-    // 1. Total Baptized Membership - count all members with baptism_date
+    // 1. Total Baptized Membership - count all members with baptism_date (filtered by churchId)
     const totalBaptizedResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(members)
-      .where(isNotNull(members.baptismDate));
+      .where(and(eq(members.churchId, churchId), isNotNull(members.baptismDate)));
 
     const totalBaptizedMembership = totalBaptizedResult[0]?.count || 0;
 
@@ -93,6 +85,7 @@ export async function GET(request: Request) {
       .from(members)
       .where(
         and(
+          eq(members.churchId, churchId),
           isNotNull(members.baptismDate),
           gte(members.baptismDate, startDate),
           lte(members.baptismDate, endDate)
@@ -115,11 +108,11 @@ export async function GET(request: Request) {
       }
     });
 
-    // 3. Total Confirmed Membership - count all members with confirmation_date
+    // 3. Total Confirmed Membership - count all members with confirmation_date (filtered by churchId)
     const totalConfirmedResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(members)
-      .where(isNotNull(members.confirmationDate));
+      .where(and(eq(members.churchId, churchId), isNotNull(members.confirmationDate)));
 
     const totalConfirmedMembership = totalConfirmedResult[0]?.count || 0;
 
@@ -133,6 +126,7 @@ export async function GET(request: Request) {
       .from(members)
       .where(
         and(
+          eq(members.churchId, churchId),
           isNotNull(members.confirmationDate),
           gte(members.confirmationDate, startDate),
           lte(members.confirmationDate, endDate)
@@ -161,6 +155,7 @@ export async function GET(request: Request) {
       .from(members)
       .where(
         and(
+          eq(members.churchId, churchId),
           isNotNull(members.deceasedDate),
           gte(members.deceasedDate, startDate),
           lte(members.deceasedDate, endDate)
@@ -172,6 +167,7 @@ export async function GET(request: Request) {
       .from(members)
       .where(
         and(
+          eq(members.churchId, churchId),
           isNotNull(members.dateRemoved),
           gte(members.dateRemoved, startDate),
           lte(members.dateRemoved, endDate)
@@ -277,6 +273,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error generating congressional statistics report:", error);
     return NextResponse.json(
       { error: "Failed to generate congressional statistics report" },

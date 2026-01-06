@@ -1,28 +1,19 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Get giving record with member info
+    // Get giving record with member info and verify member belongs to church
     const [givingRecord] = await db
       .select({
         id: giving.id,
@@ -45,7 +36,7 @@ export async function GET(
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
-      .where(eq(giving.id, id))
+      .where(and(eq(giving.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!givingRecord) {
@@ -57,6 +48,9 @@ export async function GET(
 
     return NextResponse.json({ giving: givingRecord });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching giving record:", error);
     return NextResponse.json(
       { error: "Failed to fetch giving record" },
@@ -70,23 +64,27 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
     const body = await request.json();
 
-    // Check if giving record exists
+    // Check if giving record exists and member belongs to church
     const [existingGiving] = await db
-      .select()
+      .select({
+        id: giving.id,
+        memberId: giving.memberId,
+        currentAmount: giving.currentAmount,
+        missionAmount: giving.missionAmount,
+        memorialsAmount: giving.memorialsAmount,
+        debtAmount: giving.debtAmount,
+        schoolAmount: giving.schoolAmount,
+        miscellaneousAmount: giving.miscellaneousAmount,
+        dateGiven: giving.dateGiven,
+        notes: giving.notes,
+      })
       .from(giving)
-      .where(eq(giving.id, id))
+      .innerJoin(members, eq(giving.memberId, members.id))
+      .where(and(eq(giving.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!existingGiving) {
@@ -217,11 +215,14 @@ export async function PUT(
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
-      .where(eq(giving.id, id))
+      .where(and(eq(giving.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     return NextResponse.json({ giving: givingWithMember });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error updating giving record:", error);
     return NextResponse.json(
       { error: "Failed to update giving record" },

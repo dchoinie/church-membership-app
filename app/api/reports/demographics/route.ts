@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get all members with their household and demographic info
+    // Get all members with their household and demographic info (filtered by churchId)
     const allMembers = await db
       .select({
         id: members.id,
@@ -28,7 +20,8 @@ export async function GET() {
         participation: members.participation,
       })
       .from(members)
-      .leftJoin(household, eq(members.householdId, household.id));
+      .leftJoin(household, eq(members.householdId, household.id))
+      .where(eq(members.churchId, churchId));
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
@@ -161,6 +154,9 @@ export async function GET() {
       totalMembers: allMembers.length,
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error generating demographics:", error);
     return NextResponse.json(
       { error: "Failed to generate demographics" },

@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { attendance, services } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -27,7 +19,7 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize));
     const offset = (validPage - 1) * validPageSize;
 
-    // Get services with attendance statistics
+    // Get services with attendance statistics (filtered by churchId)
     // Group by service and count attendees and communion participants
     const servicesWithStats = await db
       .select({
@@ -41,16 +33,18 @@ export async function GET(request: Request) {
       })
       .from(services)
       .leftJoin(attendance, eq(services.id, attendance.serviceId))
+      .where(eq(services.churchId, churchId))
       .groupBy(services.id, services.serviceDate, services.serviceType, services.createdAt, services.updatedAt)
       .orderBy(desc(services.serviceDate))
       .limit(validPageSize)
       .offset(offset);
 
-    // Get total count of services that have attendance records
+    // Get total count of services that have attendance records (filtered by churchId)
     const [totalResult] = await db
       .select({ count: sql<number>`count(distinct ${services.id})::int` })
       .from(services)
-      .innerJoin(attendance, eq(services.id, attendance.serviceId));
+      .innerJoin(attendance, eq(services.id, attendance.serviceId))
+      .where(eq(services.churchId, churchId));
 
     const total = totalResult?.count || 0;
     const totalPages = Math.ceil(total / validPageSize);
@@ -65,6 +59,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching services with attendance stats:", error);
     return NextResponse.json(
       { error: "Failed to fetch services with attendance statistics" },

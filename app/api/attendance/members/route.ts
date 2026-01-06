@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Fetch all active members
+    // Fetch all active members (filtered by churchId)
     const activeMembers = await db
       .select({
         id: members.id,
@@ -25,11 +17,14 @@ export async function GET() {
         lastName: members.lastName,
       })
       .from(members)
-      .where(eq(members.participation, "active"))
+      .where(and(eq(members.participation, "active"), eq(members.churchId, churchId)))
       .orderBy(asc(members.lastName), asc(members.firstName));
 
     return NextResponse.json({ members: activeMembers });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching active members:", error);
     return NextResponse.json(
       { error: "Failed to fetch active members" },

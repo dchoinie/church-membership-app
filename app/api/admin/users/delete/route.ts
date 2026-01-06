@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
 import { invitations } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function DELETE(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId, user: currentUser } = await getAuthContext(request);
     const { email } = await request.json();
 
     if (!email || typeof email !== "string") {
@@ -28,40 +19,60 @@ export async function DELETE(request: Request) {
     }
 
     // Prevent deleting yourself
-    if (session.user.email === email) {
+    if (currentUser.email === email) {
       return NextResponse.json(
         { error: "You cannot delete your own account" },
         { status: 400 },
       );
     }
 
-    // Find the user by email
+    // Find the user by email and verify they belong to church
     const userToDelete = await db.query.user.findFirst({
-      where: eq(user.email, email),
+      where: and(eq(user.email, email), eq(user.churchId, churchId)),
     });
 
-    // Check if this is the last admin user
-    const allUsers = await db.query.user.findMany();
-    if (allUsers.length === 1 && userToDelete) {
+    if (!userToDelete) {
       return NextResponse.json(
-        { error: "Cannot delete the last admin user" },
+        { error: "User not found" },
+        { status: 404 },
+      );
+    }
+
+    // Check if this is the last admin user for this church
+    const allChurchUsers = await db.query.user.findMany({
+      where: eq(user.churchId, churchId),
+    });
+
+    const adminUsers = allChurchUsers.filter(
+      (u) => u.role === "admin" || u.role === "super_admin"
+    );
+
+    if (
+      adminUsers.length === 1 &&
+      (userToDelete.role === "admin" || userToDelete.role === "super_admin")
+    ) {
+      return NextResponse.json(
+        { error: "Cannot delete the last admin user for this church" },
         { status: 400 },
       );
     }
 
-    // Delete invitations associated with this email
-    await db.delete(invitations).where(eq(invitations.email, email));
+    // Delete invitations associated with this email and church
+    await db
+      .delete(invitations)
+      .where(and(eq(invitations.email, email), eq(invitations.churchId, churchId)));
 
-    // If user exists, delete them (this will cascade delete sessions and accounts)
-    if (userToDelete) {
-      await db.delete(user).where(eq(user.email, email));
-    }
+    // Delete the user (this will cascade delete sessions and accounts)
+    await db.delete(user).where(eq(user.id, userToDelete.id));
 
     return NextResponse.json({
       success: true,
-      message: `Admin access removed for ${email}`,
+      message: `User access removed for ${email}`,
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error deleting user:", error);
     return NextResponse.json(
       { error: "Failed to delete user" },

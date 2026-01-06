@@ -1,39 +1,30 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Get household
+    // Get household and verify it belongs to church
     const [h] = await db
       .select()
       .from(household)
-      .where(eq(household.id, id))
+      .where(and(eq(household.id, id), eq(household.churchId, churchId)))
       .limit(1);
 
     if (!h) {
       return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
-    // Get all members in this household
+    // Get all members in this household (filtered by churchId)
     const householdMembers = await db
       .select({
         id: members.id,
@@ -51,13 +42,16 @@ export async function GET(
         sex: members.sex,
       })
       .from(members)
-      .where(eq(members.householdId, id));
+      .where(and(eq(members.householdId, id), eq(members.churchId, churchId)));
 
     return NextResponse.json({
       household: h,
       members: householdMembers,
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching household:", error);
     return NextResponse.json(
       { error: "Failed to fetch household" },
@@ -71,23 +65,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
     const body = await request.json();
 
-    // Check if household exists
+    // Check if household exists and belongs to church
     const [existingHousehold] = await db
       .select()
       .from(household)
-      .where(eq(household.id, id))
+      .where(and(eq(household.id, id), eq(household.churchId, churchId)))
       .limit(1);
 
     if (!existingHousehold) {
@@ -118,6 +104,9 @@ export async function PUT(
 
     return NextResponse.json({ household: updatedHousehold });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error updating household:", error);
     return NextResponse.json(
       { error: "Failed to update household" },
@@ -131,33 +120,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Check if household exists
+    // Check if household exists and belongs to church
     const [existingHousehold] = await db
       .select()
       .from(household)
-      .where(eq(household.id, id))
+      .where(and(eq(household.id, id), eq(household.churchId, churchId)))
       .limit(1);
 
     if (!existingHousehold) {
       return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
-    // Check if household has members
+    // Check if household has members (filtered by churchId)
     const householdMembers = await db
       .select()
       .from(members)
-      .where(eq(members.householdId, id))
+      .where(and(eq(members.householdId, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (householdMembers.length > 0) {
@@ -172,6 +153,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error deleting household:", error);
     return NextResponse.json(
       { error: "Failed to delete household" },

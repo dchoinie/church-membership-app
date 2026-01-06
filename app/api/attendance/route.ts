@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, desc, count, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -28,26 +20,29 @@ export async function GET(request: Request) {
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
     const offset = (validPage - 1) * validPageSize;
 
-    // Build where conditions
-    const whereConditions = [];
+    // Build where conditions (always filter by churchId via member/service relationships)
+    const whereConditions = [
+      eq(members.churchId, churchId),
+      eq(services.churchId, churchId),
+    ];
     if (serviceIdFilter) {
       whereConditions.push(eq(attendance.serviceId, serviceIdFilter));
     }
 
-    const whereCondition = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+    const whereCondition = and(...whereConditions);
 
-    // Get total count
-    const countQuery = db
+    // Get total count (filtered by churchId)
+    const [totalResult] = await db
       .select({ count: count() })
-      .from(attendance);
-    const [totalResult] = whereCondition
-      ? await countQuery.where(whereCondition)
-      : await countQuery;
+      .from(attendance)
+      .innerJoin(members, eq(attendance.memberId, members.id))
+      .innerJoin(services, eq(attendance.serviceId, services.id))
+      .where(whereCondition);
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
-    // Get paginated attendance records with member and service info
-    const queryBuilder = db
+    // Get paginated attendance records with member and service info (filtered by churchId)
+    const attendanceRecords = await db
       .select({
         id: attendance.id,
         memberId: attendance.memberId,
@@ -70,13 +65,10 @@ export async function GET(request: Request) {
       .from(attendance)
       .innerJoin(members, eq(attendance.memberId, members.id))
       .innerJoin(services, eq(attendance.serviceId, services.id))
+      .where(whereCondition)
       .orderBy(desc(services.serviceDate), desc(attendance.createdAt))
       .limit(validPageSize)
       .offset(offset);
-
-    const attendanceRecords = whereCondition
-      ? await queryBuilder.where(whereCondition)
-      : await queryBuilder;
 
     return NextResponse.json({
       attendance: attendanceRecords,
@@ -88,6 +80,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching attendance records:", error);
     return NextResponse.json(
       { error: "Failed to fetch attendance records" },
@@ -98,15 +93,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const body = await request.json();
 
     // Validate required fields
@@ -135,11 +122,11 @@ export async function POST(request: Request) {
       });
     }
 
-    // Check if service exists
+    // Check if service exists and belongs to church
     const [service] = await db
       .select()
       .from(services)
-      .where(eq(services.id, body.serviceId))
+      .where(and(eq(services.id, body.serviceId), eq(services.churchId, churchId)))
       .limit(1);
 
     if (!service) {
@@ -188,11 +175,11 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Check if member exists
+        // Check if member exists and belongs to church
         const [member] = await db
           .select()
           .from(members)
-          .where(eq(members.id, record.memberId))
+          .where(and(eq(members.id, record.memberId), eq(members.churchId, churchId)))
           .limit(1);
 
         if (!member) {
@@ -263,6 +250,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error batch creating/updating attendance records:", error);
     return NextResponse.json(
       { error: "Failed to batch create/update attendance records" },

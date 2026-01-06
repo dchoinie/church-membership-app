@@ -1,29 +1,25 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { desc } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
+import { invitations } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get all users
+    // Get all users for this church
     const users = await db.query.user.findMany({
+      where: eq(user.churchId, churchId),
       orderBy: [desc(user.createdAt)],
     });
 
-    // Get all invitations (pending and accepted)
-    const allInvitations = await db.query.invitations.findMany();
+    // Get all invitations for this church (pending and accepted)
+    const allInvitations = await db.query.invitations.findMany({
+      where: eq(invitations.churchId, churchId),
+    });
 
     // Create a map of email to invitation status
     const invitationMap = new Map(
@@ -76,6 +72,9 @@ export async function GET() {
       users: [...usersWithStatus, ...pendingInvitesWithStatus],
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching users:", error);
     return NextResponse.json(
       { error: "Failed to fetch users" },

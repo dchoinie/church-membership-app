@@ -1,21 +1,13 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 export async function POST(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     const body = await request.json();
     const records = body.records || [];
@@ -27,7 +19,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch all members with envelope numbers for lookup
+    // Fetch all members with envelope numbers for lookup (filtered by churchId)
     type MemberForLookup = {
       id: string;
       householdId: string | null;
@@ -44,7 +36,8 @@ export async function POST(request: Request) {
         sex: members.sex,
         dateOfBirth: members.dateOfBirth,
       })
-      .from(members);
+      .from(members)
+      .where(eq(members.churchId, churchId));
     
     const membersByEnvelope = new Map<number, MemberForLookup[]>();
     const membersById = new Map<string, MemberForLookup>();
@@ -68,7 +61,8 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(members.householdId, householdId),
-            eq(members.sequence, "head_of_house")
+            eq(members.sequence, "head_of_house"),
+            eq(members.churchId, churchId)
           )
         )
         .limit(1);
@@ -247,6 +241,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error bulk inserting giving records:", error);
     return NextResponse.json(
       {

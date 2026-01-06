@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { giving, members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | null | undefined): string {
@@ -38,14 +37,7 @@ function generateCsv(rows: Array<Record<string, string | null>>, headers?: strin
 
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { churchId } = await getAuthContext(request);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -70,19 +62,20 @@ export async function GET(request: Request) {
       );
     }
 
-    // Build where conditions
+    // Build where conditions (always filter by churchId via member relationship)
     const conditions = [
       gte(giving.dateGiven, startDate),
       lte(giving.dateGiven, endDate),
+      eq(members.churchId, churchId),
     ];
 
-    // If householdId is provided, filter by household
+    // If householdId is provided, filter by household (and verify it belongs to church)
     let memberIds: string[] | undefined;
     if (householdId) {
       const householdMembers = await db
         .select({ id: members.id })
         .from(members)
-        .where(eq(members.householdId, householdId));
+        .where(and(eq(members.householdId, householdId), eq(members.churchId, churchId)));
       
       memberIds = householdMembers.map((m) => m.id);
       
@@ -159,7 +152,8 @@ export async function GET(request: Request) {
             .where(
               and(
                 eq(members.householdId, recordMember.householdId),
-                eq(members.sequence, "head_of_house")
+                eq(members.sequence, "head_of_house"),
+                eq(members.churchId, churchId)
               )
             )
             .limit(1);
@@ -332,6 +326,9 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error generating giving report:", error);
     return NextResponse.json(
       { error: "Failed to generate giving report" },

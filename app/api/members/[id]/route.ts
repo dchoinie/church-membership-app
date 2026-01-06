@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -19,18 +18,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Get member
+    // Get member and verify it belongs to church
     const [member] = await db
       .select({
         id: members.id,
@@ -63,7 +54,7 @@ export async function GET(
         updatedAt: members.updatedAt,
       })
       .from(members)
-      .where(eq(members.id, id))
+      .where(and(eq(members.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!member) {
@@ -85,7 +76,8 @@ export async function GET(
         .where(
           and(
             eq(members.householdId, member.householdId),
-            eq(members.sequence, "head_of_house")
+            eq(members.sequence, "head_of_house"),
+            eq(members.churchId, churchId)
           )
         )
         .limit(1);
@@ -105,6 +97,9 @@ export async function GET(
       }
     });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching member:", error);
     return NextResponse.json(
       { error: "Failed to fetch member" },
@@ -118,15 +113,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -138,23 +125,23 @@ export async function PUT(
       );
     }
 
-    // Check if member exists
+    // Check if member exists and belongs to church
     const [existingMember] = await db
       .select()
       .from(members)
-      .where(eq(members.id, id))
+      .where(and(eq(members.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!existingMember) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    // Check email uniqueness if email1 is being changed
+    // Check email uniqueness if email1 is being changed (within same church)
     if (body.email1 && body.email1 !== existingMember.email1) {
       const emailConflict = await db
         .select()
         .from(members)
-        .where(eq(members.email1, body.email1))
+        .where(and(eq(members.email1, body.email1), eq(members.churchId, churchId)))
         .limit(1);
 
       if (emailConflict.length > 0) {
@@ -174,12 +161,12 @@ export async function PUT(
       );
     }
 
-    // Validate that household exists if householdId is being changed
+    // Validate that household exists and belongs to church if householdId is being changed
     if (body.householdId !== undefined && body.householdId !== existingMember.householdId) {
       const [targetHousehold] = await db
         .select()
         .from(household)
-        .where(eq(household.id, body.householdId))
+        .where(and(eq(household.id, body.householdId), eq(household.churchId, churchId)))
         .limit(1);
 
       if (!targetHousehold) {
@@ -229,6 +216,9 @@ export async function PUT(
 
     return NextResponse.json({ member: updatedMember });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error updating member:", error);
     return NextResponse.json(
       { error: "Failed to update member" },
@@ -242,22 +232,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const { churchId } = await getAuthContext(request);
     const { id } = await params;
 
-    // Check if member exists
+    // Check if member exists and belongs to church
     const [existingMember] = await db
       .select()
       .from(members)
-      .where(eq(members.id, id))
+      .where(and(eq(members.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
     if (!existingMember) {
@@ -269,6 +251,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error deleting member:", error);
     return NextResponse.json(
       { error: "Failed to delete member" },

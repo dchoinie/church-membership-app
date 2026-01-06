@@ -1,32 +1,25 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
+import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Check authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const { churchId } = await getAuthContext(request);
 
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get all households with their members and envelope numbers
+    // Get all households with their members and envelope numbers (filtered by churchId)
     const allHouseholds = await db
       .select({
         id: household.id,
         name: household.name,
         type: household.type,
       })
-      .from(household);
+      .from(household)
+      .where(eq(household.churchId, churchId));
 
-    // For each household, get members with envelope numbers
+    // For each household, get members with envelope numbers (filtered by churchId)
     const householdsWithEnvelopes = await Promise.all(
       allHouseholds.map(async (h) => {
         const householdMembers = await db
@@ -37,7 +30,7 @@ export async function GET() {
             envelopeNumber: members.envelopeNumber,
           })
           .from(members)
-          .where(eq(members.householdId, h.id));
+          .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)));
 
         // Get the envelope number (should be consistent per household)
         const envelopeNumber = householdMembers.find((m) => m.envelopeNumber !== null)?.envelopeNumber || null;
@@ -71,6 +64,9 @@ export async function GET() {
 
     return NextResponse.json({ households: filteredHouseholds });
   } catch (error) {
+    const authError = handleAuthError(error);
+    if (authError.status !== 500) return authError;
+    
     console.error("Error fetching households:", error);
     return NextResponse.json(
       { error: "Failed to fetch households" },
