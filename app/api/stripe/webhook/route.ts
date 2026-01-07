@@ -6,11 +6,37 @@ import { churches, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-if (!webhookSecret) {
-  throw new Error("STRIPE_WEBHOOK_SECRET is not set");
+/**
+ * Get the appropriate Stripe webhook secret based on environment
+ * Priority: Environment-specific secret > Fallback to STRIPE_WEBHOOK_SECRET
+ */
+function getWebhookSecret(): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  // Use environment-specific webhook secrets if available
+  if (isProduction) {
+    if (process.env.STRIPE_PROD_WEBHOOK_SECRET) {
+      return process.env.STRIPE_PROD_WEBHOOK_SECRET;
+    }
+  } else {
+    if (process.env.STRIPE_DEV_WEBHOOK_SECRET) {
+      return process.env.STRIPE_DEV_WEBHOOK_SECRET;
+    }
+  }
+  
+  // Fallback to generic STRIPE_WEBHOOK_SECRET for backward compatibility
+  if (process.env.STRIPE_WEBHOOK_SECRET) {
+    return process.env.STRIPE_WEBHOOK_SECRET;
+  }
+  
+  throw new Error(
+    `Stripe webhook secret is not set. Please set ${
+      isProduction ? "STRIPE_PROD_WEBHOOK_SECRET" : "STRIPE_DEV_WEBHOOK_SECRET"
+    } or STRIPE_WEBHOOK_SECRET in environment variables`
+  );
 }
+
+const webhookSecret = getWebhookSecret();
 
 export async function POST(request: Request) {
   const body = await request.text();

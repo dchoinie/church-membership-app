@@ -122,8 +122,8 @@
 }
 
 /* Allow scrolling on mobile, restrict only on desktop when using fixed-height layout */
-@media (min-width: 768px) {
+/* @media (min-width: 768px) {
   html, body {
     overflow-y: hidden;
   }
-}
+} */

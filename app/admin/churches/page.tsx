@@ -99,7 +99,7 @@ export default function AdminChurchesPage() {
                   <div>
                     <CardTitle className="text-xl">{church.name}</CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {church.subdomain}.yourapp.com
+                      {church.subdomain}.simplechurchtools.com
                     </p>
                     {church.email && (
                       <p className="text-sm text-muted-foreground">

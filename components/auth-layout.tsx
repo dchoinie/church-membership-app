@@ -42,7 +42,7 @@ function SidebarContent({
   onNavigate: () => void;
   church: Church | null;
 }) {
-  const churchName = church?.name || "Church Admin";
+  const churchName = church?.name || "Simple Church Tools";
   
   return (
     <>
@@ -197,7 +197,7 @@ export default function AuthLayout({
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
           <Link href="/dashboard" className="text-lg font-semibold text-sidebar-foreground hover:text-sidebar-accent-foreground transition-colors">
-            {church?.name || "Church Admin"}
+            {church?.name || "Simple Church Tools"}
           </Link>
           <Button
             variant="ghost"

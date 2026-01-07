@@ -11,7 +11,7 @@ export default function Dashboard() {
       <div className="md:shrink-0 pb-4 md:pb-6 pt-4 md:pt-8">
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-2 text-sm md:text-base">
-          Welcome to your Church Admin Dashboard
+          Welcome to your Simple Church Tools Dashboard
         </p>
       </div>
 
@@ -113,7 +113,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-lg md:text-xl font-semibold mb-2">Manage Admin Access</h2>
               <p className="text-xs md:text-sm text-muted-foreground">
-                Invite new administrators, view all admin users, and manage access permissions for the church management system.
+                Invite new administrators, view all admin users, and manage access permissions for Simple Church Tools.
               </p>
             </CardContent>
           </Card>

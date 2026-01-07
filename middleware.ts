@@ -6,7 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Public routes that don't require tenant context
-const PUBLIC_ROUTES = ["/signup", "/api/signup", "/api/signup/check-subdomain"];
+const PUBLIC_ROUTES = ["/", "/signup", "/api/signup", "/api/signup/check-subdomain"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,8 +20,9 @@ export async function middleware(request: NextRequest) {
   // Extract subdomain
   const subdomain = extractSubdomain(hostname);
 
-  // Handle root domain - redirect to signup
-  if (!subdomain && pathname !== "/signup" && !pathname.startsWith("/api/signup")) {
+  // Handle root domain - allow root path and signup routes
+  if (!subdomain && pathname !== "/" && pathname !== "/signup" && !pathname.startsWith("/api/signup")) {
+    // Redirect unknown routes on root domain to signup
     const signupUrl = new URL("/signup", request.url);
     return NextResponse.redirect(signupUrl);
   }

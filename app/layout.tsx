@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Church Admin",
+  title: "Simple Church Tools",
   description: "Church management system for membership, giving, and attendance.",
 };
 

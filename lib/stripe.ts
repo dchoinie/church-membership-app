@@ -1,13 +1,66 @@
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not set in environment variables");
+/**
+ * Get the appropriate Stripe secret key based on environment
+ * Priority: Environment-specific key > Fallback to STRIPE_SECRET_KEY
+ */
+function getStripeSecretKey(): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  // Use environment-specific keys if available
+  if (isProduction) {
+    if (process.env.STRIPE_PROD_SECRET_KEY) {
+      return process.env.STRIPE_PROD_SECRET_KEY;
+    }
+  } else {
+    if (process.env.STRIPE_DEV_SECRET_KEY) {
+      return process.env.STRIPE_DEV_SECRET_KEY;
+    }
+  }
+  
+  // Fallback to generic STRIPE_SECRET_KEY for backward compatibility
+  if (process.env.STRIPE_SECRET_KEY) {
+    return process.env.STRIPE_SECRET_KEY;
+  }
+  
+  // Error if no key is found
+  throw new Error(
+    `Stripe secret key is not set. Please set ${
+      isProduction ? "STRIPE_PROD_SECRET_KEY" : "STRIPE_DEV_SECRET_KEY"
+    } or STRIPE_SECRET_KEY in environment variables`
+  );
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const stripeSecretKey = getStripeSecretKey();
+
+export const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2024-12-18.acacia",
   typescript: true,
 });
+
+/**
+ * Get the appropriate Stripe publishable key based on environment
+ * For client-side Stripe integrations (if needed in the future)
+ */
+export function getStripePublishableKey(): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  if (isProduction) {
+    if (process.env.STRIPE_PROD_PUBLISHABLE_KEY) {
+      return process.env.STRIPE_PROD_PUBLISHABLE_KEY;
+    }
+  } else {
+    if (process.env.STRIPE_DEV_PUBLISHABLE_KEY) {
+      return process.env.STRIPE_DEV_PUBLISHABLE_KEY;
+    }
+  }
+  
+  throw new Error(
+    `Stripe publishable key is not set. Please set ${
+      isProduction ? "STRIPE_PROD_PUBLISHABLE_KEY" : "STRIPE_DEV_PUBLISHABLE_KEY"
+    } in environment variables`
+  );
+}
 
 // Subscription plan definitions (placeholder pricing)
 export const SUBSCRIPTION_PLANS = {

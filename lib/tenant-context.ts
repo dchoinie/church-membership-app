@@ -26,7 +26,7 @@ const RESERVED_SUBDOMAINS = [
 
 /**
  * Extract subdomain from hostname
- * e.g., "church1.yourapp.com" -> "church1"
+ * e.g., "church1.simplechurchtools.com" -> "church1"
  * e.g., "localhost:3000" -> null
  */
 export function extractSubdomain(hostname: string): string | null {
@@ -63,6 +63,7 @@ export async function getTenantFromRequest(
 
 /**
  * Look up church by subdomain
+ * Uses service role connection to bypass RLS for public operations
  */
 export async function getChurchBySubdomain(
   subdomain: string
@@ -71,7 +72,9 @@ export async function getChurchBySubdomain(
     return null;
   }
 
-  const church = await db.query.churches.findFirst({
+  // Use service DB to bypass RLS when looking up churches by subdomain
+  const { serviceDb } = await import("@/db/service-db");
+  const church = await serviceDb.query.churches.findFirst({
     where: eq(churches.subdomain, subdomain.toLowerCase()),
   });
 
@@ -95,6 +98,7 @@ export async function requireTenantContext(
 
 /**
  * Check if subdomain is available
+ * Uses service role connection to bypass RLS for public signup flow
  */
 export async function isSubdomainAvailable(subdomain: string): Promise<boolean> {
   if (!subdomain) {
@@ -113,8 +117,9 @@ export async function isSubdomainAvailable(subdomain: string): Promise<boolean> 
     return false;
   }
 
-  // Check if already exists
-  const existing = await db.query.churches.findFirst({
+  // Check if already exists - use service DB to bypass RLS
+  const { serviceDb } = await import("@/db/service-db");
+  const existing = await serviceDb.query.churches.findFirst({
     where: eq(churches.subdomain, normalized),
   });
 

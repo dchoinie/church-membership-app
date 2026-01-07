@@ -14,19 +14,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
-import { Shield, Users, DollarSign, FileText } from "lucide-react";
+import { Shield, Users, DollarSign, FileText, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   
-  // Redirect to signup if on root domain
-  useEffect(() => {
-    const hostname = window.location.hostname;
-    // If not a subdomain (localhost or root domain), redirect to signup
-    if (!hostname.includes(".") || hostname.split(".").length <= 2) {
-      router.push("/signup");
-    }
-  }, [router]);
+  // Note: Root page ("/") is accessible on root domain for login
+  // Users accessing from subdomains will use this page to log in
+  // Users on root domain can navigate to /signup to create a new church
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -98,10 +93,10 @@ export default function LoginPage() {
             </div>
             <h1 className="text-5xl font-bold tracking-tight mb-4">
               Welcome to{" "}
-              <span className="text-primary">Good Shepherd</span> Admin
+              <span className="text-primary">Simple Church Tools</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Manage your church membership, track giving, generate reports, and more.
+              Sign in to your church admin portal or create a new church account to get started managing your membership, tracking giving, and generating reports.
             </p>
           </div>
 
@@ -211,13 +206,37 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-6 text-center text-sm text-muted-foreground">
-                <p>
-                  Need an account?{" "}
-                  <Link href="/signup" className="text-primary hover:underline font-medium">
-                    Sign up with an invitation
-                  </Link>
-                </p>
+              <div className="mt-6 space-y-4">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or
+                    </span>
+                  </div>
+                </div>
+
+                <Link href="/signup">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 cursor-pointer text-base font-semibold border-2 hover:bg-primary/5 hover:border-primary transition-colors"
+                  >
+                    Create New Church Account
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+
+                <div className="text-center text-sm text-muted-foreground space-y-2">
+                  <p>
+                    Have an invitation code?{" "}
+                    <Link href="/signup" className="text-primary hover:underline font-medium">
+                      Click here to join an existing church
+                    </Link>
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

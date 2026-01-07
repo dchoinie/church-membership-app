@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
+import { serviceDb } from "@/db/service-db";
 import { churches } from "@/db/schema";
 import { user } from "@/auth-schema";
 import { auth } from "@/lib/auth";
@@ -56,8 +57,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email is already in use
-    const existingUser = await db.query.user.findFirst({
+    // Check if email is already in use - use service DB to bypass RLS
+    const existingUser = await serviceDb.query.user.findFirst({
       where: eq(user.email, adminEmail),
     });
 
@@ -88,11 +89,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create church record
+    // Create church record - use service DB to bypass RLS
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14-day trial
 
-    const [church] = await db
+    const [church] = await serviceDb
       .insert(churches)
       .values({
         name: churchName,
@@ -117,8 +118,8 @@ export async function POST(request: Request) {
     });
 
     if (!signupResponse.ok) {
-      // Rollback: delete church if user creation fails
-      await db.delete(churches).where(eq(churches.id, church.id));
+      // Rollback: delete church if user creation fails - use service DB to bypass RLS
+      await serviceDb.delete(churches).where(eq(churches.id, church.id));
       const errorData = await signupResponse.json().catch(() => ({}));
       return NextResponse.json(
         { error: errorData.error || "Failed to create admin user" },
@@ -130,16 +131,16 @@ export async function POST(request: Request) {
     const userId = signupData.user?.id;
 
     if (!userId) {
-      // Rollback: delete church if user ID not found
-      await db.delete(churches).where(eq(churches.id, church.id));
+      // Rollback: delete church if user ID not found - use service DB to bypass RLS
+      await serviceDb.delete(churches).where(eq(churches.id, church.id));
       return NextResponse.json(
         { error: "Failed to get user ID after signup" },
         { status: 500 }
       );
     }
 
-    // Update user with churchId and admin role
-    await db
+    // Update user with churchId and admin role - use service DB to bypass RLS
+    await serviceDb
       .update(user)
       .set({
         churchId: church.id,
