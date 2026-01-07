@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -383,9 +384,9 @@ export default function SignupPage() {
               <div className="mt-6 text-center text-sm text-muted-foreground">
                 <p>
                   Already have an account?{" "}
-                  <a href="/" className="text-primary hover:underline font-medium">
+                  <Link href="/" className="text-primary hover:underline font-medium">
                     Sign in to your church
-                  </a>
+                  </Link>
                 </p>
               </div>
             </CardContent>

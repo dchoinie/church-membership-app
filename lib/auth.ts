@@ -9,7 +9,15 @@ const getBaseURL = () => {
         return "http://localhost:3000"
     }
     // Use environment variable for production
-    return process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    const url = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    
+    // Ensure URL has a protocol
+    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+        // Default to https in production, http in development
+        return `https://${url}`
+    }
+    
+    return url
 }
 
 export const auth = betterAuth({

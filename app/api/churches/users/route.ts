@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         email: inv.email,
         role: "viewer",
         emailVerified: false,
-        createdAt: inv.createdAt,
+        createdAt: null,
         status: isExpired ? ("expired" as const) : ("invited" as const),
       };
     });

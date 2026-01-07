@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { stripe } from "@/lib/stripe";
+import { stripe, getSubscription } from "@/lib/stripe";
 import { db } from "@/db";
 import { churches, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         }
 
         // Get subscription details
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await getSubscription(subscriptionId);
 
         // Update church with subscription info
         await db
@@ -101,11 +101,11 @@ export async function POST(request: Request) {
             .update(subscriptions)
             .set({
               status: subscription.status === "trialing" ? "trialing" : "active",
-              currentPeriodStart: subscription.current_period_start
-                ? new Date(subscription.current_period_start * 1000)
+              currentPeriodStart: (subscription as any).current_period_start
+                ? new Date((subscription as any).current_period_start * 1000)
                 : null,
-              currentPeriodEnd: subscription.current_period_end
-                ? new Date(subscription.current_period_end * 1000)
+              currentPeriodEnd: (subscription as any).current_period_end
+                ? new Date((subscription as any).current_period_end * 1000)
                 : null,
               updatedAt: new Date(),
             })
@@ -117,11 +117,11 @@ export async function POST(request: Request) {
             stripeCustomerId: customerId,
             status: subscription.status === "trialing" ? "trialing" : "active",
             plan: "basic", // Default plan, update based on price ID if needed
-            currentPeriodStart: subscription.current_period_start
-              ? new Date(subscription.current_period_start * 1000)
+            currentPeriodStart: (subscription as any).current_period_start
+              ? new Date((subscription as any).current_period_start * 1000)
               : null,
-            currentPeriodEnd: subscription.current_period_end
-              ? new Date(subscription.current_period_end * 1000)
+            currentPeriodEnd: (subscription as any).current_period_end
+              ? new Date((subscription as any).current_period_end * 1000)
               : null,
           });
         }
@@ -183,13 +183,13 @@ export async function POST(request: Request) {
                   : subscription.status === "canceled" || subscription.status === "unpaid"
                   ? "canceled"
                   : "unpaid",
-              currentPeriodStart: subscription.current_period_start
-                ? new Date(subscription.current_period_start * 1000)
+              currentPeriodStart: (subscription as any).current_period_start
+                ? new Date((subscription as any).current_period_start * 1000)
                 : null,
-              currentPeriodEnd: subscription.current_period_end
-                ? new Date(subscription.current_period_end * 1000)
+              currentPeriodEnd: (subscription as any).current_period_end
+                ? new Date((subscription as any).current_period_end * 1000)
                 : null,
-              cancelAtPeriodEnd: subscription.cancel_at_period_end,
+              cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
               updatedAt: new Date(),
             })
             .where(eq(subscriptions.id, existingSubscription.id));

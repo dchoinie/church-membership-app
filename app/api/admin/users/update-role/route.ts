@@ -25,13 +25,18 @@ export async function PUT(request: Request) {
     }
 
     // Validate role
-    const validRoles = ["admin", "viewer"];
-    if (!validRoles.includes(role)) {
+    const validRoles = ["admin", "viewer"] as const;
+    
+    if (!validRoles.includes(role as typeof validRoles[number])) {
       return NextResponse.json(
         { error: "Invalid role. Must be 'admin' or 'viewer'" },
         { status: 400 },
       );
     }
+    
+    // TypeScript now knows role is one of the valid roles after validation
+    // Assert to the full enum type that Drizzle expects: "super_admin" | "admin" | "viewer"
+    const validRole = role as "super_admin" | "admin" | "viewer";
 
     // Only admins can update roles
     if (currentUser.role !== "admin" && !currentUser.isSuperAdmin) {
@@ -62,7 +67,7 @@ export async function PUT(request: Request) {
     }
 
     // Check if this is the last admin user for this church and we're trying to change them to viewer
-    if (userToUpdate.role === "admin" && role === "viewer") {
+    if (userToUpdate.role === "admin" && validRole === "viewer") {
       const allChurchUsers = await db.query.user.findMany({
         where: eq(user.churchId, churchId),
       });
@@ -82,12 +87,12 @@ export async function PUT(request: Request) {
     // Update the user's role
     await db
       .update(user)
-      .set({ role, updatedAt: new Date() })
+      .set({ role: validRole, updatedAt: new Date() })
       .where(eq(user.id, userToUpdate.id));
 
     return NextResponse.json({
       success: true,
-      message: `User role updated to ${role}`,
+      message: `User role updated to ${validRole}`,
     });
   } catch (error) {
     const authError = handleAuthError(error);

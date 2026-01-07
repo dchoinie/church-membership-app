@@ -202,7 +202,7 @@ export default function VerifyEmailPage() {
 
                 <div className="text-center text-sm text-muted-foreground">
                   <p>
-                    Didn't receive the email? Check your spam folder or try resending.
+                    Didn&apos;t receive the email? Check your spam folder or try resending.
                   </p>
                 </div>
               </div>

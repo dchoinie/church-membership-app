@@ -315,7 +315,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>General Information</CardTitle>
                 <CardDescription>
-                  Update your church's basic information and contact details.
+                  Update your church&apos;s basic information and contact details.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -399,7 +399,7 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle>Branding</CardTitle>
                 <CardDescription>
-                  Customize your church's logo and primary color.
+                  Customize your church&apos;s logo and primary color.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
