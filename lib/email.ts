@@ -91,7 +91,7 @@ export async function sendInvitationEmail({
   const buttonColor = getButtonColor(primaryColor);
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const inviteLink = `${baseUrl}/signup?invite=${inviteCode}`;
+  const inviteLink = `${baseUrl}/?invite=${inviteCode}`;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   
   // Check if using default Resend test domain

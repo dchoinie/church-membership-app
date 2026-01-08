@@ -5,7 +5,19 @@ import Stripe from "stripe";
  * Priority: Environment-specific key > Fallback to STRIPE_SECRET_KEY
  */
 function getStripeSecretKey(): string {
+  // Only access Stripe on the server side
+  if (typeof window !== "undefined") {
+    throw new Error("Stripe secret key cannot be accessed on the client side");
+  }
+
   const isProduction = process.env.NODE_ENV === "production";
+  
+  // Debug: Log available env vars (only in development)
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Checking Stripe keys - NODE_ENV:", process.env.NODE_ENV);
+    console.log("STRIPE_DEV_SECRET_KEY exists:", !!process.env.STRIPE_DEV_SECRET_KEY);
+    console.log("STRIPE_SECRET_KEY exists:", !!process.env.STRIPE_SECRET_KEY);
+  }
   
   // Use environment-specific keys if available
   if (isProduction) {
@@ -23,14 +35,23 @@ function getStripeSecretKey(): string {
     return process.env.STRIPE_SECRET_KEY;
   }
   
-  // Error if no key is found
+  // Error if no key is found - provide helpful debugging info
+  const availableKeys = Object.keys(process.env)
+    .filter(key => key.includes("STRIPE") && key.includes("SECRET"))
+    .join(", ");
+  
   throw new Error(
     `Stripe secret key is not set. Please set ${
       isProduction ? "STRIPE_PROD_SECRET_KEY" : "STRIPE_DEV_SECRET_KEY"
-    } or STRIPE_SECRET_KEY in environment variables`
+    } or STRIPE_SECRET_KEY in environment variables.\n` +
+    `Available Stripe-related env vars: ${availableKeys || "none found"}\n` +
+    `Make sure your .env.local file is in the project root and restart your dev server.`
   );
 }
 
+// Initialize Stripe instance
+// This will only be executed when this module is imported on the server side
+// Client components should import from @/lib/pricing instead
 const stripeSecretKey = getStripeSecretKey();
 
 export const stripe = new Stripe(stripeSecretKey, {
@@ -62,27 +83,9 @@ export function getStripePublishableKey(): string {
   );
 }
 
-// Subscription plan definitions (placeholder pricing)
-export const SUBSCRIPTION_PLANS = {
-  free: {
-    name: "Free",
-    priceId: process.env.STRIPE_PRICE_ID_FREE || "",
-    price: 0,
-    features: ["Up to 50 members", "Basic reports", "Email support"],
-  },
-  basic: {
-    name: "Basic",
-    priceId: process.env.STRIPE_PRICE_ID_BASIC || "",
-    price: 29, // $29/month placeholder
-    features: ["Up to 500 members", "Advanced reports", "Priority support"],
-  },
-  premium: {
-    name: "Premium",
-    priceId: process.env.STRIPE_PRICE_ID_PREMIUM || "",
-    price: 99, // $99/month placeholder
-    features: ["Unlimited members", "All reports", "Dedicated support"],
-  },
-} as const;
+// Re-export pricing plans from separate file
+// This allows client components to import pricing without loading Stripe client
+export { SUBSCRIPTION_PLANS } from "./pricing";
 
 /**
  * Create a Stripe customer

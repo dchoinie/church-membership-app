@@ -30,7 +30,7 @@ const navItems = [
   { label: "Reports", href: "/reports" },
 ];
 
-const publicRoutes = ["/", "/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
+const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email"];
 
 // Sidebar content component
 function SidebarContent({
@@ -135,8 +135,8 @@ export default function AuthLayout({
       
       // If authenticated, check email verification status
       if (session?.user) {
-        // If on login/signup/setup, redirect to dashboard (if verified) or verify-email (if not verified)
-        if (pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/setup") {
+        // If on login/home, redirect to dashboard (if verified) or verify-email (if not verified)
+        if (pathname === "/" || pathname === "/login") {
           if (session.user.emailVerified) {
             router.push("/dashboard");
           } else {
@@ -185,7 +185,7 @@ export default function AuthLayout({
   const isPublicRoute = publicRoutes.includes(pathname);
   const isAuthenticated = !!session?.user;
 
-  // Public routes (login, signup, setup) - no sidebar
+  // Public routes (login, signup, etc.) - no sidebar
   if (isPublicRoute) {
     return <>{children}</>;
   }

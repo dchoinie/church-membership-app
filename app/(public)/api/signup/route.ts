@@ -5,7 +5,8 @@ import { serviceDb } from "@/db/service-db";
 import { churches } from "@/db/schema";
 import { user } from "@/auth-schema";
 import { auth } from "@/lib/auth";
-import { createStripeCustomer, SUBSCRIPTION_PLANS } from "@/lib/stripe";
+import { createStripeCustomer } from "@/lib/stripe";
+import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSubdomainAvailable } from "@/lib/tenant-context";
 import { eq } from "drizzle-orm";
 

@@ -6,7 +6,17 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Public routes that don't require tenant context
-const PUBLIC_ROUTES = ["/", "/signup", "/api/signup", "/api/signup/check-subdomain"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/api/auth",
+  "/api/signup",
+  "/api/invite",
+  "/api/invite-signup",
+  "/api/stripe/webhook",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -20,11 +30,11 @@ export async function middleware(request: NextRequest) {
   // Extract subdomain
   const subdomain = extractSubdomain(hostname);
 
-  // Handle root domain - allow root path and signup routes
-  if (!subdomain && pathname !== "/" && pathname !== "/signup" && !pathname.startsWith("/api/signup")) {
-    // Redirect unknown routes on root domain to signup
-    const signupUrl = new URL("/signup", request.url);
-    return NextResponse.redirect(signupUrl);
+  // Handle root domain - allow root path and API routes
+  if (!subdomain && pathname !== "/" && !pathname.startsWith("/api/")) {
+    // Redirect unknown routes on root domain to home
+    const homeUrl = new URL("/", request.url);
+    return NextResponse.redirect(homeUrl);
   }
 
   // For public routes on root domain, allow through
@@ -67,10 +77,10 @@ export async function middleware(request: NextRequest) {
     const church = await getChurchBySubdomain(subdomain);
 
     if (!church && !isPublicRoute) {
-      // Church not found - redirect to signup with error or show 404
-      const signupUrl = new URL("/signup", request.url);
-      signupUrl.searchParams.set("error", "church_not_found");
-      return NextResponse.redirect(signupUrl);
+      // Church not found - redirect to home with error
+      const homeUrl = new URL("/", request.url);
+      homeUrl.searchParams.set("error", "church_not_found");
+      return NextResponse.redirect(homeUrl);
     }
 
     // Create response with tenant context
