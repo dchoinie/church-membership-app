@@ -1,7 +1,4 @@
-import { headers } from "next/headers";
-import { db } from "@/db";
 import { churches } from "@/db/schema";
-import { eq } from "drizzle-orm";
 
 /**
  * Reserved subdomains that cannot be used by churches
@@ -63,7 +60,7 @@ export async function getTenantFromRequest(
 
 /**
  * Look up church by subdomain
- * Uses service role connection to bypass RLS for public operations
+ * Uses Supabase service role client to bypass RLS for public operations
  */
 export async function getChurchBySubdomain(
   subdomain: string
@@ -72,13 +69,22 @@ export async function getChurchBySubdomain(
     return null;
   }
 
-  // Use service DB to bypass RLS when looking up churches by subdomain
-  const { serviceDb } = await import("@/db/service-db");
-  const church = await serviceDb.query.churches.findFirst({
-    where: eq(churches.subdomain, subdomain.toLowerCase()),
-  });
+  // Use Supabase service role client to bypass RLS when looking up churches by subdomain
+  const { createServiceClient } = await import("@/utils/supabase/service");
+  const supabase = createServiceClient();
+  
+  const { data: church, error } = await supabase
+    .from("churches")
+    .select("*")
+    .eq("subdomain", subdomain.toLowerCase())
+    .limit(1)
+    .single();
 
-  return church || null;
+  if (error || !church) {
+    return null;
+  }
+
+  return church as typeof churches.$inferSelect;
 }
 
 /**
@@ -98,7 +104,7 @@ export async function requireTenantContext(
 
 /**
  * Check if subdomain is available
- * Uses service role connection to bypass RLS for public signup flow
+ * Uses Supabase service role client to bypass RLS for public signup flow
  */
 export async function isSubdomainAvailable(subdomain: string): Promise<boolean> {
   if (!subdomain) {
@@ -117,12 +123,23 @@ export async function isSubdomainAvailable(subdomain: string): Promise<boolean> 
     return false;
   }
 
-  // Check if already exists - use service DB to bypass RLS
-  const { serviceDb } = await import("@/db/service-db");
-  const existing = await serviceDb.query.churches.findFirst({
-    where: eq(churches.subdomain, normalized),
-  });
+  // Check if already exists - use Supabase service role client to bypass RLS
+  const { createServiceClient } = await import("@/utils/supabase/service");
+  const supabase = createServiceClient();
+  
+  const { data, error } = await supabase
+    .from("churches")
+    .select("id")
+    .eq("subdomain", normalized)
+    .limit(1)
+    .maybeSingle();
 
-  return !existing;
+  if (error && error.code !== "PGRST116") {
+    // PGRST116 = no rows returned (which is fine)
+    console.error("Error checking subdomain availability:", error);
+    return false;
+  }
+
+  return !data; // Available if no data found
 }
 

@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { db } from "@/db";
-import { serviceDb } from "@/db/service-db";
-import { churches } from "@/db/schema";
-import { user } from "@/auth-schema";
 import { auth } from "@/lib/auth";
 import { createStripeCustomer } from "@/lib/stripe";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSubdomainAvailable } from "@/lib/tenant-context";
-import { eq } from "drizzle-orm";
+import { createServiceClient } from "@/utils/supabase/service";
 
 export async function POST(request: Request) {
   try {
@@ -58,10 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email is already in use - use service DB to bypass RLS
-    const existingUser = await serviceDb.query.user.findFirst({
-      where: eq(user.email, adminEmail),
-    });
+    // Check if email is already in use - use Supabase service role client to bypass RLS
+    const supabase = createServiceClient();
+    const { data: existingUser } = await supabase
+      .from("user")
+      .select("id")
+      .eq("email", adminEmail)
+      .limit(1)
+      .maybeSingle();
 
     if (existingUser) {
       return NextResponse.json(
@@ -90,22 +89,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create church record - use service DB to bypass RLS
+    // Create church record - use Supabase service role client to bypass RLS
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14-day trial
 
-    const [church] = await serviceDb
-      .insert(churches)
-      .values({
+    const { data: church, error: churchError } = await supabase
+      .from("churches")
+      .insert({
         name: churchName,
         subdomain: normalizedSubdomain,
         email: adminEmail,
-        subscriptionStatus: "trialing",
-        subscriptionPlan: selectedPlan as "free" | "basic" | "premium",
-        trialEndsAt,
-        stripeCustomerId,
+        subscription_status: "trialing",
+        subscription_plan: selectedPlan,
+        trial_ends_at: trialEndsAt.toISOString(),
+        stripe_customer_id: stripeCustomerId,
       })
-      .returning();
+      .select()
+      .single();
+
+    if (churchError || !church) {
+      console.error("Error creating church:", churchError);
+      return NextResponse.json(
+        { error: "Failed to create church" },
+        { status: 500 }
+      );
+    }
 
     // Create admin user
     const signupResponse = await auth.api.signUpEmail({
@@ -119,8 +127,8 @@ export async function POST(request: Request) {
     });
 
     if (!signupResponse.ok) {
-      // Rollback: delete church if user creation fails - use service DB to bypass RLS
-      await serviceDb.delete(churches).where(eq(churches.id, church.id));
+      // Rollback: delete church if user creation fails - use Supabase service role client to bypass RLS
+      await supabase.from("churches").delete().eq("id", church.id);
       const errorData = await signupResponse.json().catch(() => ({}));
       return NextResponse.json(
         { error: errorData.error || "Failed to create admin user" },
@@ -132,22 +140,32 @@ export async function POST(request: Request) {
     const userId = signupData.user?.id;
 
     if (!userId) {
-      // Rollback: delete church if user ID not found - use service DB to bypass RLS
-      await serviceDb.delete(churches).where(eq(churches.id, church.id));
+      // Rollback: delete church if user ID not found - use Supabase service role client to bypass RLS
+      await supabase.from("churches").delete().eq("id", church.id);
       return NextResponse.json(
         { error: "Failed to get user ID after signup" },
         { status: 500 }
       );
     }
 
-    // Update user with churchId and admin role - use service DB to bypass RLS
-    await serviceDb
-      .update(user)
-      .set({
-        churchId: church.id,
+    // Update user with churchId and admin role - use Supabase service role client to bypass RLS
+    const { error: updateError } = await supabase
+      .from("user")
+      .update({
+        church_id: church.id,
         role: "admin",
       })
-      .where(eq(user.id, userId));
+      .eq("id", userId);
+
+    if (updateError) {
+      // Rollback: delete church if user update fails
+      await supabase.from("churches").delete().eq("id", church.id);
+      console.error("Error updating user:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update user" },
+        { status: 500 }
+      );
+    }
 
     // If plan is not free, create checkout session
     let checkoutUrl: string | null = null;
