@@ -202,8 +202,7 @@ export default function AuthLayout({
           if (isOnSubdomain || isLocalhostSubdomain) {
             // If on login/home or verify-email, redirect to setup
             // But don't redirect if already on setup or dashboard
-            if ((pathname === "/" || pathname === "/login" || pathname === "/verify-email") && 
-                pathname !== "/setup" && pathname !== "/dashboard") {
+            if (pathname === "/" || pathname === "/login" || pathname === "/verify-email") {
               router.push("/setup");
               return;
             }
