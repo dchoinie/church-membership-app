@@ -1,23 +1,51 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
+import { churches } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 
 const getBaseURL = () => {
-    // Use localhost:3000 for local development
+    // Check for environment-specific URLs first
     if (process.env.NODE_ENV === "development") {
-        return "http://localhost:3000"
+        const devUrl = process.env.BETTER_AUTH_DEV_URL || "localhost:3000"
+        // Ensure URL has a protocol
+        if (devUrl.startsWith("http://") || devUrl.startsWith("https://")) {
+            return devUrl
+        }
+        return `http://${devUrl}`
     }
-    // Use environment variable for production
-    const url = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    
+    // Production - use BETTER_AUTH_PROD_URL or fallback
+    const prodUrl = process.env.BETTER_AUTH_PROD_URL || process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "localhost:3000"
     
     // Ensure URL has a protocol
-    if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-        // Default to https in production, http in development
-        return `https://${url}`
+    if (prodUrl.startsWith("http://") || prodUrl.startsWith("https://")) {
+        return prodUrl
     }
     
-    return url
+    // Default to https in production
+    return `https://${prodUrl}`
+}
+
+const getCookieDomain = () => {
+    if (process.env.NODE_ENV === "development") {
+        // For localhost subdomains, use .localhost with dot prefix
+        // This allows cookies to be shared across *.localhost subdomains
+        return ".localhost"
+    }
+    
+    // For production, use the root domain with dot prefix for subdomain support
+    const domain = process.env.BETTER_AUTH_PROD_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || "simplechurchtools.com"
+    // Remove protocol and port if present, extract just the domain
+    let cleanDomain = domain.replace(/^https?:\/\//, "").split(":")[0]
+    
+    // Add dot prefix if not already present (for subdomain cookie sharing)
+    if (!cleanDomain.startsWith(".")) {
+        cleanDomain = `.${cleanDomain}`
+    }
+    
+    return cleanDomain
 }
 
 export const auth = betterAuth({
@@ -28,7 +56,7 @@ export const auth = betterAuth({
     }),
     emailAndPassword: { 
         enabled: true,
-        autoSignIn: true,
+        autoSignIn: false,
         sendResetPassword: async ({ user, url }) => {
             try {
                 await sendPasswordResetEmail({
@@ -47,10 +75,39 @@ export const auth = betterAuth({
     emailVerification: {
         sendVerificationEmail: async ({ user, url, token }, request) => {
             try {
-                // Better-auth provides the URL with callbackURL already included
-                // We'll configure it to redirect to /verify-email?verified=true
-                const baseUrl = getBaseURL();
-                const callbackUrl = `${baseUrl}/verify-email?verified=true`;
+                // Get church subdomain to build correct callback URL
+                let callbackUrl: string;
+                const churchId = (user as any).churchId;
+                
+                if (churchId) {
+                    // Fetch church subdomain
+                    const church = await db.query.churches.findFirst({
+                        where: eq(churches.id, churchId),
+                    });
+                    
+                    if (church?.subdomain) {
+                        // Build subdomain-aware callback URL
+                        const baseUrl = getBaseURL();
+                        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+                        
+                        if (isLocalhost) {
+                            const port = baseUrl.includes(':') ? baseUrl.split(':')[2] : '3000';
+                            callbackUrl = `http://${church.subdomain}.localhost:${port}/?verified=true&signin=true`;
+                        } else {
+                            const domain = baseUrl.replace(/^https?:\/\//, '').split(':')[0];
+                            callbackUrl = `https://${church.subdomain}.${domain}/?verified=true&signin=true`;
+                        }
+                    } else {
+                        // Fallback to root domain
+                        const baseUrl = getBaseURL();
+                        callbackUrl = `${baseUrl}/?verified=true&signin=true`;
+                    }
+                } else {
+                    // No churchId, use root domain
+                    const baseUrl = getBaseURL();
+                    callbackUrl = `${baseUrl}/?verified=true&signin=true`;
+                }
+                
                 // Append callbackURL if not already present
                 const verificationUrl = url.includes("callbackURL") 
                     ? url 
@@ -60,7 +117,7 @@ export const auth = betterAuth({
                     email: user.email,
                     verificationUrl: verificationUrl,
                     userName: user.name || undefined,
-                    churchId: (user as any).churchId || null,
+                    churchId: churchId || null,
                 });
             } catch (error) {
                 console.error("Error sending verification email:", error);
@@ -68,16 +125,18 @@ export const auth = betterAuth({
             }
         },
         sendOnSignUp: false, // We'll handle sending manually for invite signups
-        autoSignInAfterVerification: true,
+        autoSignInAfterVerification: false,
     },
     trustedOrigins: process.env.NODE_ENV === "production" 
-        ? undefined // Will be set dynamically based on subdomain
+        ? undefined // Allow all subdomains by not restricting origins
         : undefined,
     advanced: {
         useSecureCookies: process.env.NODE_ENV === "production",
-        crossSubDomainCookies: {
-            enabled: true,
-            domain: process.env.NEXT_PUBLIC_APP_DOMAIN?.replace(/^https?:\/\//, "") || "localhost",
-        },
+        crossSubDomainCookies: process.env.NODE_ENV === "development"
+            ? undefined // Don't set cookie domain in dev - browsers handle *.localhost automatically
+            : {
+                enabled: true,
+                domain: getCookieDomain(), // Returns ".yourdomain.com" in prod
+            },
     },
 });

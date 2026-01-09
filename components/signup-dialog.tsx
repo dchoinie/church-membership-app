@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Loader2, Shield } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Shield, Mail } from "lucide-react";
 
 interface SignupDialogProps {
   open: boolean;
@@ -37,6 +37,8 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
   const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(
     null
   );
+  const [signupSuccess, setSignupSuccess] = useState(false);
+  const [signupData, setSignupData] = useState<{ subdomain: string } | null>(null);
 
   // Check for error/cancel params
   useEffect(() => {
@@ -131,6 +133,7 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
+        credentials: "include", // Ensure cookies are included
       });
 
       const data = await response.json();
@@ -139,21 +142,10 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
         throw new Error(data.error || "Failed to create church");
       }
 
-      // If checkout URL provided, redirect to Stripe
-      if (data.checkoutUrl) {
-        onOpenChange(false);
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-
-      // Otherwise, redirect to subdomain login
-      const baseUrl = window.location.origin;
-      const subdomainUrl = `${baseUrl.replace(
-        /^https?:\/\//,
-        `https://${data.subdomain}.`
-      )}/dashboard`;
-      onOpenChange(false);
-      window.location.href = subdomainUrl;
+      // Show success message - user must verify email before signing in
+      setSignupSuccess(true);
+      setSignupData({ subdomain: data.subdomain });
+      setIsSubmitting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create church");
     } finally {
@@ -304,13 +296,58 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
             </div>
           )}
 
-          <Button
-            type="submit"
-            className="w-full h-11 cursor-pointer text-base font-semibold"
-            disabled={isSubmitting || subdomainAvailable === false}
-          >
-            {isSubmitting ? "Creating Church..." : "Create Church"}
-          </Button>
+          {signupSuccess ? (
+            <div className="space-y-4">
+              <div className="rounded-md bg-green-50 dark:bg-green-950 p-4 border border-green-200 dark:border-green-800">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-green-900 dark:text-green-100">
+                      Church Created Successfully!
+                    </h3>
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      We've sent a verification email to <strong>{formData.adminEmail}</strong>. 
+                      Please check your inbox and click the verification link to verify your email address.
+                    </p>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      After verifying your email, you can sign in at{" "}
+                      <strong>
+                        {signupData?.subdomain}.simplechurchtools.com
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setSignupSuccess(false);
+                  setSignupData(null);
+                  setFormData({
+                    churchName: "",
+                    subdomain: "",
+                    adminName: "",
+                    adminEmail: "",
+                    adminPassword: "",
+                    plan: "basic",
+                  });
+                  onOpenChange(false);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="submit"
+              className="w-full h-11 cursor-pointer text-base font-semibold"
+              disabled={isSubmitting || subdomainAvailable === false}
+            >
+              {isSubmitting ? "Creating Church..." : "Create Church"}
+            </Button>
+          )}
         </form>
       </DialogContent>
     </Dialog>

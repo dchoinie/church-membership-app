@@ -24,6 +24,7 @@ const RESERVED_SUBDOMAINS = [
 /**
  * Extract subdomain from hostname
  * e.g., "church1.simplechurchtools.com" -> "church1"
+ * e.g., "church1.localhost" -> "church1"
  * e.g., "localhost:3000" -> null
  */
 export function extractSubdomain(hostname: string): string | null {
@@ -36,6 +37,11 @@ export function extractSubdomain(hostname: string): string | null {
   // If localhost or IP address, return null
   if (parts.length <= 1 || hostWithoutPort === "localhost") {
     return null;
+  }
+  
+  // Handle subdomain.localhost format for local development
+  if (parts.length === 2 && parts[1] === "localhost") {
+    return parts[0];
   }
   
   // For subdomain.domain.com, return the subdomain

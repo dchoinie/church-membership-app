@@ -92,6 +92,7 @@ export async function sendInvitationEmail({
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const inviteLink = `${baseUrl}/?invite=${inviteCode}`;
+  // Use RESEND_FROM_EMAIL if set (works in both dev and prod if domain is verified), otherwise fallback to test email
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   
   // Check if using default Resend test domain
@@ -210,6 +211,7 @@ export async function sendPasswordResetEmail({
   const gradientStyle = getGradientStyle(primaryColor);
   const buttonColor = getButtonColor(primaryColor);
 
+  // Use RESEND_FROM_EMAIL if set (works in both dev and prod if domain is verified), otherwise fallback to test email
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   const isUsingTestDomain = fromEmail.includes("@resend.dev");
 
@@ -319,6 +321,7 @@ export async function sendVerificationEmail({
   const gradientStyle = getGradientStyle(primaryColor);
   const buttonColor = getButtonColor(primaryColor);
 
+  // Use RESEND_FROM_EMAIL if set (works in both dev and prod if domain is verified), otherwise fallback to test email
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
   const isUsingTestDomain = fromEmail.includes("@resend.dev");
 

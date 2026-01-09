@@ -16,6 +16,7 @@ const PUBLIC_ROUTES = [
   "/api/invite",
   "/api/invite-signup",
   "/api/stripe/webhook",
+  "/api/user", // User API routes use better-auth, not Supabase
 ];
 
 export async function middleware(request: NextRequest) {
@@ -35,6 +36,16 @@ export async function middleware(request: NextRequest) {
     // Redirect unknown routes on root domain to home
     const homeUrl = new URL("/", request.url);
     return NextResponse.redirect(homeUrl);
+  }
+  
+  // Ensure /api/user routes are allowed through on root domain
+  if (!subdomain && pathname.startsWith("/api/user")) {
+    // Allow through without Supabase auth check (better-auth handles its own auth)
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
   }
 
   // For public routes on root domain, allow through

@@ -22,6 +22,30 @@ interface LoginDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Extract subdomain from hostname (client-side)
+ */
+function extractSubdomain(hostname: string): string | null {
+  const hostWithoutPort = hostname.split(":")[0];
+  const parts = hostWithoutPort.split(".");
+  
+  if (parts.length <= 1 || hostWithoutPort === "localhost") {
+    return null;
+  }
+  
+  // Handle subdomain.localhost format for local development
+  if (parts.length === 2 && parts[1] === "localhost") {
+    return parts[0];
+  }
+  
+  // For subdomain.domain.com, return the subdomain
+  if (parts.length >= 3) {
+    return parts[0];
+  }
+  
+  return null;
+}
+
 export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,27 +156,122 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     }
 
     try {
+      // Don't use callbackURL - it causes better-auth to redirect immediately, cancelling our fetch
       const { error: signInError, data: signInResponse } = await authClient.signIn.email({
         email: signInData.email,
         password: signInData.password,
-        callbackURL: "/dashboard",
+        // callbackURL removed - we'll handle redirect manually after getting subdomain
       });
 
       if (signInError) {
         throw new Error(signInError.message || "Failed to sign in");
       }
 
+      // Force refresh the session and wait for it to be available
+      // The useSession hook needs time to update after sign-in
+      await authClient.getSession();
+      
+      // Wait a bit more and verify session is actually available
+      // Sometimes the cookie needs a moment to propagate
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Verify session one more time
+      await authClient.getSession();
+
       // Check email verification status
       if (signInResponse?.user && !signInResponse.user.emailVerified) {
         // User is not verified, redirect to verification page
         onOpenChange(false);
         router.push("/verify-email");
-      } else {
-        // User is verified, redirect to dashboard
-        onOpenChange(false);
-        router.push("/dashboard");
+        router.refresh();
+        return;
       }
-      router.refresh();
+
+      // User is verified - check subscription status and redirect accordingly
+      const isOnSubdomain = extractSubdomain(window.location.hostname);
+      
+      if (!isOnSubdomain) {
+        // We're on root domain - need to get user's church subdomain and redirect
+        try {
+          const churchResponse = await fetch("/api/user/church-subdomain", {
+            credentials: "include",
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+          
+          if (churchResponse.ok) {
+            const { subdomain } = await churchResponse.json();
+            
+            // Build subdomain URL
+            const baseUrl = window.location.origin;
+            const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+            
+            let subdomainUrl: string;
+            if (isLocalhost) {
+              const port = window.location.port ? `:${window.location.port}` : '';
+              subdomainUrl = `http://${subdomain}.localhost${port}`;
+            } else {
+              subdomainUrl = `${baseUrl.replace(
+                /^https?:\/\//,
+                `https://${subdomain}.`
+              )}`;
+            }
+            
+            onOpenChange(false);
+            // Redirect to subdomain - auth layout will handle subscription check
+            window.location.href = subdomainUrl;
+            return;
+          } else {
+            const errorData = await churchResponse.json().catch(() => ({ error: "Unknown error" }));
+            const errorMessage = errorData.error || `Failed to fetch church subdomain: ${churchResponse.statusText}`;
+            setError(errorMessage);
+            setIsSubmitting(false);
+            return;
+          }
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : "Failed to fetch church subdomain. Please try again.";
+          setError(errorMessage);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // On subdomain - check subscription status
+      try {
+        const churchResponse = await fetch("/api/church", {
+          credentials: "include",
+        });
+        
+        if (churchResponse.ok) {
+          const { church } = await churchResponse.json();
+          
+          // Check if subscription is active
+          const hasActiveSubscription = 
+            church.subscriptionStatus === "active" ||
+            (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId);
+          
+          onOpenChange(false);
+          
+          // Use full page navigation to ensure cookie is picked up
+          // This avoids race conditions with client-side routing
+          const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+          
+          // Use window.location for full page reload to ensure session cookie is read
+          window.location.href = targetPath;
+          return;
+        }
+      } catch (err) {
+        console.error("Error checking subscription status:", err);
+        // Fall through to default redirect
+      }
+
+      // Default: redirect to setup page (will check subscription there)
+      onOpenChange(false);
+      
+      // Use window.location for full page reload to ensure session cookie is read
+      window.location.href = "/setup";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in");
     } finally {

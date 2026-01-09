@@ -136,7 +136,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const signupData = await signupResponse.json();
+    // Clone the response to read the body without consuming it
+    const clonedResponse = signupResponse.clone();
+    const signupData = await clonedResponse.json();
     const userId = signupData.user?.id;
 
     if (!userId) {
@@ -167,45 +169,28 @@ export async function POST(request: Request) {
       );
     }
 
-    // If plan is not free, create checkout session
-    let checkoutUrl: string | null = null;
-    if (selectedPlan !== "free" && planConfig.priceId) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const successUrl = `${baseUrl}/${normalizedSubdomain}/dashboard?checkout=success`;
-      const cancelUrl = `${baseUrl}/signup?canceled=true`;
-
-      try {
-        const checkoutResponse = await fetch(`${baseUrl}/api/stripe/create-checkout`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerId: stripeCustomerId,
-            priceId: planConfig.priceId,
-            churchId: church.id,
-            successUrl,
-            cancelUrl,
-          }),
-        });
-
-        if (checkoutResponse.ok) {
-          const checkoutData = await checkoutResponse.json();
-          checkoutUrl = checkoutData.url;
-        }
-      } catch (error) {
-        console.error("Error creating checkout session:", error);
-        // Don't fail signup if checkout creation fails - user can set up billing later
-      }
+    // Send verification email
+    try {
+      await auth.api.sendVerificationEmail({
+        body: { email: adminEmail },
+        headers: request.headers,
+      });
+    } catch (emailError) {
+      console.error("Error sending verification email:", emailError);
+      // Don't fail the signup if email fails - user can resend from verify-email page
     }
 
-    return NextResponse.json({
+    // Return response WITHOUT session cookies - user must verify email first
+    const response = NextResponse.json({
       success: true,
       churchId: church.id,
       subdomain: normalizedSubdomain,
-      checkoutUrl,
-      message: selectedPlan === "free" 
-        ? "Church created successfully. You can now sign in."
-        : "Church created successfully. Please complete your subscription setup.",
+      message: "Church created successfully! Please check your email to verify your account. After verification, you can sign in to complete your setup.",
     });
+    
+    // Do NOT copy session cookies - user must verify email before signing in
+    return response;
+
   } catch (error) {
     console.error("Error during signup:", error);
     return NextResponse.json(

@@ -24,6 +24,31 @@ import {
 } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { useMarketing } from "@/components/marketing-context";
+import { authClient } from "@/lib/auth-client";
+
+/**
+ * Extract subdomain from hostname (client-side)
+ */
+function extractSubdomain(hostname: string): string | null {
+  const hostWithoutPort = hostname.split(":")[0];
+  const parts = hostWithoutPort.split(".");
+  
+  if (parts.length <= 1 || hostWithoutPort === "localhost") {
+    return null;
+  }
+  
+  // Handle subdomain.localhost format for local development
+  if (parts.length === 2 && parts[1] === "localhost") {
+    return parts[0];
+  }
+  
+  // For subdomain.domain.com, return the subdomain
+  if (parts.length >= 3) {
+    return parts[0];
+  }
+  
+  return null;
+}
 
 export default function LandingPage() {
   const { openLogin, openSignup } = useMarketing();
@@ -35,6 +60,21 @@ export default function LandingPage() {
   });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
+  const [isSubdomain, setIsSubdomain] = useState(false);
+  const [showVerifiedMessage, setShowVerifiedMessage] = useState(false);
+
+  // Check if we're on a subdomain
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const subdomain = extractSubdomain(window.location.hostname);
+      setIsSubdomain(!!subdomain);
+      
+      // If on subdomain, auto-open login dialog
+      if (subdomain) {
+        openLogin();
+      }
+    }
+  }, [openLogin]);
 
   // Auto-open login dialog if invite parameter is present
   useEffect(() => {
@@ -43,6 +83,68 @@ export default function LandingPage() {
       openLogin();
     }
   }, [searchParams, openLogin]);
+
+  // Check for verified parameter
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const signin = searchParams.get("signin");
+    if (verified === "true" && signin === "true") {
+      setShowVerifiedMessage(true);
+      // Auto-open login dialog
+      openLogin();
+      // Clear query params
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("verified");
+      newUrl.searchParams.delete("signin");
+      window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+    }
+  }, [searchParams, openLogin]);
+
+  // If on subdomain, show login page instead of marketing page
+  // But check if user is already authenticated - if so, auth-layout will handle redirect
+  const { data: session } = authClient.useSession();
+  
+  if (isSubdomain) {
+    // If user is authenticated, don't show login page - auth-layout will redirect
+    // This prevents showing login form to already-authenticated users
+    if (session?.user?.emailVerified) {
+      return null; // Let auth-layout handle the redirect
+    }
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-md p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
+            <p className="text-muted-foreground">
+              Sign in to access your church dashboard
+            </p>
+          </div>
+          {showVerifiedMessage && (
+            <div className="mb-6 rounded-md bg-green-50 dark:bg-green-950 p-4 border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  Email verified successfully! Please sign in to continue.
+                </p>
+              </div>
+            </div>
+          )}
+          {/* Login dialog will be opened automatically via useEffect */}
+          <div className="text-center text-sm text-muted-foreground">
+            <p>If the login form didn&apos;t open automatically,</p>
+            <Button
+              variant="link"
+              onClick={openLogin}
+              className="p-0 h-auto font-normal"
+            >
+              click here to sign in
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
