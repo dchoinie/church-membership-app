@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { extractSubdomain, getChurchBySubdomain } from "@/lib/tenant-context";
+import { isSetupComplete } from "@/lib/setup-helpers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -18,6 +19,9 @@ const PUBLIC_ROUTES = [
   "/api/stripe/webhook",
   "/api/user", // User API routes use better-auth, not Supabase
 ];
+
+// Setup route - accessible before setup is complete
+const SETUP_ROUTE = "/setup";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -92,6 +96,24 @@ export async function middleware(request: NextRequest) {
       const homeUrl = new URL("/", request.url);
       homeUrl.searchParams.set("error", "church_not_found");
       return NextResponse.redirect(homeUrl);
+    }
+
+    // Check setup completion for protected routes
+    // Allow /setup route and public routes through without setup check
+    const isSetupRoute = pathname === SETUP_ROUTE;
+    if (church && !isPublicRoute && !isSetupRoute && !pathname.startsWith("/api/")) {
+      // Check if setup is complete
+      if (!isSetupComplete(church)) {
+        // Setup not complete - redirect to /setup
+        const setupUrl = new URL(SETUP_ROUTE, request.url);
+        return NextResponse.redirect(setupUrl);
+      }
+    }
+
+    // If on /setup route and setup is complete, redirect to dashboard
+    if (church && isSetupRoute && isSetupComplete(church)) {
+      const dashboardUrl = new URL("/dashboard", request.url);
+      return NextResponse.redirect(dashboardUrl);
     }
 
     // Create response with tenant context

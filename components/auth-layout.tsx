@@ -28,6 +28,7 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
+  { label: "Church Settings", href: "/settings" },
 ];
 
 const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email"];
