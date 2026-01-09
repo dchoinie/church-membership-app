@@ -201,12 +201,6 @@ export default function LandingPage() {
 
   const pricingPlans = [
     {
-      name: SUBSCRIPTION_PLANS.free.name,
-      price: SUBSCRIPTION_PLANS.free.price,
-      features: SUBSCRIPTION_PLANS.free.features,
-      popular: false,
-    },
-    {
       name: SUBSCRIPTION_PLANS.basic.name,
       price: SUBSCRIPTION_PLANS.basic.price,
       features: SUBSCRIPTION_PLANS.basic.features,

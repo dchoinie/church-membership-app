@@ -26,7 +26,7 @@ interface Church {
   name: string;
   subdomain: string;
   subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
-  subscriptionPlan: "free" | "basic" | "premium";
+  subscriptionPlan: "basic" | "premium";
   stripeSubscriptionId: string | null;
   stripeCustomerId: string | null;
   address?: string | null;
@@ -474,7 +474,7 @@ export default function SettingsPage() {
               </ul>
             </div>
 
-            {hasActiveSubscription && church.subscriptionPlan !== "free" && (
+            {hasActiveSubscription && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   To change your subscription plan or manage billing, please use the Stripe customer portal.

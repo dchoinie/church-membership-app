@@ -83,10 +83,9 @@ export async function POST(request: Request) {
           .set({
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
-            subscriptionStatus: subscription.status === "trialing" ? "trialing" : "active",
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
+            subscriptionStatus: subscription.status === "active" ? "active" : 
+                                 subscription.status === "past_due" ? "past_due" :
+                                 subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
             updatedAt: new Date(),
           })
           .where(eq(churches.id, churchId));
@@ -100,7 +99,9 @@ export async function POST(request: Request) {
           await db
             .update(subscriptions)
             .set({
-              status: subscription.status === "trialing" ? "trialing" : "active",
+              status: subscription.status === "active" ? "active" : 
+                      subscription.status === "past_due" ? "past_due" :
+                      subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
               currentPeriodStart: (subscription as any).current_period_start
                 ? new Date((subscription as any).current_period_start * 1000)
                 : null,
@@ -115,7 +116,9 @@ export async function POST(request: Request) {
             churchId,
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
-            status: subscription.status === "trialing" ? "trialing" : "active",
+            status: subscription.status === "active" ? "active" : 
+                    subscription.status === "past_due" ? "past_due" :
+                    subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
             plan: "basic", // Default plan, update based on price ID if needed
             currentPeriodStart: (subscription as any).current_period_start
               ? new Date((subscription as any).current_period_start * 1000)
@@ -148,18 +151,13 @@ export async function POST(request: Request) {
           .update(churches)
           .set({
             subscriptionStatus:
-              subscription.status === "trialing"
-                ? "trialing"
-                : subscription.status === "active"
+              subscription.status === "active"
                 ? "active"
                 : subscription.status === "past_due"
                 ? "past_due"
                 : subscription.status === "canceled" || subscription.status === "unpaid"
                 ? "canceled"
                 : "unpaid",
-            trialEndsAt: subscription.trial_end
-              ? new Date(subscription.trial_end * 1000)
-              : null,
             updatedAt: new Date(),
           })
           .where(eq(churches.id, church.id));
@@ -174,9 +172,7 @@ export async function POST(request: Request) {
             .update(subscriptions)
             .set({
               status:
-                subscription.status === "trialing"
-                  ? "trialing"
-                  : subscription.status === "active"
+                subscription.status === "active"
                   ? "active"
                   : subscription.status === "past_due"
                   ? "past_due"

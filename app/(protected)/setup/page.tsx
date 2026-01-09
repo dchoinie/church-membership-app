@@ -28,7 +28,7 @@ interface Church {
   name: string;
   subdomain: string;
   subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
-  subscriptionPlan: "free" | "basic" | "premium";
+  subscriptionPlan: "basic" | "premium";
   stripeSubscriptionId: string | null;
   stripeCustomerId: string | null;
   address?: string | null;
@@ -69,7 +69,7 @@ export default function SetupPage() {
   
   // Form state
   const [formData, setFormData] = useState({
-    subscriptionPlan: "free" as "free" | "basic" | "premium",
+    subscriptionPlan: "basic" as "basic" | "premium",
     address: "",
     city: "",
     state: "",
@@ -248,38 +248,6 @@ export default function SetupPage() {
     }
   };
 
-  const handleActivateFree = async () => {
-    // Save setup first, then activate
-    const saved = await handleSaveSetup();
-    if (!saved) return; // Don't proceed if save failed
-    
-    setSaving(true);
-    setError(null);
-
-    try {
-      // Call API to activate free plan
-      const response = await fetch("/api/setup/activate-free", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to activate free plan");
-      }
-
-      const data = await response.json();
-      
-      // Update church state with activated subscription
-      setChurch(data.church);
-      
-      // Redirect to dashboard after successful activation
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to activate free plan");
-      setSaving(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -312,8 +280,6 @@ export default function SetupPage() {
       </div>
     );
   }
-
-  const isFreePlan = formData.subscriptionPlan === "free";
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -502,7 +468,7 @@ export default function SetupPage() {
                   <Label htmlFor="subscriptionPlan">Subscription Plan</Label>
                   <Select
                     value={formData.subscriptionPlan}
-                    onValueChange={(value: "free" | "basic" | "premium") => 
+                    onValueChange={(value: "basic" | "premium") => 
                       setFormData({ ...formData, subscriptionPlan: value })
                     }
                   >
@@ -510,7 +476,6 @@ export default function SetupPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="free">Free - ${SUBSCRIPTION_PLANS.free.price}/month</SelectItem>
                       <SelectItem value="basic">Basic - ${SUBSCRIPTION_PLANS.basic.price}/month</SelectItem>
                       <SelectItem value="premium">Premium - ${SUBSCRIPTION_PLANS.premium.price}/month</SelectItem>
                     </SelectContent>
@@ -541,52 +506,35 @@ export default function SetupPage() {
               )}
 
               <div className="space-y-4">
-                {isFreePlan ? (
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground">
-                      Your free plan is ready to activate. Click the button below to get started.
-                    </p>
-                    <Button
-                      onClick={handleActivateFree}
-                      className="w-full"
-                      size="lg"
-                      disabled={saving}
-                    >
-                      <CheckCircle2 className="mr-2 h-5 w-5" />
-                      Activate Free Account
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-muted-foreground">
-                      Click the button below to securely enter your payment information and activate your {SUBSCRIPTION_PLANS[formData.subscriptionPlan].name} plan.
-                    </p>
-                    <Button
-                      onClick={async () => {
-                        // Update subscription plan in settings first
-                        const saved = await handleSaveSetup();
-                        if (saved) {
-                          handleCheckout();
-                        }
-                      }}
-                      disabled={isCreatingCheckout || saving}
-                      className="w-full"
-                      size="lg"
-                    >
-                      {isCreatingCheckout ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="mr-2 h-5 w-5" />
-                          Complete Subscription Setup
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Click the button below to securely enter your payment information and activate your {SUBSCRIPTION_PLANS[formData.subscriptionPlan].name} plan.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      // Update subscription plan in settings first
+                      const saved = await handleSaveSetup();
+                      if (saved) {
+                        handleCheckout();
+                      }
+                    }}
+                    disabled={isCreatingCheckout || saving}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isCreatingCheckout ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-5 w-5" />
+                        Complete Subscription Setup
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}

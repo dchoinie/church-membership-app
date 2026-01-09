@@ -77,7 +77,6 @@ export const subscriptionStatusEnum = pgEnum("subscription_status_enum", [
 ]);
 
 export const subscriptionPlanEnum = pgEnum("subscription_plan_enum", [
-  "free",
   "basic",
   "premium",
 ]);
@@ -103,7 +102,7 @@ export const churches = pgTable(
       .default("trialing"),
     subscriptionPlan: subscriptionPlanEnum("subscription_plan")
       .notNull()
-      .default("free"),
+      .default("basic"),
     trialEndsAt: timestamp("trial_ends_at"),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),

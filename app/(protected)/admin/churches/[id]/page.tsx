@@ -192,7 +192,6 @@ export default function ChurchDetailPage() {
                   defaultValue={church.subscriptionPlan}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="free">Free</option>
                   <option value="basic">Basic</option>
                   <option value="premium">Premium</option>
                 </select>

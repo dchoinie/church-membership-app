@@ -126,7 +126,6 @@ export async function createCheckoutSession(
     cancel_url: cancelUrl,
     metadata,
     subscription_data: {
-      trial_period_days: 14, // 14-day free trial
       metadata,
     },
   });

@@ -71,7 +71,6 @@ export async function POST(request: Request) {
 
     // Get selected plan (default to basic)
     const selectedPlan = plan || "basic";
-    const planConfig = SUBSCRIPTION_PLANS[selectedPlan as keyof typeof SUBSCRIPTION_PLANS] || SUBSCRIPTION_PLANS.basic;
 
     // Create Stripe customer
     let stripeCustomerId: string;
@@ -90,18 +89,14 @@ export async function POST(request: Request) {
     }
 
     // Create church record - use Supabase service role client to bypass RLS
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14); // 14-day trial
-
     const { data: church, error: churchError } = await supabase
       .from("churches")
       .insert({
         name: churchName,
         subdomain: normalizedSubdomain,
         email: adminEmail,
-        subscription_status: "trialing",
+        subscription_status: "unpaid",
         subscription_plan: selectedPlan,
-        trial_ends_at: trialEndsAt.toISOString(),
         stripe_customer_id: stripeCustomerId,
       })
       .select()

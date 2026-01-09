@@ -44,7 +44,7 @@ export async function PUT(request: Request) {
       denomination?: string | null;
       phone?: string | null;
       logoUrl?: string | null;
-      subscriptionPlan?: "free" | "basic" | "premium";
+      subscriptionPlan?: "basic" | "premium";
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -73,7 +73,7 @@ export async function PUT(request: Request) {
     }
     if (body.subscriptionPlan !== undefined && canUpdatePlan) {
       // Validate subscription plan
-      if (!["free", "basic", "premium"].includes(body.subscriptionPlan)) {
+      if (!["basic", "premium"].includes(body.subscriptionPlan)) {
         return NextResponse.json(
           { error: "Invalid subscription plan" },
           { status: 400 }
