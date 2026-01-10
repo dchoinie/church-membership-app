@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Settings, Menu } from "lucide-react";
@@ -125,7 +125,9 @@ export default function AuthLayout({
 
   // Close mobile menu when route changes
   useEffect(() => {
-    setMobileMenuOpen(false);
+    startTransition(() => {
+      setMobileMenuOpen(false);
+    });
   }, [pathname]);
 
   // Show loading state only while session is being fetched
