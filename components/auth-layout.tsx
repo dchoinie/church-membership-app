@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, startTransition } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -98,14 +98,12 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
-  const [isChecking, setIsChecking] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [church, setChurch] = useState<Church | null>(null);
 
-  // Fetch church data for branding
+  // Fetch church data for branding (only for authenticated, non-public routes)
   useEffect(() => {
     const fetchChurch = async () => {
       try {
@@ -125,111 +123,14 @@ export default function AuthLayout({
     }
   }, [pathname, session]);
 
-  // Early exit for public routes - don't wait for auth check
-  useEffect(() => {
-    const isPublicRoute = publicRoutes.includes(pathname);
-    if (isPublicRoute) {
-      // For public routes, render immediately without waiting for auth
-      startTransition(() => {
-        setIsChecking(false);
-      });
-      return;
-    }
-  }, [pathname]);
-
-  useEffect(() => {
-    // Don't redirect if session is still loading - wait for it to complete
-    if (isPending) {
-      return;
-    }
-    
-    const isPublicRoute = publicRoutes.includes(pathname);
-    const isSetupRoute = setupRoutes.includes(pathname);
-
-    // If not on a public route and not authenticated, redirect to login
-    // BUT: Give a small delay for session to update after sign-in
-    // This prevents race condition where navigation happens before session updates
-    if (!isPublicRoute && !session?.user) {
-      // If we're on /setup, wait longer - might be transitioning after sign-in
-      // The login dialog refreshes the session, but it takes time to propagate
-      if (isSetupRoute) {
-        // Use a ref to track timeout and clean it up
-        const timeoutId = setTimeout(async () => {
-          // Force refresh session one more time
-          try {
-            const refreshedSession = await authClient.getSession();
-            
-            if (!refreshedSession?.data?.user) {
-              router.push("/");
-            }
-          } catch (err) {
-            router.push("/");
-          }
-        }, 2000); // Wait 2 seconds for session to update
-        
-        // Return cleanup function for useEffect
-        return () => {
-          clearTimeout(timeoutId);
-        };
-      }
-      
-      router.push("/");
-      return;
-    }
-    
-    // If authenticated, check email verification status
-    if (session?.user) {
-        // If not verified and trying to access protected route (except setup), redirect to verify-email
-        if (!isPublicRoute && !setupRoutes.includes(pathname) && !session.user.emailVerified) {
-          router.push("/verify-email");
-          return;
-        }
-        
-        // If verified, redirect to setup page (setup page will check subscription and redirect accordingly)
-        if (session.user.emailVerified) {
-          // Only redirect to setup if we're on a subdomain (setup requires subdomain context)
-          // If on root domain, let the login dialog handle the redirect after fetching subdomain
-          const isOnSubdomain = typeof window !== "undefined" && 
-            window.location.hostname.split(".").length > 2 && 
-            !window.location.hostname.endsWith("localhost");
-          
-          // For localhost, check if it's subdomain.localhost format
-          const isLocalhostSubdomain = typeof window !== "undefined" && 
-            window.location.hostname.includes(".") && 
-            window.location.hostname.endsWith("localhost") &&
-            window.location.hostname !== "localhost";
-          
-          if (isOnSubdomain || isLocalhostSubdomain) {
-            // If on login/home or verify-email, redirect to setup
-            // But don't redirect if already on setup or dashboard
-            if (pathname === "/" || pathname === "/login" || pathname === "/verify-email") {
-              router.push("/setup");
-              return;
-            }
-            // If already on /setup or /dashboard, don't redirect - let the page handle its own logic
-            if (pathname === "/setup" || pathname === "/dashboard") {
-              return;
-            }
-          }
-        }
-      }
-    // Don't redirect authenticated users from forgot/reset password pages - they might be helping someone else
-    
-    // Defer state update to avoid cascading renders
-    startTransition(() => {
-      setIsChecking(false);
-    });
-  }, [session, isPending, pathname, router]);
-
   // Close mobile menu when route changes
   useEffect(() => {
-    startTransition(() => {
-      setMobileMenuOpen(false);
-    });
+    setMobileMenuOpen(false);
   }, [pathname]);
 
-  // Show loading state while checking auth
-  if (isChecking || isPending) {
+  // Show loading state only while session is being fetched
+  // Middleware handles all redirects, so we just wait for session to load
+  if (isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>

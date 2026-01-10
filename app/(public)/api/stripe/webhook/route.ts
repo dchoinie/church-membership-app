@@ -38,6 +38,28 @@ function getWebhookSecret(): string {
 
 const webhookSecret = getWebhookSecret();
 
+/**
+ * Map Stripe subscription status to our database subscription status
+ */
+function mapSubscriptionStatus(
+  stripeStatus: Stripe.Subscription.Status
+): "active" | "trialing" | "past_due" | "canceled" | "unpaid" {
+  switch (stripeStatus) {
+    case "active":
+      return "active";
+    case "trialing":
+      return "trialing";
+    case "past_due":
+      return "past_due";
+    case "canceled":
+    case "unpaid":
+      return stripeStatus === "canceled" ? "canceled" : "unpaid";
+    default:
+      // For incomplete, incomplete_expired, etc., default to unpaid
+      return "unpaid";
+  }
+}
+
 export async function POST(request: Request) {
   const body = await request.text();
   const signature = (await headers()).get("stripe-signature");
@@ -77,15 +99,16 @@ export async function POST(request: Request) {
         // Get subscription details
         const subscription = await getSubscription(subscriptionId);
 
+        // Map subscription status
+        const mappedStatus = mapSubscriptionStatus(subscription.status);
+
         // Update church with subscription info
         await db
           .update(churches)
           .set({
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
-            subscriptionStatus: subscription.status === "active" ? "active" : 
-                                 subscription.status === "past_due" ? "past_due" :
-                                 subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
+            subscriptionStatus: mappedStatus,
             updatedAt: new Date(),
           })
           .where(eq(churches.id, churchId));
@@ -99,9 +122,7 @@ export async function POST(request: Request) {
           await db
             .update(subscriptions)
             .set({
-              status: subscription.status === "active" ? "active" : 
-                      subscription.status === "past_due" ? "past_due" :
-                      subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
+              status: mappedStatus,
               currentPeriodStart: (subscription as any).current_period_start
                 ? new Date((subscription as any).current_period_start * 1000)
                 : null,
@@ -116,9 +137,7 @@ export async function POST(request: Request) {
             churchId,
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
-            status: subscription.status === "active" ? "active" : 
-                    subscription.status === "past_due" ? "past_due" :
-                    subscription.status === "canceled" || subscription.status === "unpaid" ? "canceled" : "unpaid",
+            status: mappedStatus,
             plan: "basic", // Default plan, update based on price ID if needed
             currentPeriodStart: (subscription as any).current_period_start
               ? new Date((subscription as any).current_period_start * 1000)
@@ -146,18 +165,14 @@ export async function POST(request: Request) {
           break;
         }
 
+        // Map subscription status
+        const mappedStatus = mapSubscriptionStatus(subscription.status);
+
         // Update church subscription status
         await db
           .update(churches)
           .set({
-            subscriptionStatus:
-              subscription.status === "active"
-                ? "active"
-                : subscription.status === "past_due"
-                ? "past_due"
-                : subscription.status === "canceled" || subscription.status === "unpaid"
-                ? "canceled"
-                : "unpaid",
+            subscriptionStatus: mappedStatus,
             updatedAt: new Date(),
           })
           .where(eq(churches.id, church.id));
@@ -171,14 +186,7 @@ export async function POST(request: Request) {
           await db
             .update(subscriptions)
             .set({
-              status:
-                subscription.status === "active"
-                  ? "active"
-                  : subscription.status === "past_due"
-                  ? "past_due"
-                  : subscription.status === "canceled" || subscription.status === "unpaid"
-                  ? "canceled"
-                  : "unpaid",
+              status: mappedStatus,
               currentPeriodStart: (subscription as any).current_period_start
                 ? new Date((subscription as any).current_period_start * 1000)
                 : null,

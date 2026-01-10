@@ -162,7 +162,7 @@ export default function SetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: church.stripeCustomerId,
-          priceId: planConfig.priceId,
+          plan: formData.subscriptionPlan, // Send plan type instead of price ID
           churchId: church.id,
           successUrl,
           cancelUrl,

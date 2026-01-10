@@ -1,10 +1,108 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, DollarSign, Calendar, BarChart3, FileText, Settings, ArrowRight } from "lucide-react";
+import { Users, DollarSign, Calendar, BarChart3, FileText, Settings, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { isSetupComplete } from "@/lib/setup-helpers";
+
+interface Church {
+  subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  stripeSubscriptionId: string | null;
+}
 
 export default function Dashboard() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const checkoutSuccess = searchParams.get("checkout");
+  const [isVerifyingSubscription, setIsVerifyingSubscription] = useState(checkoutSuccess === "success");
+  const [verificationMessage, setVerificationMessage] = useState("Processing your subscription...");
+
+  // Handle checkout success - poll for subscription update
+  useEffect(() => {
+    if (checkoutSuccess !== "success") {
+      return;
+    }
+
+    let pollCount = 0;
+    const maxPolls = 20; // Poll for up to 20 seconds (20 * 1 second intervals)
+    const pollInterval = 1000; // Poll every 1 second
+
+    const checkSubscription = async () => {
+      try {
+        const response = await fetch("/api/church");
+        if (!response.ok) {
+          throw new Error("Failed to fetch church data");
+        }
+
+        const data = await response.json();
+        const church: Church = data.church;
+
+        // Check if subscription is now active
+        if (isSetupComplete(church)) {
+          setVerificationMessage("Subscription activated successfully!");
+          
+          // Wait a moment to show success message, then remove query param
+          setTimeout(() => {
+            router.replace("/dashboard");
+            setIsVerifyingSubscription(false);
+          }, 1500);
+          return;
+        }
+
+        pollCount++;
+        if (pollCount >= maxPolls) {
+          // Timeout - subscription might not have been updated yet
+          setVerificationMessage("Subscription is being processed. Please refresh the page in a moment.");
+          setIsVerifyingSubscription(false);
+          // Remove query param after showing message
+          setTimeout(() => {
+            router.replace("/dashboard");
+          }, 5000);
+          return;
+        }
+
+        // Continue polling
+        setTimeout(checkSubscription, pollInterval);
+      } catch (error) {
+        console.error("Error checking subscription:", error);
+        setVerificationMessage("Error verifying subscription. Please refresh the page.");
+        setIsVerifyingSubscription(false);
+        setTimeout(() => {
+          router.replace("/dashboard");
+        }, 3000);
+      }
+    };
+
+    // Start polling after a short delay to give webhook time to process
+    const initialDelay = setTimeout(() => {
+      checkSubscription();
+    }, 500);
+
+    return () => {
+      clearTimeout(initialDelay);
+    };
+  }, [checkoutSuccess, router]);
+
+  // Show verification screen while checking subscription
+  if (isVerifyingSubscription) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div>
+                <h2 className="text-xl font-semibold mb-2">Completing Your Subscription</h2>
+                <p className="text-muted-foreground">{verificationMessage}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="md:h-[calc(100vh-4rem)] md:flex md:flex-col -my-8">
