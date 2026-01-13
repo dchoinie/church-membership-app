@@ -191,7 +191,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       const isOnSubdomain = extractSubdomain(window.location.hostname);
       
       if (!isOnSubdomain) {
-        // We're on root domain - need to get user's church subdomain and redirect
+        // We're on root domain - need to get user's church subdomain and subscription status
         try {
           const churchResponse = await fetch("/api/user/church-subdomain", {
             credentials: "include",
@@ -202,25 +202,31 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           });
           
           if (churchResponse.ok) {
-            const { subdomain } = await churchResponse.json();
+            const { subdomain, churchId } = await churchResponse.json();
             
-            // Build subdomain URL
+            // Fetch church data to check subscription status
+            // We need to make this call from the subdomain, so we'll redirect to subdomain
+            // and let middleware/page handle the subscription check
+            // But we can try to get subscription info from a different endpoint if available
+            // For now, redirect to subdomain root and let middleware handle it
+            
+            // Build subdomain URL - redirect to root, middleware will handle redirect to /dashboard or /setup
             const baseUrl = window.location.origin;
             const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
             
             let subdomainUrl: string;
             if (isLocalhost) {
               const port = window.location.port ? `:${window.location.port}` : '';
-              subdomainUrl = `http://${subdomain}.localhost${port}`;
+              subdomainUrl = `http://${subdomain}.localhost${port}/`;
             } else {
               subdomainUrl = `${baseUrl.replace(
                 /^https?:\/\//,
                 `https://${subdomain}.`
-              )}`;
+              )}/`;
             }
             
             onOpenChange(false);
-            // Redirect to subdomain - auth layout will handle subscription check
+            // Redirect to subdomain root - middleware will redirect to /dashboard or /setup based on subscription
             window.location.href = subdomainUrl;
             return;
           } else {

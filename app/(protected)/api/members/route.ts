@@ -4,6 +4,7 @@ import { eq, asc, count, and } from "drizzle-orm";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { checkMemberLimit } from "@/lib/member-limits";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -162,6 +163,19 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+    }
+
+    // Check member limit before inserting
+    const limitCheck = await checkMemberLimit(churchId, 1);
+    if (!limitCheck.allowed) {
+      const planName = limitCheck.plan === "premium" ? "Premium" : "Basic";
+      const limitText = limitCheck.limit === Infinity ? "unlimited" : limitCheck.limit.toString();
+      return NextResponse.json(
+        {
+          error: `Member limit reached. Your ${planName} plan allows up to ${limitText} members. Upgrade to Premium for unlimited members.`,
+        },
+        { status: 403 },
+      );
     }
 
     // Insert new member

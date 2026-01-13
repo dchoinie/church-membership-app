@@ -67,6 +67,7 @@ export async function getTenantFromRequest(
 /**
  * Look up church by subdomain
  * Uses Supabase service role client to bypass RLS for public operations
+ * Normalizes snake_case field names from Supabase to camelCase to match Drizzle format
  */
 export async function getChurchBySubdomain(
   subdomain: string
@@ -90,7 +91,31 @@ export async function getChurchBySubdomain(
     return null;
   }
 
-  return church as typeof churches.$inferSelect;
+  // Normalize snake_case fields from Supabase to camelCase to match Drizzle format
+  const normalizedChurch = {
+    ...church,
+    logoUrl: church.logo_url,
+    primaryColor: church.primary_color,
+    subscriptionStatus: church.subscription_status,
+    subscriptionPlan: church.subscription_plan,
+    trialEndsAt: church.trial_ends_at,
+    stripeCustomerId: church.stripe_customer_id,
+    stripeSubscriptionId: church.stripe_subscription_id,
+    createdAt: church.created_at,
+    updatedAt: church.updated_at,
+    // Remove snake_case fields to avoid confusion
+    logo_url: undefined,
+    primary_color: undefined,
+    subscription_status: undefined,
+    subscription_plan: undefined,
+    trial_ends_at: undefined,
+    stripe_customer_id: undefined,
+    stripe_subscription_id: undefined,
+    created_at: undefined,
+    updated_at: undefined,
+  };
+
+  return normalizedChurch as typeof churches.$inferSelect;
 }
 
 /**

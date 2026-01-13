@@ -27,13 +27,14 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
 
+  // Extract subdomain
+  const subdomain = extractSubdomain(hostname);
+
   // Check if this is a public route
+  // On subdomain, "/" is still public (for login), but page component will redirect authenticated users
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>
     pathname.startsWith(route)
   );
-
-  // Extract subdomain
-  const subdomain = extractSubdomain(hostname);
 
   // Handle root domain - allow root path and API routes
   if (!subdomain && pathname !== "/" && !pathname.startsWith("/api/")) {
@@ -96,6 +97,24 @@ export async function middleware(request: NextRequest) {
       const homeUrl = new URL("/", request.url);
       homeUrl.searchParams.set("error", "church_not_found");
       return NextResponse.redirect(homeUrl);
+    }
+
+    // Handle subdomain root path - redirect to /dashboard or /setup based on subscription
+    // Allow "/" through if login=true query param is present (to break redirect loop for unauthenticated users)
+    if (church && pathname === "/") {
+      const loginParam = request.nextUrl.searchParams.get("login");
+      if (loginParam !== "true") {
+        // Only redirect if not coming from auth-layout redirect
+        if (isSetupComplete(church)) {
+          // Setup complete - redirect to dashboard
+          const dashboardUrl = new URL("/dashboard", request.url);
+          return NextResponse.redirect(dashboardUrl);
+        } else {
+          // Setup not complete - redirect to setup
+          const setupUrl = new URL(SETUP_ROUTE, request.url);
+          return NextResponse.redirect(setupUrl);
+        }
+      }
     }
 
     // Check setup completion for protected routes

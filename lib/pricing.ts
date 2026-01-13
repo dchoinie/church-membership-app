@@ -31,6 +31,23 @@ export function getPriceId(plan: "basic" | "premium"): string {
   return PROD_PRICE_IDS[plan];
 }
 
+/**
+ * Get plan type from Stripe price ID
+ * Checks both test and production price IDs
+ * Returns null if price ID is not found
+ */
+export function getPlanFromPriceId(priceId: string): "basic" | "premium" | null {
+  // Check test price IDs
+  if (TEST_PRICE_IDS.basic === priceId) return "basic";
+  if (TEST_PRICE_IDS.premium === priceId) return "premium";
+  
+  // Check production price IDs
+  if (PROD_PRICE_IDS.basic === priceId) return "basic";
+  if (PROD_PRICE_IDS.premium === priceId) return "premium";
+  
+  return null;
+}
+
 export const SUBSCRIPTION_PLANS = {
   basic: {
     name: "Basic",

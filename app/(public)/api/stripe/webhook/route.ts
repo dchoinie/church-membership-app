@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { stripe, getSubscription } from "@/lib/stripe";
+import { getPlanFromPriceId } from "@/lib/pricing";
 import { db } from "@/db";
 import { churches, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -102,6 +103,11 @@ export async function POST(request: Request) {
         // Map subscription status
         const mappedStatus = mapSubscriptionStatus(subscription.status);
 
+        // Extract price ID from subscription to determine plan type
+        const priceId = subscription.items.data[0]?.price?.id;
+        const planType = priceId ? getPlanFromPriceId(priceId) : null;
+        const resolvedPlan = planType || "basic"; // Default to basic if plan cannot be determined
+
         // Update church with subscription info
         await db
           .update(churches)
@@ -109,6 +115,7 @@ export async function POST(request: Request) {
             stripeCustomerId: customerId,
             stripeSubscriptionId: subscriptionId,
             subscriptionStatus: mappedStatus,
+            subscriptionPlan: resolvedPlan,
             updatedAt: new Date(),
           })
           .where(eq(churches.id, churchId));
@@ -123,6 +130,7 @@ export async function POST(request: Request) {
             .update(subscriptions)
             .set({
               status: mappedStatus,
+              plan: resolvedPlan,
               currentPeriodStart: (subscription as any).current_period_start
                 ? new Date((subscription as any).current_period_start * 1000)
                 : null,
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
             status: mappedStatus,
-            plan: "basic", // Default plan, update based on price ID if needed
+            plan: resolvedPlan,
             currentPeriodStart: (subscription as any).current_period_start
               ? new Date((subscription as any).current_period_start * 1000)
               : null,
@@ -168,11 +176,17 @@ export async function POST(request: Request) {
         // Map subscription status
         const mappedStatus = mapSubscriptionStatus(subscription.status);
 
-        // Update church subscription status
+        // Extract price ID from subscription to determine plan type
+        const priceId = subscription.items.data[0]?.price?.id;
+        const planType = priceId ? getPlanFromPriceId(priceId) : null;
+        const resolvedPlan = planType || church.subscriptionPlan; // Keep current plan if cannot be determined
+
+        // Update church subscription status and plan
         await db
           .update(churches)
           .set({
             subscriptionStatus: mappedStatus,
+            subscriptionPlan: resolvedPlan,
             updatedAt: new Date(),
           })
           .where(eq(churches.id, church.id));
@@ -187,6 +201,7 @@ export async function POST(request: Request) {
             .update(subscriptions)
             .set({
               status: mappedStatus,
+              plan: resolvedPlan,
               currentPeriodStart: (subscription as any).current_period_start
                 ? new Date((subscription as any).current_period_start * 1000)
                 : null,

@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { checkMemberLimit } from "@/lib/member-limits";
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +71,22 @@ export async function POST(request: Request) {
           hint: "Required columns should be named 'First Name' or 'FirstName' (case-insensitive, spaces/underscores allowed)",
         },
         { status: 400 },
+      );
+    }
+
+    // Calculate total members to be imported (excluding header row)
+    const totalMembersToImport = lines.length - 1;
+
+    // Check member limit before starting import
+    const limitCheck = await checkMemberLimit(churchId, totalMembersToImport);
+    if (!limitCheck.allowed) {
+      const planName = limitCheck.plan === "premium" ? "Premium" : "Basic";
+      const limitText = limitCheck.limit === Infinity ? "unlimited" : limitCheck.limit.toString();
+      return NextResponse.json(
+        {
+          error: `Cannot import ${totalMembersToImport} members. Your ${planName} plan allows up to ${limitText} members, and you currently have ${limitCheck.currentCount} members. You can add up to ${limitCheck.remaining} more members. Upgrade to Premium for unlimited members.`,
+        },
+        { status: 403 },
       );
     }
 

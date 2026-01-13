@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,14 +101,57 @@ export default function LandingPage() {
   }, [searchParams, openLogin]);
 
   // If on subdomain, show login page instead of marketing page
-  // But check if user is already authenticated - if so, auth-layout will handle redirect
+  // But check if user is already authenticated - redirect to /dashboard or /setup
   const { data: session } = authClient.useSession();
+  const router = useRouter();
+  
+  // Redirect authenticated users on subdomain root to /dashboard or /setup
+  // But only if login=true param is not present (to prevent redirect loops)
+  useEffect(() => {
+    const loginParam = searchParams.get("login");
+    if (isSubdomain && session?.user?.emailVerified && loginParam !== "true") {
+      // Fetch church data to check subscription status
+      const checkSubscriptionAndRedirect = async () => {
+        try {
+          const response = await fetch("/api/church", {
+            credentials: "include",
+          });
+          
+          if (response.ok) {
+            const { church } = await response.json();
+            
+            // Check if subscription is active
+            const hasActiveSubscription = 
+              church.subscriptionStatus === "active" ||
+              (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+            
+            // Redirect to appropriate page
+            const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+            router.replace(targetPath);
+          } else {
+            // If can't fetch church, default to setup
+            router.replace("/setup");
+          }
+        } catch (error) {
+          console.error("Error checking subscription:", error);
+          // Default to setup on error
+          router.replace("/setup");
+        }
+      };
+      
+      checkSubscriptionAndRedirect();
+    }
+  }, [isSubdomain, session, router, searchParams]);
   
   if (isSubdomain) {
-    // If user is authenticated, don't show login page - auth-layout will redirect
-    // This prevents showing login form to already-authenticated users
-    if (session?.user?.emailVerified) {
-      return null; // Let auth-layout handle the redirect
+    const loginParam = searchParams.get("login");
+    // If user is authenticated and not coming from auth-layout redirect, show loading while redirecting
+    if (session?.user?.emailVerified && loginParam !== "true") {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-muted-foreground">Redirecting...</div>
+        </div>
+      );
     }
     
     return (

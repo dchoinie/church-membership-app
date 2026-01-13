@@ -172,7 +172,9 @@ export default function SettingsPage() {
     setError(null);
 
     try {
-      const planConfig = SUBSCRIPTION_PLANS[church.subscriptionPlan];
+      // Determine target plan (opposite of current plan)
+      const targetPlan: "basic" | "premium" = church.subscriptionPlan === "basic" ? "premium" : "basic";
+      const planConfig = SUBSCRIPTION_PLANS[targetPlan];
       
       if (!planConfig.priceId) {
         throw new Error("Invalid subscription plan");
@@ -197,7 +199,7 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: church.stripeCustomerId,
-          plan: church.subscriptionPlan, // Send plan type instead of price ID
+          plan: targetPlan, // Send target plan (opposite of current)
           churchId: church.id,
           successUrl,
           cancelUrl,
@@ -476,11 +478,17 @@ export default function SettingsPage() {
 
             {hasActiveSubscription && (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  To change your subscription plan or manage billing, please use the Stripe customer portal.
-                </p>
+                {church.subscriptionPlan === "premium" && (
+                  <div className="rounded-md bg-blue-500/10 p-3 text-sm text-blue-600 border border-blue-500/20">
+                    <p className="font-medium mb-1">Downgrade Notice</p>
+                    <p>
+                      Your subscription will be downgraded to the Basic plan at the end of your current billing cycle. 
+                      You'll continue to have access to Premium features until then.
+                    </p>
+                  </div>
+                )}
                 <Button
-                  variant="outline"
+                  variant={church.subscriptionPlan === "basic" ? "default" : "outline"}
                   onClick={handleChangePlan}
                   disabled={isCreatingCheckout}
                 >
@@ -492,7 +500,7 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-4 w-4" />
-                      Manage Subscription
+                      {church.subscriptionPlan === "basic" ? "Upgrade to Premium" : "Downgrade to Basic"}
                     </>
                   )}
                 </Button>

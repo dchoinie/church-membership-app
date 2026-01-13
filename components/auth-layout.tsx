@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, startTransition } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -99,6 +99,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [church, setChurch] = useState<Church | null>(null);
@@ -239,7 +240,19 @@ export default function AuthLayout({
     );
   }
 
-  // Not authenticated and not on public route - will redirect
-  return null;
+  // Not authenticated and not on public route - redirect to "/" for login
+  // Add query param to prevent middleware redirect loop
+  useEffect(() => {
+    if (!isPending && !isAuthenticated && !isPublicRoute) {
+      router.replace("/?login=true");
+    }
+  }, [isPending, isAuthenticated, isPublicRoute, router]);
+
+  // Show loading while redirecting
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-muted-foreground">Redirecting to login...</div>
+    </div>
+  );
 }
 
