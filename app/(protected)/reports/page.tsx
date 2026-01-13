@@ -392,7 +392,8 @@ export default function ReportsPage() {
                         ) : (
                           households.map((household) => (
                             <SelectItem key={household.id} value={household.id}>
-                              {household.name} - Envelope #{household.envelopeNumber}
+                              {household.name}
+                              {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
                             </SelectItem>
                           ))
                         )}
@@ -586,7 +587,8 @@ export default function ReportsPage() {
                         ) : (
                           households.map((household) => (
                             <SelectItem key={household.id} value={household.id}>
-                              {household.name} - Envelope #{household.envelopeNumber}
+                              {household.name}
+                              {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
                             </SelectItem>
                           ))
                         )}

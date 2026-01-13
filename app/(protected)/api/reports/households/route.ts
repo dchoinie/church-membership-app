@@ -57,12 +57,25 @@ export async function GET(request: Request) {
       }),
     );
 
-    // Filter out households without envelope numbers and sort by envelope number
-    const filteredHouseholds = householdsWithEnvelopes
-      .filter((h) => h.envelopeNumber !== null)
-      .sort((a, b) => (a.envelopeNumber || 0) - (b.envelopeNumber || 0));
+    // Sort households: those with envelope numbers first (sorted by envelope number), then those without (sorted by name)
+    const sortedHouseholds = householdsWithEnvelopes.sort((a, b) => {
+      // If both have envelope numbers, sort by envelope number
+      if (a.envelopeNumber !== null && b.envelopeNumber !== null) {
+        return a.envelopeNumber - b.envelopeNumber;
+      }
+      // If only a has envelope number, a comes first
+      if (a.envelopeNumber !== null && b.envelopeNumber === null) {
+        return -1;
+      }
+      // If only b has envelope number, b comes first
+      if (a.envelopeNumber === null && b.envelopeNumber !== null) {
+        return 1;
+      }
+      // If neither has envelope number, sort by name
+      return (a.name || "").localeCompare(b.name || "");
+    });
 
-    return NextResponse.json({ households: filteredHouseholds });
+    return NextResponse.json({ households: sortedHouseholds });
   } catch (error) {
     const authError = handleAuthError(error);
     if (authError.status !== 500) return authError;

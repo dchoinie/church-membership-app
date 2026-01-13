@@ -437,7 +437,13 @@ export default function AnalyticsPage() {
 
         {/* Membership Tab */}
         <TabsContent value="membership" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
-          {demographics && (
+          {!demographics || demographics.totalMembers === 0 ? (
+            <div className="flex min-h-[400px] items-center justify-center">
+              <p className="text-muted-foreground text-center">
+                Please enter membership records to view analytics
+              </p>
+            </div>
+          ) : (
             <>
               {/* Gender Distribution */}
               {demographics.gender.length > 0 && (
@@ -562,7 +568,13 @@ export default function AnalyticsPage() {
 
         {/* Giving Tab */}
         <TabsContent value="giving" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
-          {givingAnalytics && (
+          {!givingAnalytics || givingAnalytics.totalRecords === 0 ? (
+            <div className="flex min-h-[400px] items-center justify-center">
+              <p className="text-muted-foreground text-center">
+                Please enter giving records to view analytics
+              </p>
+            </div>
+          ) : (
             <>
               {/* Date Range Selection */}
               <Card>
@@ -843,7 +855,13 @@ export default function AnalyticsPage() {
 
         {/* Attendance Tab */}
         <TabsContent value="attendance" className="space-y-4 md:space-y-6 mt-4 md:mt-6">
-          {analytics && (
+          {!analytics || analytics.attendancePerService.length === 0 ? (
+            <div className="flex min-h-[400px] items-center justify-center">
+              <p className="text-muted-foreground text-center">
+                Please enter attendance records to view analytics
+              </p>
+            </div>
+          ) : (
             <>
               {/* Date Range Selection */}
               <Card>
