@@ -122,6 +122,7 @@ interface AttendanceFormData {
 interface ServiceFormData {
   serviceDate: string;
   serviceType: string;
+  customServiceType?: string;
 }
 
 const SERVICE_TYPES = [
@@ -129,6 +130,7 @@ const SERVICE_TYPES = [
   { value: "midweek_lent", label: "Midweek Lent" },
   { value: "midweek_advent", label: "Midweek Advent" },
   { value: "festival", label: "Festival" },
+  { value: "custom", label: "Custom" },
 ];
 
 const formatServiceType = (type: string) => {
@@ -163,6 +165,7 @@ export default function AttendancePage() {
     defaultValues: {
       serviceDate: new Date().toISOString().split("T")[0],
       serviceType: "divine_service",
+      customServiceType: "",
     },
     mode: "onChange",
   });
@@ -176,10 +179,12 @@ export default function AttendancePage() {
       alert("Please select a service type");
       return false;
     }
-    const validTypes = SERVICE_TYPES.map((t) => t.value);
-    if (!validTypes.includes(data.serviceType)) {
-      alert("Invalid service type");
-      return false;
+    // If custom is selected, require customServiceType
+    if (data.serviceType === "custom") {
+      if (!data.customServiceType || data.customServiceType.trim() === "") {
+        alert("Please enter a custom service type name");
+        return false;
+      }
     }
     return true;
   };
@@ -336,6 +341,11 @@ export default function AttendancePage() {
 
     setCreatingService(true);
     try {
+      // Use customServiceType if custom is selected, otherwise use the selected type
+      const finalServiceType = data.serviceType === "custom" 
+        ? data.customServiceType?.trim() || "" 
+        : data.serviceType;
+
       const response = await fetch("/api/services", {
         method: "POST",
         headers: {
@@ -343,7 +353,7 @@ export default function AttendancePage() {
         },
         body: JSON.stringify({
           serviceDate: data.serviceDate,
-          serviceType: data.serviceType,
+          serviceType: finalServiceType,
         }),
       });
 
@@ -360,6 +370,7 @@ export default function AttendancePage() {
       serviceForm.reset({
         serviceDate: new Date().toISOString().split("T")[0],
         serviceType: "divine_service",
+        customServiceType: "",
       });
     } catch (error) {
       console.error("Error creating service:", error);
@@ -518,6 +529,7 @@ export default function AttendancePage() {
                   serviceForm.reset({
                     serviceDate: new Date().toISOString().split("T")[0],
                     serviceType: "divine_service",
+                    customServiceType: "",
                   });
                 }
               }}
@@ -574,6 +586,24 @@ export default function AttendancePage() {
                         </FormItem>
                       )}
                     />
+                    {serviceForm.watch("serviceType") === "custom" && (
+                      <FormField
+                        control={serviceForm.control}
+                        name="customServiceType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Custom Service Type Name *</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter custom service type name" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <DialogFooter>
                       <Button
                         type="button"

@@ -336,12 +336,15 @@ export async function GET(request: Request) {
     ].filter((item) => item.value > 0);
 
     // Format service type data
+    const serviceTypeLabels: Record<string, string> = {
+      divine_service: "Divine Service",
+      midweek_lent: "Midweek Lent",
+      midweek_advent: "Midweek Advent",
+      festival: "Festival",
+    };
+    
     const serviceTypeData = Object.values(givingByServiceType).map((item) => ({
-      name: item.serviceType === "divine_service" ? "Divine Service"
-        : item.serviceType === "midweek_lent" ? "Midweek Lent"
-        : item.serviceType === "midweek_advent" ? "Midweek Advent"
-        : item.serviceType === "festival" ? "Festival"
-        : "Other",
+      name: serviceTypeLabels[item.serviceType] || item.serviceType, // Use custom type name if not predefined
       totalAmount: Math.round(item.totalAmount * 100) / 100,
       recordCount: item.recordCount,
       averageAmount: Math.round(item.averageAmount * 100) / 100,

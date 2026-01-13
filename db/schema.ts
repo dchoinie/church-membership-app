@@ -61,6 +61,8 @@ export const removedByEnum = pgEnum("removed_by_enum", [
   "other",
 ]);
 
+// Service type enum removed - now using text to support custom types
+// Keeping enum definition for backward compatibility during migration
 export const serviceTypeEnum = pgEnum("service_type_enum", [
   "divine_service",
   "midweek_lent",
@@ -298,7 +300,7 @@ export const services = pgTable(
       .notNull()
       .references(() => churches.id, { onDelete: "cascade" }),
     serviceDate: date("service_date").notNull(),
-    serviceType: serviceTypeEnum("service_type").notNull(),
+    serviceType: text("service_type").notNull(), // Changed from enum to text to support custom types
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

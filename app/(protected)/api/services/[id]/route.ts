@@ -65,12 +65,26 @@ export async function PUT(
 
     // Validate service type if provided
     if (body.serviceType !== undefined) {
+      // Allow predefined types or custom types (non-empty string)
       const validServiceTypes = ["divine_service", "midweek_lent", "midweek_advent", "festival"];
-      if (!validServiceTypes.includes(body.serviceType)) {
-        return NextResponse.json(
-          { error: `Invalid service type. Must be one of: ${validServiceTypes.join(", ")}` },
-          { status: 400 },
-        );
+      const isCustomType = !validServiceTypes.includes(body.serviceType);
+      
+      if (isCustomType) {
+        // Validate custom type: must be non-empty string, max 100 characters
+        if (typeof body.serviceType !== "string" || body.serviceType.trim().length === 0) {
+          return NextResponse.json(
+            { error: "Custom service type must be a non-empty string" },
+            { status: 400 },
+          );
+        }
+        if (body.serviceType.length > 100) {
+          return NextResponse.json(
+            { error: "Custom service type must be 100 characters or less" },
+            { status: 400 },
+          );
+        }
+        // Normalize custom type: trim whitespace
+        body.serviceType = body.serviceType.trim();
       }
     }
 
