@@ -4,11 +4,19 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
 import { invitations } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeEmail } from "@/lib/sanitize";
 
 export async function DELETE(request: Request) {
   try {
-    const { churchId, user: currentUser } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId, user: currentUser } = await requireAdmin(request);
     const { email } = await request.json();
 
     if (!email || typeof email !== "string") {
@@ -18,8 +26,11 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
+
     // Prevent deleting yourself
-    if (currentUser.email === email) {
+    if (currentUser.email === sanitizedEmail) {
       return NextResponse.json(
         { error: "You cannot delete your own account" },
         { status: 400 },
@@ -28,7 +39,7 @@ export async function DELETE(request: Request) {
 
     // Find the user by email and verify they belong to church
     const userToDelete = await db.query.user.findFirst({
-      where: and(eq(user.email, email), eq(user.churchId, churchId)),
+      where: and(eq(user.email, sanitizedEmail), eq(user.churchId, churchId)),
     });
 
     if (!userToDelete) {
@@ -60,24 +71,17 @@ export async function DELETE(request: Request) {
     // Delete invitations associated with this email and church
     await db
       .delete(invitations)
-      .where(and(eq(invitations.email, email), eq(invitations.churchId, churchId)));
+      .where(and(eq(invitations.email, sanitizedEmail), eq(invitations.churchId, churchId)));
 
     // Delete the user (this will cascade delete sessions and accounts)
     await db.delete(user).where(eq(user.id, userToDelete.id));
 
     return NextResponse.json({
       success: true,
-      message: `User access removed for ${email}`,
+      message: `User access removed for ${sanitizedEmail}`,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error deleting user:", error);
-    return NextResponse.json(
-      { error: "Failed to delete user" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

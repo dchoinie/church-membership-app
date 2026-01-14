@@ -3,11 +3,19 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/auth-schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeEmail } from "@/lib/sanitize";
 
 export async function PUT(request: Request) {
   try {
-    const { churchId, user: currentUser } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId, user: currentUser } = await requireAdmin(request);
     const { email, role } = await request.json();
 
     if (!email || typeof email !== "string") {
@@ -46,9 +54,12 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
+
     // Find the user by email and verify they belong to church
     const userToUpdate = await db.query.user.findFirst({
-      where: and(eq(user.email, email), eq(user.churchId, churchId)),
+      where: and(eq(user.email, sanitizedEmail), eq(user.churchId, churchId)),
     });
 
     if (!userToUpdate) {
@@ -59,7 +70,7 @@ export async function PUT(request: Request) {
     }
 
     // Prevent updating your own role
-    if (currentUser.email === email) {
+    if (currentUser.email === sanitizedEmail) {
       return NextResponse.json(
         { error: "You cannot update your own role" },
         { status: 400 },
@@ -95,14 +106,7 @@ export async function PUT(request: Request) {
       message: `User role updated to ${validRole}`,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating user role:", error);
-    return NextResponse.json(
-      { error: "Failed to update user role" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

@@ -3,7 +3,9 @@ import { eq, and, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
 
 export async function GET(
   request: Request,
@@ -53,14 +55,7 @@ export async function GET(
 
     return NextResponse.json({ attendance: attendanceRecord });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching attendance record:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch attendance record" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -69,7 +64,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -209,14 +209,7 @@ export async function PUT(
 
     return NextResponse.json({ attendance: attendanceWithMember });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating attendance record:", error);
-    return NextResponse.json(
-      { error: "Failed to update attendance record" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

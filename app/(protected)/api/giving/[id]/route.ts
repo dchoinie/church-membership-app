@@ -3,7 +3,10 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(
   request: Request,
@@ -48,14 +51,7 @@ export async function GET(
 
     return NextResponse.json({ giving: givingRecord });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching giving record:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch giving record" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -64,7 +60,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -187,7 +188,7 @@ export async function PUT(
         schoolAmount,
         miscellaneousAmount,
         dateGiven: body.dateGiven !== undefined ? body.dateGiven : existingGiving.dateGiven,
-        notes: body.notes !== undefined ? body.notes : existingGiving.notes,
+        notes: body.notes !== undefined ? (body.notes ? sanitizeText(body.notes) : null) : existingGiving.notes,
       })
       .where(eq(giving.id, id))
       .returning();
@@ -220,14 +221,7 @@ export async function PUT(
 
     return NextResponse.json({ giving: givingWithMember });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating giving record:", error);
-    return NextResponse.json(
-      { error: "Failed to update giving record" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

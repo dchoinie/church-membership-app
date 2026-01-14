@@ -3,7 +3,8 @@ import { eq, desc, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(
   request: Request,
@@ -93,14 +94,7 @@ export async function GET(
 
     return NextResponse.json({ giving: givingRecords });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching member giving records:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch member giving records" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

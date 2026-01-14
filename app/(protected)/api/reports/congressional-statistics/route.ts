@@ -3,7 +3,8 @@ import { and, gte, lte, eq, sql, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, services, attendance } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | number | null | undefined): string {
@@ -273,13 +274,6 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error generating congressional statistics report:", error);
-    return NextResponse.json(
-      { error: "Failed to generate congressional statistics report" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }

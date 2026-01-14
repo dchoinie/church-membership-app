@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { verifyUserBelongsToChurch } from "@/lib/tenant-db";
+import { handleAuthError } from "@/lib/error-handler";
 
 /**
  * Get authenticated user and tenant context for API routes
@@ -61,27 +62,28 @@ export async function getAuthContext(request: Request): Promise<{
 }
 
 /**
- * Handle auth errors and return appropriate responses
+ * Require admin role - throws error if user is not admin or super admin
+ * Use this in POST/PUT/DELETE endpoints to prevent viewers from modifying data
  */
-export function handleAuthError(error: unknown): NextResponse {
-  if (error instanceof Error) {
-    switch (error.message) {
-      case "UNAUTHORIZED":
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      case "TENANT_NOT_FOUND":
-        return NextResponse.json(
-          { error: "Tenant context not found" },
-          { status: 400 }
-        );
-      case "USER_NOT_FOUND":
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      case "FORBIDDEN":
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+export async function requireAdmin(request: Request): Promise<{
+  user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
+  churchId: string;
+}> {
+  const context = await getAuthContext(request);
+
+  // Super admins can always perform admin actions
+  if (context.user.isSuperAdmin) {
+    return context;
   }
-  return NextResponse.json(
-    { error: "Internal server error" },
-    { status: 500 }
-  );
+
+  // Check if user is admin (not viewer)
+  if (context.user.role !== "admin") {
+    throw new Error("FORBIDDEN");
+  }
+
+  return context;
 }
+
+// Re-export handleAuthError for backward compatibility
+export { handleAuthError };
 

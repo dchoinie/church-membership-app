@@ -3,7 +3,9 @@ import { eq, desc, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
 
 export async function GET(request: Request) {
   try {
@@ -80,20 +82,18 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching attendance records:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch attendance records" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const body = await request.json();
 
     // Validate required fields
@@ -250,14 +250,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error batch creating/updating attendance records:", error);
-    return NextResponse.json(
-      { error: "Failed to batch create/update attendance records" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

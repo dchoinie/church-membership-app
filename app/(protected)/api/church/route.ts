@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
@@ -6,6 +8,18 @@ import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
+    // Check authentication first
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const churchId = await getTenantFromRequest(request);
     
     if (!churchId) {

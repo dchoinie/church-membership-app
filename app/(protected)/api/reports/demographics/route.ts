@@ -3,7 +3,8 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(request: Request) {
   try {
@@ -154,13 +155,6 @@ export async function GET(request: Request) {
       totalMembers: allMembers.length,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error generating demographics:", error);
-    return NextResponse.json(
-      { error: "Failed to generate demographics" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }

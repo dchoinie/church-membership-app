@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { churchId: userChurchId, user } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role (super admin can update any church)
+    const { churchId: userChurchId, user } = await requireAdmin(request);
     const { id } = await params;
 
     // Verify the user is updating their own church (unless super admin)
@@ -30,14 +38,22 @@ export async function PUT(
       );
     }
 
+    // Sanitize input
+    const sanitizedData = {
+      name: sanitizeText(body.name),
+      email: body.email ? sanitizeText(body.email) : null,
+      phone: body.phone ? sanitizeText(body.phone) : null,
+      address: body.address ? sanitizeText(body.address) : null,
+    };
+
     // Update church
     const [updatedChurch] = await db
       .update(churches)
       .set({
-        name: body.name,
-        email: body.email || null,
-        phone: body.phone || null,
-        address: body.address || null,
+        name: sanitizedData.name,
+        email: sanitizedData.email,
+        phone: sanitizedData.phone,
+        address: sanitizedData.address,
         updatedAt: new Date(),
       })
       .where(eq(churches.id, id))
@@ -52,14 +68,7 @@ export async function PUT(
 
     return NextResponse.json({ church: updatedChurch });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-
-    console.error("Error updating church:", error);
-    return NextResponse.json(
-      { error: "Failed to update church" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }
 

@@ -3,7 +3,8 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(
   request: Request,
@@ -63,14 +64,7 @@ export async function GET(
       attendance: attendanceRecords,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching attendance for service:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch attendance for service" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

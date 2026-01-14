@@ -3,14 +3,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { createInvite } from "@/lib/invitations";
 import { sendInvitationEmail } from "@/lib/email";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
 import { user } from "@/auth-schema";
 import { invitations } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeEmail } from "@/lib/sanitize";
 
 export async function POST(request: Request) {
   try {
-    const { churchId, user: currentUser } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId, user: currentUser } = await requireAdmin(request);
     const { email, role = "viewer" } = await request.json();
 
     if (!email || typeof email !== "string") {
@@ -29,9 +37,12 @@ export async function POST(request: Request) {
       );
     }
 
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(sanitizedEmail)) {
       return NextResponse.json(
         { error: "Invalid email format" },
         { status: 400 },
@@ -41,7 +52,7 @@ export async function POST(request: Request) {
     // Check if user already exists for this church
     const existingUser = await db.query.user.findFirst({
       where: and(
-        eq(user.email, email),
+        eq(user.email, sanitizedEmail),
         eq(user.churchId, churchId)
       ),
     });
@@ -56,7 +67,7 @@ export async function POST(request: Request) {
     // Check if there's already a pending invitation for this email and church
     const existingInvitation = await db.query.invitations.findFirst({
       where: and(
-        eq(invitations.email, email),
+        eq(invitations.email, sanitizedEmail),
         eq(invitations.churchId, churchId)
       ),
     });
@@ -75,12 +86,12 @@ export async function POST(request: Request) {
     }
 
     // Create invitation with church ID
-    const inviteCode = await createInvite(email, churchId);
+    const inviteCode = await createInvite(sanitizedEmail, churchId);
 
     // Send invitation email
     try {
       await sendInvitationEmail({
-        email,
+        email: sanitizedEmail,
         inviteCode,
         inviterName: currentUser.email,
         churchId,
@@ -94,7 +105,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         inviteCode,
-        message: `Invitation created for ${email}, but email failed to send.`,
+        message: `Invitation created for ${sanitizedEmail}, but email failed to send.`,
         emailSent: false,
         warning: errorMessage.includes("Resend Test Domain Limitation") 
           ? errorMessage 
@@ -106,18 +117,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       inviteCode,
-      message: `Invitation email sent to ${email}`,
+      message: `Invitation email sent to ${sanitizedEmail}`,
       emailSent: true,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error creating invitation:", error);
-    return NextResponse.json(
-      { error: "Failed to create invitation" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

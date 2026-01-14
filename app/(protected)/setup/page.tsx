@@ -22,6 +22,7 @@ import {
 import { Loader2, CheckCircle2, CreditCard } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSetupComplete } from "@/lib/setup-helpers";
+import { authClient } from "@/lib/auth-client";
 
 interface Church {
   id: string;
@@ -59,6 +60,7 @@ const DENOMINATIONS = [
 
 export default function SetupPage() {
   const router = useRouter();
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
   const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +82,31 @@ export default function SetupPage() {
     logoUrl: "",
   });
 
+  // Check authentication and redirect if not authenticated
   useEffect(() => {
+    if (!isSessionPending && !session?.user) {
+      // Not authenticated - redirect to login
+      router.replace("/?login=true");
+      return;
+    }
+  }, [session, isSessionPending, router]);
+
+  useEffect(() => {
+    // Only fetch church data if authenticated
+    if (isSessionPending || !session?.user) {
+      return;
+    }
+
     const fetchChurch = async () => {
       try {
         const response = await fetch("/api/church");
         
         if (!response.ok) {
+          // If 401 or 403, user is not authenticated - redirect to login
+          if (response.status === 401 || response.status === 403) {
+            router.replace("/?login=true");
+            return;
+          }
           throw new Error(`Failed to fetch church data: ${response.status} ${response.statusText}`);
         }
         
@@ -128,7 +149,7 @@ export default function SetupPage() {
     };
 
     fetchChurch();
-  }, [router]);
+  }, [session, isSessionPending, router]);
 
   const handleCheckout = async () => {
     if (!church) return;
@@ -249,7 +270,17 @@ export default function SetupPage() {
   };
 
 
-  if (loading) {
+  // Show loading while checking session or fetching church data
+  if (isSessionPending || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // If not authenticated, show loading while redirecting (handled by useEffect above)
+  if (!session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

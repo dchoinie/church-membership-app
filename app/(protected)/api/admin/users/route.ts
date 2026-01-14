@@ -4,7 +4,8 @@ import { desc, eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
 import { invitations } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(request: Request) {
   try {
@@ -74,14 +75,7 @@ export async function GET(request: Request) {
       users: [...usersWithStatus, ...pendingInvitesWithStatus],
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching users:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch users" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

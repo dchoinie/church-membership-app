@@ -3,11 +3,19 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
 
     const body = await request.json();
     const records = body.records || [];
@@ -216,7 +224,7 @@ export async function POST(request: Request) {
           schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
           miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
           dateGiven,
-          notes: record.notes || null,
+          notes: record.notes ? sanitizeText(record.notes) : null,
         });
       } catch (error) {
         results.failed++;
@@ -229,7 +237,9 @@ export async function POST(request: Request) {
     // Insert all records in a transaction
     if (recordsToInsert.length > 0) {
       try {
-        await db.insert(giving).values(recordsToInsert);
+        await db.transaction(async (tx) => {
+          await tx.insert(giving).values(recordsToInsert);
+        });
         results.success = recordsToInsert.length;
       } catch (error) {
         results.failed += recordsToInsert.length;
@@ -241,16 +251,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error bulk inserting giving records:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to bulk insert giving records",
-      },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

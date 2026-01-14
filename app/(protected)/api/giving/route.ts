@@ -3,7 +3,10 @@ import { eq, desc, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { giving, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(request: Request) {
   try {
@@ -129,20 +132,18 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching giving records:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch giving records" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
 
     const body = await request.json();
 
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
         schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
         miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
         dateGiven: body.dateGiven,
-        notes: body.notes || null,
+        notes: body.notes ? sanitizeText(body.notes) : null,
       })
       .returning();
 
@@ -373,14 +374,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ giving: givingWithMember }, { status: 201 });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error creating giving record:", error);
-    return NextResponse.json(
-      { error: "Failed to create giving record" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { extractSubdomain, getChurchBySubdomain } from "@/lib/tenant-context";
 import { isSetupComplete } from "@/lib/setup-helpers";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -26,6 +27,25 @@ const SETUP_ROUTE = "/setup";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
+
+  // Apply rate limiting to API routes
+  if (pathname.startsWith("/api/")) {
+    // Determine rate limit based on route type
+    let rateLimitConfig = RATE_LIMITS.API;
+
+    if (pathname.includes("/auth") || pathname.includes("/signup") || pathname.includes("/invite")) {
+      rateLimitConfig = RATE_LIMITS.AUTH;
+    } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password")) {
+      rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
+    } else if (pathname.includes("/bulk")) {
+      rateLimitConfig = RATE_LIMITS.BULK;
+    }
+
+    const rateLimitResponse = await rateLimit(request, rateLimitConfig);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+  }
 
   // Extract subdomain
   const subdomain = extractSubdomain(hostname);
@@ -104,16 +124,28 @@ export async function middleware(request: NextRequest) {
     if (church && pathname === "/") {
       const loginParam = request.nextUrl.searchParams.get("login");
       if (loginParam !== "true") {
-        // Only redirect if not coming from auth-layout redirect
-        if (isSetupComplete(church)) {
-          // Setup complete - redirect to dashboard
-          const dashboardUrl = new URL("/dashboard", request.url);
-          return NextResponse.redirect(dashboardUrl);
-        } else {
-          // Setup not complete - redirect to setup
-          const setupUrl = new URL(SETUP_ROUTE, request.url);
-          return NextResponse.redirect(setupUrl);
+        // Check for better-auth session cookie before redirecting
+        // Better-auth uses cookies like "better-auth.session_token" or similar
+        const hasBetterAuthSession = request.cookies.has("better-auth.session_token") || 
+                                     request.cookies.has("better-auth.session") ||
+                                     Array.from(request.cookies.getAll()).some(cookie => 
+                                       cookie.name.startsWith("better-auth.")
+                                     );
+        
+        // Only redirect authenticated users
+        if (hasBetterAuthSession) {
+          // Only redirect if not coming from auth-layout redirect
+          if (isSetupComplete(church)) {
+            // Setup complete - redirect to dashboard
+            const dashboardUrl = new URL("/dashboard", request.url);
+            return NextResponse.redirect(dashboardUrl);
+          } else {
+            // Setup not complete - redirect to setup
+            const setupUrl = new URL(SETUP_ROUTE, request.url);
+            return NextResponse.redirect(setupUrl);
+          }
         }
+        // If no session, let the page component handle redirect to login
       }
     }
 

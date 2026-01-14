@@ -3,6 +3,9 @@ import { db } from "@/db";
 import { user } from "@/auth-schema";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 
 /**
  * One-time endpoint to create the first super admin
@@ -12,6 +15,10 @@ import { eq } from "drizzle-orm";
  */
 export async function POST(request: Request) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     // Check if any super admin already exists
     const existingSuperAdmin = await db.query.user.findFirst({
       where: eq(user.isSuperAdmin, true),
@@ -33,9 +40,13 @@ export async function POST(request: Request) {
       );
     }
 
+    // Sanitize input
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedName = sanitizeText(name);
+
     // Check if user already exists
     const existingUser = await db.query.user.findFirst({
-      where: eq(user.email, email),
+      where: eq(user.email, sanitizedEmail),
     });
 
     if (existingUser) {
@@ -48,9 +59,9 @@ export async function POST(request: Request) {
     // Create user via Better Auth
     const signupResponse = await auth.api.signUpEmail({
       body: {
-        email,
+        email: sanitizedEmail,
         password,
-        name,
+        name: sanitizedName,
       },
       headers: request.headers,
       asResponse: true,
@@ -89,11 +100,7 @@ export async function POST(request: Request) {
       userId,
     });
   } catch (error) {
-    console.error("Error creating super admin:", error);
-    return NextResponse.json(
-      { error: "Failed to create super admin" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }
 

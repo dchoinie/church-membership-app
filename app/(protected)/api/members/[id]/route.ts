@@ -3,7 +3,10 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -97,14 +100,7 @@ export async function GET(
       }
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching member:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch member" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -113,7 +109,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -177,25 +178,42 @@ export async function PUT(
       }
     }
 
+    // Sanitize input
+    const sanitizedData = {
+      firstName: sanitizeText(body.firstName),
+      middleName: body.middleName !== undefined ? sanitizeText(body.middleName) : existingMember.middleName,
+      lastName: sanitizeText(body.lastName),
+      suffix: body.suffix !== undefined ? sanitizeText(body.suffix) : existingMember.suffix,
+      preferredName: body.preferredName !== undefined ? sanitizeText(body.preferredName) : existingMember.preferredName,
+      maidenName: body.maidenName !== undefined ? sanitizeText(body.maidenName) : existingMember.maidenName,
+      title: body.title !== undefined ? sanitizeText(body.title) : existingMember.title,
+      email1: body.email1 !== undefined ? sanitizeEmail(body.email1) : existingMember.email1,
+      email2: body.email2 !== undefined ? sanitizeEmail(body.email2) : existingMember.email2,
+      phoneHome: body.phoneHome !== undefined ? sanitizeText(body.phoneHome) : existingMember.phoneHome,
+      phoneCell1: body.phoneCell1 !== undefined ? sanitizeText(body.phoneCell1) : existingMember.phoneCell1,
+      phoneCell2: body.phoneCell2 !== undefined ? sanitizeText(body.phoneCell2) : existingMember.phoneCell2,
+      membershipCode: body.membershipCode !== undefined ? sanitizeText(body.membershipCode) : existingMember.membershipCode,
+    };
+
     // Update member
     const [updatedMember] = await db
       .update(members)
       .set({
         householdId: newHouseholdId,
-        firstName: body.firstName,
-        middleName: body.middleName !== undefined ? body.middleName : existingMember.middleName,
-        lastName: body.lastName,
-        suffix: body.suffix !== undefined ? body.suffix : existingMember.suffix,
-        preferredName: body.preferredName !== undefined ? body.preferredName : existingMember.preferredName,
-        maidenName: body.maidenName !== undefined ? body.maidenName : existingMember.maidenName,
-        title: body.title !== undefined ? body.title : existingMember.title,
+        firstName: sanitizedData.firstName,
+        middleName: sanitizedData.middleName,
+        lastName: sanitizedData.lastName,
+        suffix: sanitizedData.suffix,
+        preferredName: sanitizedData.preferredName,
+        maidenName: sanitizedData.maidenName,
+        title: sanitizedData.title,
         sex: body.sex !== undefined ? body.sex : existingMember.sex,
         dateOfBirth: body.dateOfBirth !== undefined ? body.dateOfBirth : existingMember.dateOfBirth,
-        email1: body.email1 !== undefined ? body.email1 : existingMember.email1,
-        email2: body.email2 !== undefined ? body.email2 : existingMember.email2,
-        phoneHome: body.phoneHome !== undefined ? body.phoneHome : existingMember.phoneHome,
-        phoneCell1: body.phoneCell1 !== undefined ? body.phoneCell1 : existingMember.phoneCell1,
-        phoneCell2: body.phoneCell2 !== undefined ? body.phoneCell2 : existingMember.phoneCell2,
+        email1: sanitizedData.email1,
+        email2: sanitizedData.email2,
+        phoneHome: sanitizedData.phoneHome,
+        phoneCell1: sanitizedData.phoneCell1,
+        phoneCell2: sanitizedData.phoneCell2,
         baptismDate: body.baptismDate !== undefined ? body.baptismDate : existingMember.baptismDate,
         confirmationDate: body.confirmationDate !== undefined ? body.confirmationDate : existingMember.confirmationDate,
         receivedBy: body.receivedBy !== undefined ? body.receivedBy : existingMember.receivedBy,
@@ -203,7 +221,7 @@ export async function PUT(
         removedBy: body.removedBy !== undefined ? body.removedBy : existingMember.removedBy,
         dateRemoved: body.dateRemoved !== undefined ? body.dateRemoved : existingMember.dateRemoved,
         deceasedDate: body.deceasedDate !== undefined ? body.deceasedDate : existingMember.deceasedDate,
-        membershipCode: body.membershipCode !== undefined ? body.membershipCode : existingMember.membershipCode,
+        membershipCode: sanitizedData.membershipCode,
         envelopeNumber: body.envelopeNumber !== undefined ? body.envelopeNumber : existingMember.envelopeNumber,
         participation: body.participation !== undefined
           ? (isValidParticipationStatus(body.participation)
@@ -216,14 +234,7 @@ export async function PUT(
 
     return NextResponse.json({ member: updatedMember });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating member:", error);
-    return NextResponse.json(
-      { error: "Failed to update member" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -232,7 +243,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
 
     // Check if member exists and belongs to church
@@ -251,14 +267,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error deleting member:", error);
-    return NextResponse.json(
-      { error: "Failed to delete member" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

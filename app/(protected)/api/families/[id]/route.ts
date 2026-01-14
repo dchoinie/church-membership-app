@@ -3,7 +3,10 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(
   request: Request,
@@ -49,14 +52,7 @@ export async function GET(
       members: householdMembers,
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching household:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch household" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -65,7 +61,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -80,21 +81,34 @@ export async function PUT(
       return NextResponse.json({ error: "Household not found" }, { status: 404 });
     }
 
+    // Sanitize input
+    const sanitizedData = {
+      name: body.name !== undefined ? (body.name ? sanitizeText(body.name) : null) : existingHousehold.name,
+      personAssigned: body.personAssigned !== undefined ? (body.personAssigned ? sanitizeText(body.personAssigned) : null) : existingHousehold.personAssigned,
+      ministryGroup: body.ministryGroup !== undefined ? (body.ministryGroup ? sanitizeText(body.ministryGroup) : null) : existingHousehold.ministryGroup,
+      address1: body.address1 !== undefined ? (body.address1 ? sanitizeText(body.address1) : null) : existingHousehold.address1,
+      address2: body.address2 !== undefined ? (body.address2 ? sanitizeText(body.address2) : null) : existingHousehold.address2,
+      city: body.city !== undefined ? (body.city ? sanitizeText(body.city) : null) : existingHousehold.city,
+      state: body.state !== undefined ? (body.state ? sanitizeText(body.state) : null) : existingHousehold.state,
+      zip: body.zip !== undefined ? (body.zip ? sanitizeText(body.zip) : null) : existingHousehold.zip,
+      country: body.country !== undefined ? (body.country ? sanitizeText(body.country) : null) : existingHousehold.country,
+    };
+
     // Update household
     const [updatedHousehold] = await db
       .update(household)
       .set({
-        name: body.name !== undefined ? body.name : existingHousehold.name,
+        name: sanitizedData.name,
         type: body.type !== undefined ? body.type : existingHousehold.type,
         isNonHousehold: body.isNonHousehold !== undefined ? body.isNonHousehold : existingHousehold.isNonHousehold,
-        personAssigned: body.personAssigned !== undefined ? body.personAssigned : existingHousehold.personAssigned,
-        ministryGroup: body.ministryGroup !== undefined ? body.ministryGroup : existingHousehold.ministryGroup,
-        address1: body.address1 !== undefined ? body.address1 : existingHousehold.address1,
-        address2: body.address2 !== undefined ? body.address2 : existingHousehold.address2,
-        city: body.city !== undefined ? body.city : existingHousehold.city,
-        state: body.state !== undefined ? body.state : existingHousehold.state,
-        zip: body.zip !== undefined ? body.zip : existingHousehold.zip,
-        country: body.country !== undefined ? body.country : existingHousehold.country,
+        personAssigned: sanitizedData.personAssigned,
+        ministryGroup: sanitizedData.ministryGroup,
+        address1: sanitizedData.address1,
+        address2: sanitizedData.address2,
+        city: sanitizedData.city,
+        state: sanitizedData.state,
+        zip: sanitizedData.zip,
+        country: sanitizedData.country,
         alternateAddressBegin: body.alternateAddressBegin !== undefined ? body.alternateAddressBegin : existingHousehold.alternateAddressBegin,
         alternateAddressEnd: body.alternateAddressEnd !== undefined ? body.alternateAddressEnd : existingHousehold.alternateAddressEnd,
         updatedAt: new Date(),
@@ -104,14 +118,7 @@ export async function PUT(
 
     return NextResponse.json({ household: updatedHousehold });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating household:", error);
-    return NextResponse.json(
-      { error: "Failed to update household" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -120,7 +127,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
 
     // Check if household exists and belongs to church
@@ -153,14 +165,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error deleting household:", error);
-    return NextResponse.json(
-      { error: "Failed to delete household" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

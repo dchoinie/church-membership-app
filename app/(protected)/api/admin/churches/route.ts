@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { churches, members } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth-helpers";
-import { handleAuthError } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 import { eq, count, desc } from "drizzle-orm";
 
 export async function GET(request: Request) {
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    return handleAuthError(error);
+    return createErrorResponse(error);
   }
 }
 

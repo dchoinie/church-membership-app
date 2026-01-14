@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth-helpers";
-import { handleAuthError } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -26,7 +28,7 @@ export async function GET(
 
     return NextResponse.json({ church });
   } catch (error) {
-    return handleAuthError(error);
+    return createErrorResponse(error);
   }
 }
 
@@ -35,17 +37,29 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     await requireSuperAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
+    // Sanitize input
+    const sanitizedData = {
+      name: body.name ? sanitizeText(body.name) : null,
+      email: body.email ? sanitizeText(body.email) : null,
+      phone: body.phone ? sanitizeText(body.phone) : null,
+      address: body.address ? sanitizeText(body.address) : null,
+    };
+
     const [updatedChurch] = await db
       .update(churches)
       .set({
-        name: body.name,
-        email: body.email,
-        phone: body.phone,
-        address: body.address,
+        name: sanitizedData.name,
+        email: sanitizedData.email,
+        phone: sanitizedData.phone,
+        address: sanitizedData.address,
         subscriptionStatus: body.subscriptionStatus,
         subscriptionPlan: body.subscriptionPlan,
         updatedAt: new Date(),
@@ -62,7 +76,7 @@ export async function PUT(
 
     return NextResponse.json({ church: updatedChurch });
   } catch (error) {
-    return handleAuthError(error);
+    return createErrorResponse(error);
   }
 }
 
@@ -71,6 +85,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     await requireSuperAdmin(request);
     const { id } = await params;
 
@@ -78,7 +96,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return handleAuthError(error);
+    return createErrorResponse(error);
   }
 }
 

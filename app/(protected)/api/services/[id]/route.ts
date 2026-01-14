@@ -3,7 +3,10 @@ import { eq, and, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { services } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(
   request: Request,
@@ -29,14 +32,7 @@ export async function GET(
 
     return NextResponse.json({ service });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching service:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch service" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -45,7 +41,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
     const body = await request.json();
 
@@ -83,8 +84,8 @@ export async function PUT(
             { status: 400 },
           );
         }
-        // Normalize custom type: trim whitespace
-        body.serviceType = body.serviceType.trim();
+        // Normalize and sanitize custom type: trim whitespace and sanitize
+        body.serviceType = sanitizeText(body.serviceType.trim());
       }
     }
 
@@ -146,14 +147,7 @@ export async function PUT(
 
     return NextResponse.json({ service: updatedService });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error updating service:", error);
-    return NextResponse.json(
-      { error: "Failed to update service" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -162,7 +156,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
     const { id } = await params;
 
     // Check if service exists and belongs to church
@@ -186,14 +185,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Service deleted successfully" });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error deleting service:", error);
-    return NextResponse.json(
-      { error: "Failed to delete service" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

@@ -3,8 +3,11 @@ import { eq, asc, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
 import { checkMemberLimit } from "@/lib/member-limits";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -84,20 +87,18 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching members:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch members" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
 
     const body = await request.json();
 
@@ -178,19 +179,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // Sanitize input
+    const sanitizedData = {
+      firstName: sanitizeText(body.firstName),
+      middleName: body.middleName ? sanitizeText(body.middleName) : null,
+      lastName: sanitizeText(body.lastName),
+      suffix: body.suffix ? sanitizeText(body.suffix) : null,
+      preferredName: body.preferredName ? sanitizeText(body.preferredName) : null,
+      maidenName: body.maidenName ? sanitizeText(body.maidenName) : null,
+      title: body.title ? sanitizeText(body.title) : null,
+      email1: body.email1 ? sanitizeEmail(body.email1) : null,
+      email2: body.email2 ? sanitizeEmail(body.email2) : null,
+      phoneHome: body.phoneHome ? sanitizeText(body.phoneHome) : null,
+      phoneCell1: body.phoneCell1 ? sanitizeText(body.phoneCell1) : null,
+      phoneCell2: body.phoneCell2 ? sanitizeText(body.phoneCell2) : null,
+      membershipCode: body.membershipCode ? sanitizeText(body.membershipCode) : null,
+    };
+
     // Insert new member
     const [newMember] = await db
       .insert(members)
       .values({
         churchId,
         householdId: householdId,
-        firstName: body.firstName,
-        middleName: body.middleName || null,
-        lastName: body.lastName,
-        suffix: body.suffix || null,
-        preferredName: body.preferredName || null,
-        maidenName: body.maidenName || null,
-        title: body.title || null,
+        firstName: sanitizedData.firstName,
+        middleName: sanitizedData.middleName,
+        lastName: sanitizedData.lastName,
+        suffix: sanitizedData.suffix,
+        preferredName: sanitizedData.preferredName,
+        maidenName: sanitizedData.maidenName,
+        title: sanitizedData.title,
         sex: (() => {
           if (!body.sex) return null;
           const sexValue = typeof body.sex === "string" ? body.sex.toLowerCase() : null;
@@ -198,11 +216,11 @@ export async function POST(request: Request) {
           return sexValue && validSexValues.includes(sexValue) ? sexValue as "male" | "female" | "other" : null;
         })(),
         dateOfBirth: body.dateOfBirth || null,
-        email1: body.email1 || null,
-        email2: body.email2 || null,
-        phoneHome: body.phoneHome || null,
-        phoneCell1: body.phoneCell1 || null,
-        phoneCell2: body.phoneCell2 || null,
+        email1: sanitizedData.email1,
+        email2: sanitizedData.email2,
+        phoneHome: sanitizedData.phoneHome,
+        phoneCell1: sanitizedData.phoneCell1,
+        phoneCell2: sanitizedData.phoneCell2,
         baptismDate: body.baptismDate || null,
         confirmationDate: body.confirmationDate || null,
         receivedBy: body.receivedBy || null,
@@ -210,7 +228,7 @@ export async function POST(request: Request) {
         removedBy: body.removedBy || null,
         dateRemoved: body.dateRemoved || null,
         deceasedDate: body.deceasedDate || null,
-        membershipCode: body.membershipCode || null,
+        membershipCode: sanitizedData.membershipCode,
         envelopeNumber: body.envelopeNumber !== undefined ? body.envelopeNumber : null,
         participation: isValidParticipationStatus(body.participation)
           ? body.participation.toLowerCase()
@@ -220,14 +238,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ member: newMember }, { status: 201 });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error creating member:", error);
-    return NextResponse.json(
-      { error: "Failed to create member" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

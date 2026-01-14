@@ -3,12 +3,20 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
 import { checkMemberLimit } from "@/lib/member-limits";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require admin role
+    const { churchId } = await requireAdmin(request);
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -113,17 +121,21 @@ export async function POST(request: Request) {
           return value === "" ? null : value;
         };
 
-        const firstName = getValue("first name");
-        const lastName = getValue("last name");
+        const firstNameRaw = getValue("first name");
+        const lastNameRaw = getValue("last name");
 
         // Validate required fields
-        if (!firstName || !lastName) {
+        if (!firstNameRaw || !lastNameRaw) {
           results.failed++;
           results.errors.push(
             `Row ${i + 1}: Missing required fields (First Name or Last Name)`,
           );
           continue;
         }
+
+        // Sanitize names
+        const firstName = sanitizeText(firstNameRaw);
+        const lastName = sanitizeText(lastNameRaw);
 
         // Parse dates
         let parsedDateOfBirth: Date | null = null;
@@ -383,15 +395,17 @@ export async function POST(request: Request) {
           }
         }
 
-        // Prepare member data
+        // Prepare member data with sanitization
+        const email1Raw = getValue("email1") || getValue("email") || null;
+        const email2Raw = getValue("email2") || null;
         const memberData = {
           firstName,
-          middleName: getValue("middle name") || null,
+          middleName: getValue("middle name") ? sanitizeText(getValue("middle name")!) : null,
           lastName,
-          suffix: getValue("suffix") || null,
-          preferredName: getValue("preferred name") || null,
-          maidenName: getValue("maiden name") || null,
-          title: getValue("title") || null,
+          suffix: getValue("suffix") ? sanitizeText(getValue("suffix")!) : null,
+          preferredName: getValue("preferred name") ? sanitizeText(getValue("preferred name")!) : null,
+          maidenName: getValue("maiden name") ? sanitizeText(getValue("maiden name")!) : null,
+          title: getValue("title") ? sanitizeText(getValue("title")!) : null,
           sex: (() => {
             const sexValue = getValue("sex")?.toLowerCase();
             const validSexValues = ["male", "female", "other"];
@@ -400,11 +414,11 @@ export async function POST(request: Request) {
           dateOfBirth: parsedDateOfBirth
             ? parsedDateOfBirth.toISOString().split("T")[0]
             : null,
-          email1: getValue("email1") || getValue("email") || null,
-          email2: getValue("email2") || null,
-          phoneHome: getValue("phone home") || null,
-          phoneCell1: getValue("phone cell1") || getValue("phone") || null,
-          phoneCell2: getValue("phone cell2") || null,
+          email1: email1Raw ? sanitizeEmail(email1Raw) : null,
+          email2: email2Raw ? sanitizeEmail(email2Raw) : null,
+          phoneHome: getValue("phone home") ? sanitizeText(getValue("phone home")!) : null,
+          phoneCell1: getValue("phone cell1") || getValue("phone") ? sanitizeText(getValue("phone cell1") || getValue("phone") || "") : null,
+          phoneCell2: getValue("phone cell2") ? sanitizeText(getValue("phone cell2")!) : null,
           baptismDate: parsedBaptismDate
             ? parsedBaptismDate.toISOString().split("T")[0]
             : null,
@@ -438,7 +452,7 @@ export async function POST(request: Request) {
           deceasedDate: parsedDeceasedDate
             ? parsedDeceasedDate.toISOString().split("T")[0]
             : null,
-          membershipCode: getValue("membership code") || null,
+          membershipCode: getValue("membership code") ? sanitizeText(getValue("membership code")!) : null,
           envelopeNumber: getValue("envelope number") ? parseInt(getValue("envelope number")!) : null,
           participation: (() => {
             const status = getValue("participation") || getValue("membership status")?.toLowerCase();
@@ -474,7 +488,7 @@ export async function POST(request: Request) {
           }
         }
 
-        // Insert member with churchId
+        // Insert member with churchId (within transaction context)
         await db.insert(members).values({
           ...memberData,
           churchId,
@@ -490,17 +504,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(results);
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error importing members:", error);
-    return NextResponse.json(
-      {
-        error: "Failed to import members",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

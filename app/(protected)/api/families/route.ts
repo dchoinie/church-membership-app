@@ -3,7 +3,10 @@ import { eq, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
+import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(request: Request) {
   try {
@@ -77,14 +80,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error fetching households:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch households" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 
@@ -94,22 +90,35 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
+    // Sanitize input
+    const sanitizedData = {
+      name: body.name ? sanitizeText(body.name) : null,
+      personAssigned: body.personAssigned ? sanitizeText(body.personAssigned) : null,
+      ministryGroup: body.ministryGroup ? sanitizeText(body.ministryGroup) : null,
+      address1: body.address1 ? sanitizeText(body.address1) : null,
+      address2: body.address2 ? sanitizeText(body.address2) : null,
+      city: body.city ? sanitizeText(body.city) : null,
+      state: body.state ? sanitizeText(body.state) : null,
+      zip: body.zip ? sanitizeText(body.zip) : null,
+      country: body.country ? sanitizeText(body.country) : null,
+    };
+
     // Insert new household
     const [newHousehold] = await db
       .insert(household)
       .values({
         churchId,
-        name: body.name || null,
+        name: sanitizedData.name,
         type: body.type || null,
         isNonHousehold: body.isNonHousehold || false,
-        personAssigned: body.personAssigned || null,
-        ministryGroup: body.ministryGroup || null,
-        address1: body.address1 || null,
-        address2: body.address2 || null,
-        city: body.city || null,
-        state: body.state || null,
-        zip: body.zip || null,
-        country: body.country || null,
+        personAssigned: sanitizedData.personAssigned,
+        ministryGroup: sanitizedData.ministryGroup,
+        address1: sanitizedData.address1,
+        address2: sanitizedData.address2,
+        city: sanitizedData.city,
+        state: sanitizedData.state,
+        zip: sanitizedData.zip,
+        country: sanitizedData.country,
         alternateAddressBegin: body.alternateAddressBegin || null,
         alternateAddressEnd: body.alternateAddressEnd || null,
       })
@@ -117,14 +126,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ household: newHousehold }, { status: 201 });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-    
-    console.error("Error creating household:", error);
-    return NextResponse.json(
-      { error: "Failed to create household" },
-      { status: 500 },
-    );
+    return createErrorResponse(error);
   }
 }
 

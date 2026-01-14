@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAuthContext, handleAuthError } from "@/lib/api-helpers";
+import { getAuthContext } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -80,14 +81,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ church: updatedChurch });
   } catch (error) {
-    const authError = handleAuthError(error);
-    if (authError.status !== 500) return authError;
-
-    console.error("Error updating church settings:", error);
-    return NextResponse.json(
-      { error: "Failed to update church settings" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }
 
