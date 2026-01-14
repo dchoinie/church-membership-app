@@ -483,7 +483,7 @@ export default function SettingsPage() {
                     <p className="font-medium mb-1">Downgrade Notice</p>
                     <p>
                       Your subscription will be downgraded to the Basic plan at the end of your current billing cycle. 
-                      You'll continue to have access to Premium features until then.
+                      You&apos;ll continue to have access to Premium features until then.
                     </p>
                   </div>
                 )}

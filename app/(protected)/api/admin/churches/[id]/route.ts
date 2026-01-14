@@ -47,10 +47,10 @@ export async function PUT(
 
     // Sanitize input
     const sanitizedData = {
-      name: body.name ? sanitizeText(body.name) : null,
-      email: body.email ? sanitizeText(body.email) : null,
-      phone: body.phone ? sanitizeText(body.phone) : null,
-      address: body.address ? sanitizeText(body.address) : null,
+      name: body.name ? sanitizeText(body.name) : undefined,
+      email: body.email ? sanitizeText(body.email) : undefined,
+      phone: body.phone ? sanitizeText(body.phone) : undefined,
+      address: body.address ? sanitizeText(body.address) : undefined,
     };
 
     const [updatedChurch] = await db

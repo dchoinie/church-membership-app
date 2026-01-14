@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { extractSubdomain, getChurchBySubdomain } from "@/lib/tenant-context";
 import { isSetupComplete } from "@/lib/setup-helpers";
-import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { rateLimit, RATE_LIMITS, type RateLimitConfig } from "@/lib/rate-limit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
   // Apply rate limiting to API routes
   if (pathname.startsWith("/api/")) {
     // Determine rate limit based on route type
-    let rateLimitConfig = RATE_LIMITS.API;
+    let rateLimitConfig: RateLimitConfig = RATE_LIMITS.API;
 
     if (pathname.includes("/auth") || pathname.includes("/signup") || pathname.includes("/invite")) {
       rateLimitConfig = RATE_LIMITS.AUTH;

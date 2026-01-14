@@ -182,18 +182,18 @@ export async function POST(request: Request) {
     // Sanitize input
     const sanitizedData = {
       firstName: sanitizeText(body.firstName),
-      middleName: body.middleName ? sanitizeText(body.middleName) : null,
+      middleName: body.middleName ? sanitizeText(body.middleName) : undefined,
       lastName: sanitizeText(body.lastName),
-      suffix: body.suffix ? sanitizeText(body.suffix) : null,
-      preferredName: body.preferredName ? sanitizeText(body.preferredName) : null,
-      maidenName: body.maidenName ? sanitizeText(body.maidenName) : null,
-      title: body.title ? sanitizeText(body.title) : null,
-      email1: body.email1 ? sanitizeEmail(body.email1) : null,
-      email2: body.email2 ? sanitizeEmail(body.email2) : null,
-      phoneHome: body.phoneHome ? sanitizeText(body.phoneHome) : null,
-      phoneCell1: body.phoneCell1 ? sanitizeText(body.phoneCell1) : null,
-      phoneCell2: body.phoneCell2 ? sanitizeText(body.phoneCell2) : null,
-      membershipCode: body.membershipCode ? sanitizeText(body.membershipCode) : null,
+      suffix: body.suffix ? sanitizeText(body.suffix) : undefined,
+      preferredName: body.preferredName ? sanitizeText(body.preferredName) : undefined,
+      maidenName: body.maidenName ? sanitizeText(body.maidenName) : undefined,
+      title: body.title ? sanitizeText(body.title) : undefined,
+      email1: body.email1 ? sanitizeEmail(body.email1) : undefined,
+      email2: body.email2 ? sanitizeEmail(body.email2) : undefined,
+      phoneHome: body.phoneHome ? sanitizeText(body.phoneHome) : undefined,
+      phoneCell1: body.phoneCell1 ? sanitizeText(body.phoneCell1) : undefined,
+      phoneCell2: body.phoneCell2 ? sanitizeText(body.phoneCell2) : undefined,
+      membershipCode: body.membershipCode ? sanitizeText(body.membershipCode) : undefined,
     };
 
     // Insert new member

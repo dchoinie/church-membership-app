@@ -131,6 +131,17 @@ export default function AuthLayout({
     });
   }, [pathname]);
 
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const isSetupRoute = setupRoutes.includes(pathname);
+  const isAuthenticated = !!session?.user;
+
+  // Redirect to login if not authenticated and not on public route
+  useEffect(() => {
+    if (!isPending && !isAuthenticated && !isPublicRoute) {
+      router.replace("/?login=true");
+    }
+  }, [isPending, isAuthenticated, isPublicRoute, router]);
+
   // Show loading state only while session is being fetched
   // Middleware handles all redirects, so we just wait for session to load
   if (isPending) {
@@ -140,10 +151,6 @@ export default function AuthLayout({
       </div>
     );
   }
-
-  const isPublicRoute = publicRoutes.includes(pathname);
-  const isSetupRoute = setupRoutes.includes(pathname);
-  const isAuthenticated = !!session?.user;
 
   // Public routes (login, signup, etc.) - no sidebar
   if (isPublicRoute) {
@@ -240,15 +247,7 @@ export default function AuthLayout({
     );
   }
 
-  // Not authenticated and not on public route - redirect to "/" for login
-  // Add query param to prevent middleware redirect loop
-  useEffect(() => {
-    if (!isPending && !isAuthenticated && !isPublicRoute) {
-      router.replace("/?login=true");
-    }
-  }, [isPending, isAuthenticated, isPublicRoute, router]);
-
-  // Show loading while redirecting
+  // Not authenticated and not on public route - show loading while redirecting
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="text-muted-foreground">Redirecting to login...</div>

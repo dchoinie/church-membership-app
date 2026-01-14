@@ -400,12 +400,12 @@ export async function POST(request: Request) {
         const email2Raw = getValue("email2") || null;
         const memberData = {
           firstName,
-          middleName: getValue("middle name") ? sanitizeText(getValue("middle name")!) : null,
+          middleName: getValue("middle name") ? sanitizeText(getValue("middle name")!) : undefined,
           lastName,
-          suffix: getValue("suffix") ? sanitizeText(getValue("suffix")!) : null,
-          preferredName: getValue("preferred name") ? sanitizeText(getValue("preferred name")!) : null,
-          maidenName: getValue("maiden name") ? sanitizeText(getValue("maiden name")!) : null,
-          title: getValue("title") ? sanitizeText(getValue("title")!) : null,
+          suffix: getValue("suffix") ? sanitizeText(getValue("suffix")!) : undefined,
+          preferredName: getValue("preferred name") ? sanitizeText(getValue("preferred name")!) : undefined,
+          maidenName: getValue("maiden name") ? sanitizeText(getValue("maiden name")!) : undefined,
+          title: getValue("title") ? sanitizeText(getValue("title")!) : undefined,
           sex: (() => {
             const sexValue = getValue("sex")?.toLowerCase();
             const validSexValues = ["male", "female", "other"];
@@ -414,11 +414,11 @@ export async function POST(request: Request) {
           dateOfBirth: parsedDateOfBirth
             ? parsedDateOfBirth.toISOString().split("T")[0]
             : null,
-          email1: email1Raw ? sanitizeEmail(email1Raw) : null,
-          email2: email2Raw ? sanitizeEmail(email2Raw) : null,
-          phoneHome: getValue("phone home") ? sanitizeText(getValue("phone home")!) : null,
-          phoneCell1: getValue("phone cell1") || getValue("phone") ? sanitizeText(getValue("phone cell1") || getValue("phone") || "") : null,
-          phoneCell2: getValue("phone cell2") ? sanitizeText(getValue("phone cell2")!) : null,
+          email1: email1Raw ? sanitizeEmail(email1Raw) : undefined,
+          email2: email2Raw ? sanitizeEmail(email2Raw) : undefined,
+          phoneHome: getValue("phone home") ? sanitizeText(getValue("phone home")!) : undefined,
+          phoneCell1: getValue("phone cell1") || getValue("phone") ? sanitizeText(getValue("phone cell1") || getValue("phone") || "") : undefined,
+          phoneCell2: getValue("phone cell2") ? sanitizeText(getValue("phone cell2")!) : undefined,
           baptismDate: parsedBaptismDate
             ? parsedBaptismDate.toISOString().split("T")[0]
             : null,
@@ -452,7 +452,7 @@ export async function POST(request: Request) {
           deceasedDate: parsedDeceasedDate
             ? parsedDeceasedDate.toISOString().split("T")[0]
             : null,
-          membershipCode: getValue("membership code") ? sanitizeText(getValue("membership code")!) : null,
+          membershipCode: getValue("membership code") ? sanitizeText(getValue("membership code")!) : undefined,
           envelopeNumber: getValue("envelope number") ? parseInt(getValue("envelope number")!) : null,
           participation: (() => {
             const status = getValue("participation") || getValue("membership status")?.toLowerCase();

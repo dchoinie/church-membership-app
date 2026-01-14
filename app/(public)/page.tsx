@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -60,21 +60,27 @@ export default function LandingPage() {
   });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
-  const [isSubdomain, setIsSubdomain] = useState(false);
-  const [showVerifiedMessage, setShowVerifiedMessage] = useState(false);
 
-  // Check if we're on a subdomain
+  // Compute subdomain during render (client-side only)
+  const isSubdomain = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const subdomain = extractSubdomain(window.location.hostname);
+    return !!subdomain;
+  }, []);
+
+  // Compute showVerifiedMessage from searchParams
+  const showVerifiedMessage = useMemo(() => {
+    const verified = searchParams.get("verified");
+    const signin = searchParams.get("signin");
+    return verified === "true" && signin === "true";
+  }, [searchParams]);
+
+  // Auto-open login dialog if on subdomain
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const subdomain = extractSubdomain(window.location.hostname);
-      setIsSubdomain(!!subdomain);
-      
-      // If on subdomain, auto-open login dialog
-      if (subdomain) {
-        openLogin();
-      }
+    if (isSubdomain) {
+      openLogin();
     }
-  }, [openLogin]);
+  }, [isSubdomain, openLogin]);
 
   // Auto-open login dialog if invite parameter is present
   useEffect(() => {
@@ -84,21 +90,20 @@ export default function LandingPage() {
     }
   }, [searchParams, openLogin]);
 
-  // Check for verified parameter
+  // Handle verified parameter - clear query params and open login
   useEffect(() => {
-    const verified = searchParams.get("verified");
-    const signin = searchParams.get("signin");
-    if (verified === "true" && signin === "true") {
-      setShowVerifiedMessage(true);
+    if (showVerifiedMessage) {
       // Auto-open login dialog
       openLogin();
       // Clear query params
-      const newUrl = new URL(window.location.href);
-      newUrl.searchParams.delete("verified");
-      newUrl.searchParams.delete("signin");
-      window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("verified");
+        newUrl.searchParams.delete("signin");
+        window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+      }
     }
-  }, [searchParams, openLogin]);
+  }, [showVerifiedMessage, openLogin]);
 
   // If on subdomain, show login page instead of marketing page
   // But check if user is already authenticated - redirect to /dashboard or /setup

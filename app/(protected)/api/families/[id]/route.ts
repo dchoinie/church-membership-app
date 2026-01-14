@@ -83,15 +83,15 @@ export async function PUT(
 
     // Sanitize input
     const sanitizedData = {
-      name: body.name !== undefined ? (body.name ? sanitizeText(body.name) : null) : existingHousehold.name,
-      personAssigned: body.personAssigned !== undefined ? (body.personAssigned ? sanitizeText(body.personAssigned) : null) : existingHousehold.personAssigned,
-      ministryGroup: body.ministryGroup !== undefined ? (body.ministryGroup ? sanitizeText(body.ministryGroup) : null) : existingHousehold.ministryGroup,
-      address1: body.address1 !== undefined ? (body.address1 ? sanitizeText(body.address1) : null) : existingHousehold.address1,
-      address2: body.address2 !== undefined ? (body.address2 ? sanitizeText(body.address2) : null) : existingHousehold.address2,
-      city: body.city !== undefined ? (body.city ? sanitizeText(body.city) : null) : existingHousehold.city,
-      state: body.state !== undefined ? (body.state ? sanitizeText(body.state) : null) : existingHousehold.state,
-      zip: body.zip !== undefined ? (body.zip ? sanitizeText(body.zip) : null) : existingHousehold.zip,
-      country: body.country !== undefined ? (body.country ? sanitizeText(body.country) : null) : existingHousehold.country,
+      name: body.name !== undefined ? (body.name ? sanitizeText(body.name) : undefined) : existingHousehold.name,
+      personAssigned: body.personAssigned !== undefined ? (body.personAssigned ? sanitizeText(body.personAssigned) : undefined) : existingHousehold.personAssigned,
+      ministryGroup: body.ministryGroup !== undefined ? (body.ministryGroup ? sanitizeText(body.ministryGroup) : undefined) : existingHousehold.ministryGroup,
+      address1: body.address1 !== undefined ? (body.address1 ? sanitizeText(body.address1) : undefined) : existingHousehold.address1,
+      address2: body.address2 !== undefined ? (body.address2 ? sanitizeText(body.address2) : undefined) : existingHousehold.address2,
+      city: body.city !== undefined ? (body.city ? sanitizeText(body.city) : undefined) : existingHousehold.city,
+      state: body.state !== undefined ? (body.state ? sanitizeText(body.state) : undefined) : existingHousehold.state,
+      zip: body.zip !== undefined ? (body.zip ? sanitizeText(body.zip) : undefined) : existingHousehold.zip,
+      country: body.country !== undefined ? (body.country ? sanitizeText(body.country) : undefined) : existingHousehold.country,
     };
 
     // Update household

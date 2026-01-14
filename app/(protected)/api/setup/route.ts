@@ -45,13 +45,13 @@ export async function PUT(request: Request) {
       !currentChurch.stripeSubscriptionId;
 
     const updateData: {
-      address?: string | null;
-      city?: string | null;
-      state?: string | null;
-      zip?: string | null;
-      denomination?: string | null;
-      phone?: string | null;
-      logoUrl?: string | null;
+      address?: string;
+      city?: string;
+      state?: string;
+      zip?: string;
+      denomination?: string;
+      phone?: string;
+      logoUrl?: string;
       subscriptionPlan?: "basic" | "premium";
       updatedAt: Date;
     } = {
@@ -59,25 +59,25 @@ export async function PUT(request: Request) {
     };
 
     if (body.address !== undefined) {
-      updateData.address = body.address ? sanitizeText(body.address) : null;
+      updateData.address = body.address ? sanitizeText(body.address) : undefined;
     }
     if (body.city !== undefined) {
-      updateData.city = body.city ? sanitizeText(body.city) : null;
+      updateData.city = body.city ? sanitizeText(body.city) : undefined;
     }
     if (body.state !== undefined) {
-      updateData.state = body.state ? sanitizeText(body.state) : null;
+      updateData.state = body.state ? sanitizeText(body.state) : undefined;
     }
     if (body.zip !== undefined) {
-      updateData.zip = body.zip ? sanitizeText(body.zip) : null;
+      updateData.zip = body.zip ? sanitizeText(body.zip) : undefined;
     }
     if (body.denomination !== undefined) {
-      updateData.denomination = body.denomination ? sanitizeText(body.denomination) : null;
+      updateData.denomination = body.denomination ? sanitizeText(body.denomination) : undefined;
     }
     if (body.phone !== undefined) {
-      updateData.phone = body.phone ? sanitizeText(body.phone) : null;
+      updateData.phone = body.phone ? sanitizeText(body.phone) : undefined;
     }
     if (body.logoUrl !== undefined) {
-      updateData.logoUrl = body.logoUrl ? sanitizeUrl(body.logoUrl) : null;
+      updateData.logoUrl = body.logoUrl ? sanitizeUrl(body.logoUrl) : undefined;
     }
     if (body.subscriptionPlan !== undefined && canUpdatePlan) {
       // Validate subscription plan

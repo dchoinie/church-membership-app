@@ -306,7 +306,7 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
                       Church Created Successfully!
                     </h3>
                     <p className="text-sm text-green-800 dark:text-green-200">
-                      We've sent a verification email to <strong>{formData.adminEmail}</strong>. 
+                      We&apos;ve sent a verification email to <strong>{formData.adminEmail}</strong>. 
                       Please check your inbox and click the verification link to verify your email address.
                     </p>
                     <p className="text-sm text-green-700 dark:text-green-300">

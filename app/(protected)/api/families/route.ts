@@ -92,15 +92,15 @@ export async function POST(request: Request) {
 
     // Sanitize input
     const sanitizedData = {
-      name: body.name ? sanitizeText(body.name) : null,
-      personAssigned: body.personAssigned ? sanitizeText(body.personAssigned) : null,
-      ministryGroup: body.ministryGroup ? sanitizeText(body.ministryGroup) : null,
-      address1: body.address1 ? sanitizeText(body.address1) : null,
-      address2: body.address2 ? sanitizeText(body.address2) : null,
-      city: body.city ? sanitizeText(body.city) : null,
-      state: body.state ? sanitizeText(body.state) : null,
-      zip: body.zip ? sanitizeText(body.zip) : null,
-      country: body.country ? sanitizeText(body.country) : null,
+      name: body.name ? sanitizeText(body.name) : undefined,
+      personAssigned: body.personAssigned ? sanitizeText(body.personAssigned) : undefined,
+      ministryGroup: body.ministryGroup ? sanitizeText(body.ministryGroup) : undefined,
+      address1: body.address1 ? sanitizeText(body.address1) : undefined,
+      address2: body.address2 ? sanitizeText(body.address2) : undefined,
+      city: body.city ? sanitizeText(body.city) : undefined,
+      state: body.state ? sanitizeText(body.state) : undefined,
+      zip: body.zip ? sanitizeText(body.zip) : undefined,
+      country: body.country ? sanitizeText(body.country) : undefined,
     };
 
     // Insert new household

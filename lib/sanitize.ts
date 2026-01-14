@@ -84,11 +84,11 @@ export function sanitizeObject<T extends Record<string, any>>(
     const value = sanitized[key];
 
     if (typeof value === "string") {
-      sanitized[key] = allowHtml ? sanitizeHtml(value) : sanitizeText(value);
+      (sanitized as any)[key] = allowHtml ? sanitizeHtml(value) : sanitizeText(value);
     } else if (value && typeof value === "object" && !Array.isArray(value)) {
-      sanitized[key] = sanitizeObject(value, options);
+      (sanitized as any)[key] = sanitizeObject(value, options);
     } else if (Array.isArray(value)) {
-      sanitized[key] = value.map((item) =>
+      (sanitized as any)[key] = value.map((item: any) =>
         typeof item === "string"
           ? allowHtml
             ? sanitizeHtml(item)

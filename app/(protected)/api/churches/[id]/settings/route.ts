@@ -32,15 +32,15 @@ export async function PUT(
 
     // Update church settings (branding)
     const updateData: {
-      logoUrl?: string | null;
-      primaryColor?: string | null;
+      logoUrl?: string | undefined;
+      primaryColor?: string | undefined;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
     };
 
     if (body.logoUrl !== undefined) {
-      updateData.logoUrl = body.logoUrl ? sanitizeUrl(body.logoUrl) : null;
+      updateData.logoUrl = body.logoUrl ? sanitizeUrl(body.logoUrl) : undefined;
     }
 
     if (body.primaryColor !== undefined) {
@@ -51,7 +51,7 @@ export async function PUT(
           { status: 400 }
         );
       }
-      updateData.primaryColor = body.primaryColor || null;
+      updateData.primaryColor = body.primaryColor || undefined;
     }
 
     const [updatedChurch] = await db
