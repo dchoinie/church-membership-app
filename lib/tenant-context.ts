@@ -55,13 +55,32 @@ export function extractSubdomain(hostname: string): string | null {
 
 /**
  * Get tenant (church) from request headers
- * Returns the churchId from x-church-id header set by middleware
+ * First checks for x-church-id header set by middleware
+ * If not found, extracts subdomain from request URL and looks up church
+ * This ensures it works for both server-side requests (with header) and client-side fetch requests (from URL)
  */
 export async function getTenantFromRequest(
   request: Request
 ): Promise<string | null> {
+  // First, check if middleware set the header (for server-side requests)
   const churchId = request.headers.get("x-church-id");
-  return churchId;
+  if (churchId) {
+    return churchId;
+  }
+
+  // If no header, extract subdomain from request URL (for client-side fetch requests)
+  // Get hostname from URL or Host header
+  const url = new URL(request.url);
+  const hostname = url.hostname || request.headers.get("host") || "";
+  
+  const subdomain = extractSubdomain(hostname);
+  if (!subdomain) {
+    return null;
+  }
+
+  // Look up church by subdomain and return its ID
+  const church = await getChurchBySubdomain(subdomain);
+  return church?.id || null;
 }
 
 /**
