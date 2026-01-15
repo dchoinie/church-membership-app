@@ -43,8 +43,14 @@ function extractSubdomain(hostname: string): string | null {
   }
   
   // For subdomain.domain.com, return the subdomain
+  // But exclude "www" as it's typically the main domain, not a subdomain
   if (parts.length >= 3) {
-    return parts[0];
+    const potentialSubdomain = parts[0];
+    // Don't treat "www" as a subdomain
+    if (potentialSubdomain.toLowerCase() === "www") {
+      return null;
+    }
+    return potentialSubdomain;
   }
   
   return null;
@@ -81,6 +87,21 @@ export default function LandingPage() {
       openLogin();
     }
   }, [isSubdomain, openLogin]);
+
+  // Auto-open login dialog if login parameter is present (from auth-layout redirect)
+  // This happens when user tries to access a protected route without being authenticated
+  useEffect(() => {
+    const loginParam = searchParams.get("login");
+    if (loginParam === "true" && !isSubdomain) {
+      openLogin();
+      // Clear the login parameter from URL after opening
+      if (typeof window !== "undefined") {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete("login");
+        window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+      }
+    }
+  }, [searchParams, isSubdomain, openLogin]);
 
   // Auto-open login dialog if invite parameter is present
   useEffect(() => {
