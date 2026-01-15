@@ -64,6 +64,8 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const [isValidatingInvite, setIsValidatingInvite] = useState(false);
   const [inviteValidationError, setInviteValidationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
 
   // Check for invite query parameter when dialog opens
   useEffect(() => {
@@ -88,8 +90,26 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       setInviteData({ inviteCode: "", email: "", name: "", password: "" });
       setError(null);
       setInviteValidationError(null);
+      setIsRateLimited(false);
+      setRetryAfter(null);
     }
   }, [open]);
+
+  // Clear rate limit (development only)
+  const clearRateLimit = async () => {
+    try {
+      const response = await fetch("/api/dev/clear-rate-limit", {
+        method: "POST",
+      });
+      if (response.ok) {
+        setError(null);
+        setIsRateLimited(false);
+        setRetryAfter(null);
+      }
+    } catch (err) {
+      console.error("Failed to clear rate limit:", err);
+    }
+  };
 
   // Validate invitation code when it changes
   useEffect(() => {
@@ -164,6 +184,21 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       });
 
       if (signInError) {
+        // Check if it's a rate limit error
+        if (signInError.message?.includes("Too many requests") || (signInError as any).status === 429) {
+          // Try to extract retryAfter from the error if available
+          let retryAfter: number | undefined;
+          try {
+            // The error might contain the retryAfter in the response
+            const errorData = signInError as any;
+            if (errorData.retryAfter) {
+              retryAfter = errorData.retryAfter;
+            }
+          } catch {}
+          
+          const minutes = retryAfter ? Math.ceil(retryAfter / 60) : 15;
+          throw new Error(`Too many login attempts. Please try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+        }
         throw new Error(signInError.message || "Failed to sign in");
       }
 
@@ -280,7 +315,34 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       // Use window.location for full page reload to ensure session cookie is read
       window.location.href = "/setup";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sign in");
+      // Handle rate limit errors specifically
+      // When rate limited, the middleware returns 429 before better-auth processes it
+      // better-auth then throws a generic fetch error
+      if (err instanceof Error) {
+        const errorMessage = err.message;
+        
+        // Check if error message suggests rate limiting or fetch failure
+        // The console log shows "Fetch failed" when rate limited
+        const isLikelyRateLimit = 
+          errorMessage.includes("Too many") || 
+          errorMessage.includes("rate limit") ||
+          errorMessage.toLowerCase().includes("fetch") ||
+          errorMessage.includes("network") ||
+          errorMessage.includes("Failed to sign in");
+        
+        if (isLikelyRateLimit) {
+          // Assume it's rate limited if we see fetch/network errors
+          // Show rate limit error with option to clear in dev
+          setIsRateLimited(true);
+          setError("Too many login attempts. Please wait 15 minutes before trying again, or use the button below to clear the rate limit (development only).");
+        } else {
+          setError(errorMessage || "Failed to sign in");
+        }
+      } else {
+        // Non-Error objects - likely a fetch response or other error
+        setError("Failed to sign in. If you see 'Too many requests' in the console, you've been rate limited.");
+        setIsRateLimited(true);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -394,8 +456,19 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
               </div>
 
               {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  {error}
+                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive space-y-2">
+                  <div>{error}</div>
+                  {isRateLimited && (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={clearRateLimit}
+                      className="mt-2 w-full"
+                    >
+                      Clear Rate Limit (Dev Only)
+                    </Button>
+                  )}
                 </div>
               )}
 

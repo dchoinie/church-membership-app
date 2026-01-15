@@ -138,12 +138,21 @@ export default function AuthLayout({
   // Redirect to login if not authenticated and not on public route
   // Only redirect after session has finished loading (isPending === false)
   // This prevents redirect loops when session cookie is still propagating after login
+  // Don't redirect if we're on subdomain root with ?login=true (prevents double redirect after login)
   useEffect(() => {
     // Wait for session to finish loading before making authentication decisions
     if (!isPending && !isAuthenticated && !isPublicRoute) {
-      router.replace("/?login=true");
+      // Check if we're on subdomain root with login param - if so, don't redirect
+      // This prevents redirect loop when user arrives at subdomain after login
+      // The page component will handle waiting for session and redirecting authenticated users
+      const isSubdomainRootWithLogin = pathname === "/" && typeof window !== "undefined" && 
+        new URLSearchParams(window.location.search).get("login") === "true";
+      
+      if (!isSubdomainRootWithLogin) {
+        router.replace("/?login=true");
+      }
     }
-  }, [isPending, isAuthenticated, isPublicRoute, router]);
+  }, [isPending, isAuthenticated, isPublicRoute, pathname, router]);
 
   // Show loading state only while session is being fetched
   // Middleware handles all redirects, so we just wait for session to load

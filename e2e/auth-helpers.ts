@@ -71,17 +71,21 @@ export async function loginFromRootDomain(
   // Wait for login dialog
   await expect(page.locator('text=Sign in to your account')).toBeVisible({ timeout: 10000 });
   
-  // Fill in credentials - wait for inputs to be visible
-  await page.locator('input[type="email"]').waitFor({ state: 'visible' });
-  await page.fill('input[type="email"]', email);
-  await page.locator('input[type="password"]').waitFor({ state: 'visible' });
-  await page.fill('input[type="password"]', password);
+  // Fill in credentials - use specific selectors for login dialog
+  const emailInput = page.locator('[role="dialog"] input[type="email"], dialog input[type="email"]').first();
+  const passwordInput = page.locator('[role="dialog"] input[type="password"], dialog input[type="password"]').first();
   
-  // Submit login form - use the one inside the dialog
-  await page.locator('dialog button:has-text("Sign In"), [role="dialog"] button:has-text("Sign In")').click();
+  await emailInput.waitFor({ state: 'visible' });
+  await emailInput.fill(email);
+  await passwordInput.waitFor({ state: 'visible' });
+  await passwordInput.fill(password);
+  
+  // Submit login form - target the submit button (type="submit"), not the tab
+  await page.locator('[role="dialog"] button[type="submit"]:has-text("Sign In"), dialog button[type="submit"]:has-text("Sign In")').click();
   
   // Wait for navigation (should redirect to subdomain)
-  await page.waitForURL(/\/dashboard|\/setup/, { timeout: 10000 });
+  // Allow both root domain redirects and subdomain redirects
+  await page.waitForURL(/\/dashboard|\/setup|http:\/\/.*\.localhost:3000\/(dashboard|setup)/, { timeout: 30000 });
 }
 
 /**
@@ -103,12 +107,17 @@ export async function loginFromSubdomain(
   // It should wait for session to load first
   await expect(page.locator('text=Sign in to your account')).toBeVisible({ timeout: 10000 });
   
-  // Fill in credentials
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+  // Fill in credentials - use specific selectors for login dialog
+  const emailInput = page.locator('[role="dialog"] input[type="email"], dialog input[type="email"]').first();
+  const passwordInput = page.locator('[role="dialog"] input[type="password"], dialog input[type="password"]').first();
   
-  // Submit login form
-  await page.click('button:has-text("Sign In")');
+  await emailInput.waitFor({ state: 'visible' });
+  await emailInput.fill(email);
+  await passwordInput.waitFor({ state: 'visible' });
+  await passwordInput.fill(password);
+  
+  // Submit login form - target the submit button
+  await page.locator('[role="dialog"] button[type="submit"]:has-text("Sign In"), dialog button[type="submit"]:has-text("Sign In")').click();
   
   // Wait for navigation
   await page.waitForURL(/\/dashboard|\/setup/, { timeout: 10000 });

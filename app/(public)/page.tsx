@@ -88,27 +88,39 @@ export default function LandingPage() {
   // Auto-open login dialog if on subdomain AND user is not authenticated
   // Wait for session to finish loading (isSessionPending === false) before making decisions
   // This prevents opening modal during redirect after successful login
+  // Don't open if login param is present (handled by separate useEffect above)
   useEffect(() => {
+    const loginParam = searchParams.get("login");
     // Only open login modal after session has finished loading
-    if (isSubdomain && !isSessionPending && !session?.user?.emailVerified) {
+    // Skip if login param is present (it's handled separately)
+    if (isSubdomain && !isSessionPending && !session?.user?.emailVerified && loginParam !== "true") {
       openLogin();
     }
-  }, [isSubdomain, isSessionPending, session, openLogin]);
+  }, [isSubdomain, isSessionPending, session, searchParams, openLogin]);
 
   // Auto-open login dialog if login parameter is present (from auth-layout redirect)
   // This happens when user tries to access a protected route without being authenticated
+  // Also handle login param on subdomain - wait for session to load before opening
   useEffect(() => {
     const loginParam = searchParams.get("login");
-    if (loginParam === "true" && !isSubdomain) {
-      openLogin();
-      // Clear the login parameter from URL after opening
-      if (typeof window !== "undefined") {
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete("login");
-        window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+    if (loginParam === "true") {
+      // Wait for session to finish loading before opening login dialog
+      // This prevents opening login dialog if user just logged in and session is still loading
+      if (!isSessionPending) {
+        // Only open login dialog if user is not authenticated
+        // If user is authenticated, they should be redirected by the other useEffect
+        if (!session?.user?.emailVerified) {
+          openLogin();
+        }
+        // Clear the login parameter from URL after handling
+        if (typeof window !== "undefined") {
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete("login");
+          window.history.replaceState({}, "", newUrl.pathname + newUrl.search);
+        }
       }
     }
-  }, [searchParams, isSubdomain, openLogin]);
+  }, [searchParams, isSubdomain, isSessionPending, session, openLogin]);
 
   // Auto-open login dialog if invite parameter is present
   useEffect(() => {
@@ -135,8 +147,9 @@ export default function LandingPage() {
 
   // Redirect authenticated users on subdomain root to /dashboard or /setup
   // Always redirect if authenticated, regardless of login param (prevents double login)
+  // Wait for session to finish loading before redirecting
   useEffect(() => {
-    if (isSubdomain && session?.user?.emailVerified) {
+    if (isSubdomain && !isSessionPending && session?.user?.emailVerified) {
       // Fetch church data to check subscription status
       const checkSubscriptionAndRedirect = async () => {
         try {
@@ -168,7 +181,7 @@ export default function LandingPage() {
       
       checkSubscriptionAndRedirect();
     }
-  }, [isSubdomain, session, router]);
+  }, [isSubdomain, isSessionPending, session, router]);
   
   if (isSubdomain) {
     // If user is authenticated, show loading while redirecting (handled by useEffect above)

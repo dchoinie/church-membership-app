@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { headers } from "next/headers";
 
 /**
@@ -24,6 +24,21 @@ setInterval(() => {
     }
   }
 }, 5 * 60 * 1000);
+
+/**
+ * Clear all rate limit entries (development only)
+ */
+export function clearRateLimitStore(): void {
+  rateLimitStore.clear();
+}
+
+/**
+ * Clear rate limit for a specific IP address (development only)
+ */
+export function clearRateLimitForIp(ip: string): void {
+  const key = `rate-limit:${ip}`;
+  rateLimitStore.delete(key);
+}
 
 /**
  * Rate limit configuration
@@ -67,27 +82,53 @@ export const RATE_LIMITS = {
 /**
  * Get client identifier for rate limiting
  * Uses IP address from headers
+ * Works with both NextRequest (middleware) and Request (route handlers)
  */
-async function getClientId(request: Request): Promise<string> {
-  const headersList = await headers();
-  const forwarded = headersList.get("x-forwarded-for");
-  const realIp = headersList.get("x-real-ip");
-  const ip = forwarded?.split(",")[0] || realIp || "unknown";
-
+async function getClientId(request: Request | NextRequest): Promise<string> {
+  let forwarded: string | null = null;
+  let realIp: string | null = null;
+  
+  // Both Request and NextRequest have headers property
+  // In middleware (NextRequest), we must use request.headers directly
+  // In route handlers (Request), we can also use request.headers
+  if (request.headers && typeof request.headers.get === 'function') {
+    // Use headers from request directly (works in both middleware and route handlers)
+    forwarded = request.headers.get("x-forwarded-for");
+    realIp = request.headers.get("x-real-ip");
+  } else {
+    // Fallback: try next/headers (only works in route handlers, not middleware)
+    try {
+      const headersList = await headers();
+      forwarded = headersList.get("x-forwarded-for");
+      realIp = headersList.get("x-real-ip");
+    } catch {
+      // headers() will fail in middleware - this is expected
+      // We should have already gotten headers from request.headers above
+    }
+  }
+  
+  // Extract IP from forwarded header (first IP in chain)
+  const ip = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
   return `rate-limit:${ip}`;
 }
 
 /**
  * Check rate limit for a request
  * Returns null if within limit, error response if exceeded
+ * Accepts both NextRequest (middleware) and Request (route handlers)
  */
 export async function checkRateLimit(
-  request: Request,
+  request: Request | NextRequest,
   config: RateLimitConfig
 ): Promise<NextResponse | null> {
   const clientId = await getClientId(request);
   const now = Date.now();
   const entry = rateLimitStore.get(clientId);
+  
+  // Debug logging in development
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[Rate Limit] Client ID: ${clientId}, Count: ${entry?.count || 0}/${config.maxRequests}, Reset At: ${entry ? new Date(entry.resetAt).toISOString() : 'N/A'}`);
+  }
 
   // No entry or expired entry - create new
   if (!entry || entry.resetAt < now) {
@@ -128,9 +169,10 @@ export async function checkRateLimit(
 /**
  * Rate limit middleware helper
  * Checks rate limit and returns error response if exceeded
+ * Accepts both NextRequest (middleware) and Request (route handlers)
  */
 export async function rateLimit(
-  request: Request,
+  request: Request | NextRequest,
   config: RateLimitConfig
 ): Promise<NextResponse | null> {
   return await checkRateLimit(request, config);

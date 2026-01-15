@@ -33,13 +33,29 @@ export async function middleware(request: NextRequest) {
     // Determine rate limit based on route type
     let rateLimitConfig: RateLimitConfig = RATE_LIMITS.API;
 
-    if (pathname.includes("/auth") || pathname.includes("/signup") || pathname.includes("/invite")) {
+    // Read-only auth endpoints (GET requests for session checks) should use lenient API rate limit
+    // These are called frequently during normal app usage and shouldn't be strictly limited
+    const isReadOnlyAuthRequest = 
+      pathname.includes("/auth") && 
+      (request.method === "GET" || 
+       pathname.includes("/get-session") || 
+       pathname.includes("/session"));
+    
+    // Authentication actions (sign-in, sign-up, etc.) should use strict AUTH rate limit
+    // Only apply strict limits to POST/PUT/DELETE requests to auth endpoints
+    const isAuthAction = 
+      (pathname.includes("/auth") && !isReadOnlyAuthRequest && request.method !== "GET") ||
+      (pathname.includes("/signup") && request.method !== "GET") || 
+      (pathname.includes("/invite") && request.method !== "GET");
+    
+    if (isAuthAction) {
       rateLimitConfig = RATE_LIMITS.AUTH;
     } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password")) {
       rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
     } else if (pathname.includes("/bulk")) {
       rateLimitConfig = RATE_LIMITS.BULK;
     }
+    // Read-only auth endpoints and other API routes use the default API rate limit (more lenient)
 
     const rateLimitResponse = await rateLimit(request, rateLimitConfig);
     if (rateLimitResponse) {

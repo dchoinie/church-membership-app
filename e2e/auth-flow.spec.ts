@@ -1,27 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './test-fixtures';
 import {
-  createTestUser,
   loginFromRootDomain,
   loginFromSubdomain,
-  expectAuthenticated,
-  expectRedirectedToLogin,
   waitForSessionLoad,
-  TestUser,
-  TestChurch,
 } from './auth-helpers';
 
 test.describe('Authentication Flow', () => {
-  const testUser: TestUser = {
-    email: `test-${Date.now()}@example.com`,
-    password: 'TestPassword123!',
-    name: 'Test User',
-  };
-
-  const testChurch: TestChurch = {
-    name: `Test Church ${Date.now()}`,
-    subdomain: `testchurch${Date.now()}`,
-  };
-
   test.beforeEach(async ({ context }) => {
     // Clear all cookies before each test
     // Note: localStorage/sessionStorage are domain-specific and will be cleared
@@ -29,35 +13,41 @@ test.describe('Authentication Flow', () => {
     await context.clearCookies();
   });
 
-  test('should create account and redirect to subdomain', async ({ page }) => {
-    await createTestUser(page, testUser, testChurch);
+  test('should create account and redirect to subdomain', async ({ page, testSetup }) => {
+    // Navigate to root domain
+    await page.goto('/', { waitUntil: 'networkidle' });
+    
+    // Click "Get Started" to open signup dialog
+    await page.locator('button:has-text("Get Started")').first().click();
+    
+    // Wait for signup dialog
+    await expect(page.locator('text=Create Your Church')).toBeVisible();
+    
+    // Fill in church information
+    await page.fill('input[name="churchName"]', testSetup.subdomain + ' Church');
+    await page.fill('input[name="subdomain"]', testSetup.subdomain);
+    
+    // Wait for subdomain validation
+    await page.waitForTimeout(500);
+    
+    // Fill in admin account information
+    await page.fill('input[name="adminName"]', 'Test Admin');
+    await page.fill('input[name="adminEmail"]', testSetup.email);
+    await page.fill('input[name="adminPassword"]', testSetup.password);
+    
+    // Select plan (basic)
+    await page.selectOption('select[name="plan"]', 'basic');
+    
+    // Submit form
+    await page.click('button:has-text("Create Church")');
     
     // Should show success message
-    await expect(page.locator('text=Church Created Successfully')).toBeVisible();
-    
-    // Note: User needs to verify email before they can login
-    // This test verifies the signup flow works
+    await expect(page.locator('text=Church Created Successfully')).toBeVisible({ timeout: 10000 });
   });
 
-  test('should login from root domain and redirect to subdomain dashboard', async ({ page }) => {
-    // First, create the user (in a real scenario, they'd verify email)
-    // For testing, we'll assume they're already created and verified
-    
-    // Navigate to root domain
-    await page.goto('/');
-    
-    // Click Sign In
-    await page.click('button:has-text("Sign In")');
-    
-    // Wait for login dialog
-    await expect(page.locator('text=Sign in to your account')).toBeVisible();
-    
-    // Fill credentials
-    await page.fill('input[type="email"]', testUser.email);
-    await page.fill('input[type="password"]', testUser.password);
-    
-    // Submit
-    await page.click('button:has-text("Sign In")');
+  test('should login from root domain and redirect to subdomain dashboard', async ({ page, testSetup }) => {
+    // Login from root domain using the test setup
+    await loginFromRootDomain(page, testSetup.email, testSetup.password);
     
     // Should redirect to subdomain (either /dashboard or /setup)
     // Wait for URL to change to subdomain
@@ -71,11 +61,11 @@ test.describe('Authentication Flow', () => {
     expect(url).toMatch(/\/dashboard|\/setup/);
   });
 
-  test('should NOT show login modal twice after redirect from root domain', async ({ page }) => {
+  test('should NOT show login modal twice after redirect from root domain', async ({ page, testSetup }) => {
     // This is the critical test for the bug we fixed
     
     // Login from root domain
-    await loginFromRootDomain(page, testUser.email, testUser.password);
+    await loginFromRootDomain(page, testSetup.email, testSetup.password);
     
     // Wait for session to propagate
     await waitForSessionLoad(page);
@@ -96,8 +86,8 @@ test.describe('Authentication Flow', () => {
     expect(isDashboard || isSetup).toBeTruthy();
   });
 
-  test('should login from subdomain directly', async ({ page }) => {
-    await loginFromSubdomain(page, testChurch.subdomain, testUser.email, testUser.password);
+  test('should login from subdomain directly', async ({ page, testSetup }) => {
+    await loginFromSubdomain(page, testSetup.subdomain, testSetup.email, testSetup.password);
     
     // Should redirect to dashboard or setup
     await page.waitForURL(/\/dashboard|\/setup/, { timeout: 10000 });
@@ -107,9 +97,9 @@ test.describe('Authentication Flow', () => {
     expect(url).toMatch(/\/dashboard|\/setup/);
   });
 
-  test('should redirect unauthenticated user to login when accessing protected route', async ({ page }) => {
+  test('should redirect unauthenticated user to login when accessing protected route', async ({ page, testSetup }) => {
     // Try to access protected route without authentication
-    await page.goto(`http://${testChurch.subdomain}.localhost:3000/dashboard`);
+    await page.goto(`http://${testSetup.subdomain}.localhost:3000/dashboard`);
     
     // Should redirect to root domain with login=true
     await page.waitForURL(/\/\?login=true/, { timeout: 5000 });
@@ -118,26 +108,26 @@ test.describe('Authentication Flow', () => {
     await expect(page.locator('text=Sign in to your account')).toBeVisible();
   });
 
-  test('should maintain session across page navigations', async ({ page }) => {
+  test('should maintain session across page navigations', async ({ page, testSetup }) => {
     // Login first
-    await loginFromRootDomain(page, testUser.email, testUser.password);
+    await loginFromRootDomain(page, testSetup.email, testSetup.password);
     
     // Wait for redirect and session load
     await waitForSessionLoad(page);
     
     // Navigate to different pages
-    await page.goto(`http://${testChurch.subdomain}.localhost:3000/dashboard`);
+    await page.goto(`http://${testSetup.subdomain}.localhost:3000/dashboard`);
     await expect(page.locator('text=Dashboard')).toBeVisible({ timeout: 5000 });
     
-    await page.goto(`http://${testChurch.subdomain}.localhost:3000/settings`);
+    await page.goto(`http://${testSetup.subdomain}.localhost:3000/settings`);
     // Should still be authenticated (not redirected to login)
     await expect(page.url()).toContain('/settings');
     expect(page.url()).not.toContain('?login=true');
   });
 
-  test('should handle session loading state correctly', async ({ page }) => {
+  test('should handle session loading state correctly', async ({ page, testSetup }) => {
     // Navigate to subdomain root
-    await page.goto(`http://${testChurch.subdomain}.localhost:3000/`, { waitUntil: 'networkidle' });
+    await page.goto(`http://${testSetup.subdomain}.localhost:3000/`, { waitUntil: 'networkidle' });
     
     // Wait for page to load and session check to complete
     await page.waitForLoadState('networkidle');
