@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { LogOut, CheckCircle2, XCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -14,8 +13,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+/**
+ * Get root domain from current origin
+ * e.g., "church1.simplechurchtools.com" -> "simplechurchtools.com"
+ * e.g., "church1.localhost:3000" -> "localhost:3000"
+ */
+function getRootDomain(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  
+  const hostname = window.location.hostname;
+  const parts = hostname.split(".");
+  
+  // Handle localhost subdomains
+  if (parts.length === 2 && parts[1] === "localhost") {
+    return "localhost";
+  }
+  
+  // For production subdomains, extract root domain (last 2 parts)
+  if (parts.length > 2) {
+    return parts.slice(-2).join(".");
+  }
+  
+  // Already root domain
+  return hostname;
+}
+
 export function UserMenu() {
-  const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user;
 
@@ -26,10 +51,25 @@ export function UserMenu() {
   const handleSignOut = async () => {
     try {
       await authClient.signOut();
-      router.push("/");
-      router.refresh();
+      
+      // Get root domain and redirect there
+      const rootDomain = getRootDomain();
+      const protocol = window.location.protocol;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      
+      // Build root domain URL
+      const rootUrl = `${protocol}//${rootDomain}${port}/`;
+      
+      // Use window.location.href for full page reload to ensure session is cleared
+      // This matches the pattern used in login-dialog.tsx
+      window.location.href = rootUrl;
     } catch (error) {
       console.error("Failed to sign out:", error);
+      // Even if signOut fails, try to redirect to root domain
+      const rootDomain = getRootDomain();
+      const protocol = window.location.protocol;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      window.location.href = `${protocol}//${rootDomain}${port}/`;
     }
   };
 
