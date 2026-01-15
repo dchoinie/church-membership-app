@@ -17,15 +17,37 @@ const getBaseURL = () => {
     }
     
     // Production - use BETTER_AUTH_PROD_URL or fallback
+    // IMPORTANT: baseURL should be the root domain (not a subdomain) for better-auth
+    // to properly validate subdomain origins
     const prodUrl = process.env.BETTER_AUTH_PROD_URL || process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "localhost:3000"
     
-    // Ensure URL has a protocol
+    let url: string
     if (prodUrl.startsWith("http://") || prodUrl.startsWith("https://")) {
-        return prodUrl
+        url = prodUrl
+    } else {
+        // Default to https in production
+        url = `https://${prodUrl}`
     }
     
-    // Default to https in production
-    return `https://${prodUrl}`
+    // Extract root domain if URL contains a subdomain
+    try {
+        const urlObj = new URL(url)
+        const hostname = urlObj.hostname
+        
+        // Extract root domain (e.g., "example.com" from "subdomain.example.com")
+        const domainParts = hostname.split('.')
+        if (domainParts.length > 2) {
+            // Has subdomain, extract root domain
+            const rootDomain = domainParts.slice(-2).join('.')
+            return `${urlObj.protocol}//${rootDomain}${urlObj.port ? `:${urlObj.port}` : ''}`
+        }
+        
+        // No subdomain or already root domain
+        return url
+    } catch {
+        // If URL parsing fails, return as-is
+        return url
+    }
 }
 
 const getCookieDomain = () => {
@@ -46,6 +68,25 @@ const getCookieDomain = () => {
     }
     
     return cleanDomain
+}
+
+const getTrustedOrigins = (): string[] | undefined => {
+    if (process.env.NODE_ENV === "development") {
+        // In development, allow localhost origins
+        return [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+    }
+    
+    // In production, don't restrict trustedOrigins to allow subdomains
+    // Better-auth will validate origins against baseURL, and if baseURL is set to root domain,
+    // it should accept subdomains. If we explicitly set trustedOrigins with only root domain,
+    // it might do strict matching and reject subdomains.
+    // 
+    // By returning undefined, we let better-auth use its default validation which should
+    // be more permissive with subdomains when baseURL is set correctly.
+    return undefined
 }
 
 export const auth = betterAuth({
@@ -127,9 +168,7 @@ export const auth = betterAuth({
         sendOnSignUp: false, // We'll handle sending manually for invite signups
         autoSignInAfterVerification: false,
     },
-    trustedOrigins: process.env.NODE_ENV === "production" 
-        ? undefined // Allow all subdomains by not restricting origins
-        : undefined,
+    trustedOrigins: getTrustedOrigins(),
     advanced: {
         useSecureCookies: process.env.NODE_ENV === "production",
         crossSubDomainCookies: process.env.NODE_ENV === "development"
