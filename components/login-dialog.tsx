@@ -202,31 +202,32 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           });
           
           if (churchResponse.ok) {
-            const { subdomain, churchId } = await churchResponse.json();
+            const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId } = await churchResponse.json();
             
-            // Fetch church data to check subscription status
-            // We need to make this call from the subdomain, so we'll redirect to subdomain
-            // and let middleware/page handle the subscription check
-            // But we can try to get subscription info from a different endpoint if available
-            // For now, redirect to subdomain root and let middleware handle it
+            // Check subscription status to determine redirect path
+            const hasActiveSubscription = 
+              subscriptionStatus === "active" ||
+              (subscriptionStatus === "trialing" && stripeSubscriptionId !== null);
             
-            // Build subdomain URL - redirect to root, middleware will handle redirect to /dashboard or /setup
+            // Build subdomain URL - redirect directly to /dashboard or /setup
             const baseUrl = window.location.origin;
             const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
             
+            const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
             let subdomainUrl: string;
+            
             if (isLocalhost) {
               const port = window.location.port ? `:${window.location.port}` : '';
-              subdomainUrl = `http://${subdomain}.localhost${port}/`;
+              subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
             } else {
               subdomainUrl = `${baseUrl.replace(
                 /^https?:\/\//,
                 `https://${subdomain}.`
-              )}/`;
+              )}${targetPath}`;
             }
             
             onOpenChange(false);
-            // Redirect to subdomain root - middleware will redirect to /dashboard or /setup based on subscription
+            // Redirect directly to /dashboard or /setup on subdomain - bypasses root page logic
             window.location.href = subdomainUrl;
             return;
           } else {

@@ -61,6 +61,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       subdomain: church.subdomain,
       churchId: church.id,
+      subscriptionStatus: church.subscriptionStatus,
+      stripeSubscriptionId: church.stripeSubscriptionId,
     });
   } catch (error) {
     console.error("Error fetching user's church subdomain:", error);

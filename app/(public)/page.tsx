@@ -81,12 +81,12 @@ export default function LandingPage() {
     return verified === "true" && signin === "true";
   }, [searchParams]);
 
-  // Auto-open login dialog if on subdomain
+  // Auto-open login dialog if on subdomain AND user is not authenticated
   useEffect(() => {
-    if (isSubdomain) {
+    if (isSubdomain && !session?.user?.emailVerified) {
       openLogin();
     }
-  }, [isSubdomain, openLogin]);
+  }, [isSubdomain, session, openLogin]);
 
   // Auto-open login dialog if login parameter is present (from auth-layout redirect)
   // This happens when user tries to access a protected route without being authenticated
@@ -132,10 +132,9 @@ export default function LandingPage() {
   const router = useRouter();
   
   // Redirect authenticated users on subdomain root to /dashboard or /setup
-  // But only if login=true param is not present (to prevent redirect loops)
+  // Always redirect if authenticated, regardless of login param (prevents double login)
   useEffect(() => {
-    const loginParam = searchParams.get("login");
-    if (isSubdomain && session?.user?.emailVerified && loginParam !== "true") {
+    if (isSubdomain && session?.user?.emailVerified) {
       // Fetch church data to check subscription status
       const checkSubscriptionAndRedirect = async () => {
         try {
@@ -167,12 +166,11 @@ export default function LandingPage() {
       
       checkSubscriptionAndRedirect();
     }
-  }, [isSubdomain, session, router, searchParams]);
+  }, [isSubdomain, session, router]);
   
   if (isSubdomain) {
-    const loginParam = searchParams.get("login");
-    // If user is authenticated and not coming from auth-layout redirect, show loading while redirecting
-    if (session?.user?.emailVerified && loginParam !== "true") {
+    // If user is authenticated, show loading while redirecting (handled by useEffect above)
+    if (session?.user?.emailVerified) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-muted-foreground">Redirecting...</div>
