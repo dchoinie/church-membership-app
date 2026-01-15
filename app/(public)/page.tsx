@@ -82,15 +82,18 @@ export default function LandingPage() {
   }, [searchParams]);
 
   // Get session and router - needed for authentication checks
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
   const router = useRouter();
 
   // Auto-open login dialog if on subdomain AND user is not authenticated
+  // Wait for session to finish loading (isSessionPending === false) before making decisions
+  // This prevents opening modal during redirect after successful login
   useEffect(() => {
-    if (isSubdomain && !session?.user?.emailVerified) {
+    // Only open login modal after session has finished loading
+    if (isSubdomain && !isSessionPending && !session?.user?.emailVerified) {
       openLogin();
     }
-  }, [isSubdomain, session, openLogin]);
+  }, [isSubdomain, isSessionPending, session, openLogin]);
 
   // Auto-open login dialog if login parameter is present (from auth-layout redirect)
   // This happens when user tries to access a protected route without being authenticated

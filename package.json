@@ -12,7 +12,11 @@
     "db:studio": "drizzle-kit studio --port 4983",
     "db:push": "drizzle-kit push",
     "db:test": "tsx scripts/test-db-connection.ts",
-    "create-super-admin": "tsx scripts/create-super-admin.ts"
+    "create-super-admin": "tsx scripts/create-super-admin.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -75,6 +79,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

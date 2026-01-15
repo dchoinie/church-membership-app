@@ -136,7 +136,10 @@ export default function AuthLayout({
   const isAuthenticated = !!session?.user;
 
   // Redirect to login if not authenticated and not on public route
+  // Only redirect after session has finished loading (isPending === false)
+  // This prevents redirect loops when session cookie is still propagating after login
   useEffect(() => {
+    // Wait for session to finish loading before making authentication decisions
     if (!isPending && !isAuthenticated && !isPublicRoute) {
       router.replace("/?login=true");
     }
