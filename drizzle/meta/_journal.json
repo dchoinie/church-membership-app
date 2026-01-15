@@ -127,6 +127,13 @@
       "when": 1768341403516,
       "tag": "0017_optimal_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1768519923909,
+      "tag": "0018_zippy_plazm",
+      "breakpoints": true
     }
   ]
 }

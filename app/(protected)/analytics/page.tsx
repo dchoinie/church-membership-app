@@ -29,6 +29,7 @@ interface AttendanceAnalytics {
     serviceId: string;
     serviceDate: string;
     serviceType: string;
+    serviceTime?: string | null;
     totalAttendance: number;
     totalCommunion: number;
     maleCount: number;
@@ -111,6 +112,21 @@ const formatServiceType = (type: string) => {
     festival: "Festival",
   };
   return types[type] || type;
+};
+
+const formatTime = (timeString: string | null | undefined) => {
+  if (!timeString) return "";
+  try {
+    const [hours, minutes] = timeString.split(":");
+    const hour = parseInt(hours, 10);
+    const minute = parseInt(minutes, 10);
+    const today = new Date();
+    const serviceDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
+    const formatted = serviceDateTime.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    return formatted;
+  } catch {
+    return timeString;
+  }
 };
 
 const formatDate = (dateString: string) => {
@@ -311,12 +327,19 @@ export default function AnalyticsPage() {
     .slice()
     .reverse()
     .slice(0, 20)
-    .map((service) => ({
-      date: formatDate(service.serviceDate),
-      attendance: service.totalAttendance,
-      communion: service.totalCommunion,
-      serviceType: formatServiceType(service.serviceType),
-    })) || [];
+    .map((service) => {
+      const dateLabel = formatDate(service.serviceDate);
+      const timeLabel = service.serviceTime ? formatTime(service.serviceTime) : "";
+      const dateTimeLabel = timeLabel ? `${dateLabel} ${timeLabel}` : dateLabel;
+      return {
+        date: dateTimeLabel,
+        dateOnly: dateLabel,
+        time: timeLabel,
+        attendance: service.totalAttendance,
+        communion: service.totalCommunion,
+        serviceType: formatServiceType(service.serviceType),
+      };
+    }) || [];
 
   const serviceTypeDistribution = analytics?.attendancePerService.reduce(
     (acc, service) => {
@@ -1074,7 +1097,27 @@ export default function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" angle={-45} textAnchor="end" height={100} />
                       <YAxis />
-                      <Tooltip />
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                <p className="font-medium">{data.date}</p>
+                                {data.serviceType && (
+                                  <p className="text-sm text-muted-foreground">{data.serviceType}</p>
+                                )}
+                                {payload.map((entry, index) => (
+                                  <p key={index} style={{ color: entry.color }}>
+                                    {entry.name}: {entry.value}
+                                  </p>
+                                ))}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                       <Legend />
                       <Bar dataKey="attendance" fill="#8884d8" name="Attendance" />
                       <Bar dataKey="communion" fill="#82ca9d" name="Communion" />

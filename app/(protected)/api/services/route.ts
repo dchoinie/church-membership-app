@@ -126,6 +126,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate service time format if provided (HH:MM:SS)
+    let serviceTime: string | undefined = undefined;
+    if (body.serviceTime !== undefined && body.serviceTime !== null && body.serviceTime !== "") {
+      if (typeof body.serviceTime !== "string") {
+        return NextResponse.json(
+          { error: "Service time must be a string" },
+          { status: 400 },
+        );
+      }
+      // Validate format: HH:MM:SS or HH:MM
+      const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
+      if (!timeRegex.test(body.serviceTime)) {
+        return NextResponse.json(
+          { error: "Invalid time format (use HH:MM or HH:MM:SS)" },
+          { status: 400 },
+        );
+      }
+      // Normalize to HH:MM:SS format
+      const timeParts = body.serviceTime.split(":");
+      if (timeParts.length === 2) {
+        serviceTime = `${timeParts[0].padStart(2, "0")}:${timeParts[1].padStart(2, "0")}:00`;
+      } else {
+        serviceTime = body.serviceTime;
+      }
+    }
+
     // Check if service already exists for this date and type (within same church)
     const [existingService] = await db
       .select()
@@ -153,6 +179,7 @@ export async function POST(request: Request) {
         churchId,
         serviceDate,
         serviceType: body.serviceType,
+        serviceTime: serviceTime || null,
       })
       .returning();
 

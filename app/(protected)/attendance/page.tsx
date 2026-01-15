@@ -73,6 +73,7 @@ interface Service {
   id: string;
   serviceDate: string;
   serviceType: string;
+  serviceTime?: string | null;
 }
 
 interface AttendanceRecord {
@@ -92,6 +93,7 @@ interface AttendanceRecord {
     id: string;
     serviceDate: string;
     serviceType: string;
+    serviceTime?: string | null;
   };
 }
 
@@ -99,6 +101,7 @@ interface ServiceWithStats {
   serviceId: string;
   serviceDate: string;
   serviceType: string;
+  serviceTime?: string | null;
   createdAt: string;
   updatedAt: string;
   attendeesCount: number;
@@ -123,6 +126,7 @@ interface ServiceFormData {
   serviceDate: string;
   serviceType: string;
   customServiceType?: string;
+  serviceTime?: string;
 }
 
 const SERVICE_TYPES = [
@@ -166,6 +170,7 @@ export default function AttendancePage() {
       serviceDate: new Date().toISOString().split("T")[0],
       serviceType: "divine_service",
       customServiceType: "",
+      serviceTime: "",
     },
     mode: "onChange",
   });
@@ -346,6 +351,21 @@ export default function AttendancePage() {
         ? data.customServiceType?.trim() || "" 
         : data.serviceType;
 
+      // Convert service time to UTC format (HH:MM:SS) if provided
+      // The time input gives us local time, we'll store it as-is (church local time)
+      // and convert to user timezone when displaying
+      let serviceTime: string | undefined = undefined;
+      if (data.serviceTime && data.serviceTime.trim() !== "") {
+        // Ensure time is in HH:MM:SS format
+        const timeParts = data.serviceTime.split(":");
+        if (timeParts.length >= 2) {
+          const hours = timeParts[0].padStart(2, "0");
+          const minutes = timeParts[1].padStart(2, "0");
+          const seconds = timeParts[2]?.padStart(2, "0") || "00";
+          serviceTime = `${hours}:${minutes}:${seconds}`;
+        }
+      }
+
       const response = await fetch("/api/services", {
         method: "POST",
         headers: {
@@ -354,6 +374,7 @@ export default function AttendancePage() {
         body: JSON.stringify({
           serviceDate: data.serviceDate,
           serviceType: finalServiceType,
+          serviceTime: serviceTime,
         }),
       });
 
@@ -371,6 +392,7 @@ export default function AttendancePage() {
         serviceDate: new Date().toISOString().split("T")[0],
         serviceType: "divine_service",
         customServiceType: "",
+        serviceTime: "",
       });
     } catch (error) {
       console.error("Error creating service:", error);
@@ -502,6 +524,28 @@ export default function AttendancePage() {
     }
   };
 
+  const formatTime = (timeString: string | null | undefined) => {
+    if (!timeString) return "";
+    try {
+      // Time is stored as HH:MM:SS in church local time
+      // Display as-is (church local time) since we don't have church timezone info
+      const [hours, minutes] = timeString.split(":");
+      const hour = parseInt(hours, 10);
+      const minute = parseInt(minutes, 10);
+      
+      // Create a date object for today with the service time
+      // This will be interpreted in the user's browser timezone
+      const today = new Date();
+      const serviceDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
+      
+      // Format in 12-hour format with AM/PM
+      return format(serviceDateTime, "h:mm a");
+    } catch {
+      // Fallback: just return the time string if parsing fails
+      return timeString;
+    }
+  };
+
   const selectedService = services.find((s) => s.id === selectedServiceId);
 
   return (
@@ -530,6 +574,7 @@ export default function AttendancePage() {
                     serviceDate: new Date().toISOString().split("T")[0],
                     serviceType: "divine_service",
                     customServiceType: "",
+                    serviceTime: "",
                   });
                 }
               }}
@@ -604,6 +649,23 @@ export default function AttendancePage() {
                         )}
                       />
                     )}
+                    <FormField
+                      control={serviceForm.control}
+                      name="serviceTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Time (Optional)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="time" 
+                              {...field} 
+                              placeholder="HH:MM"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <DialogFooter>
                       <Button
                         type="button"
@@ -631,7 +693,8 @@ export default function AttendancePage() {
             <>
               {selectedService && (
                 <div className="text-sm text-muted-foreground mb-4">
-                  Service: {formatDate(selectedService.serviceDate)} - {formatServiceType(selectedService.serviceType)}
+                  Service: {formatDate(selectedService.serviceDate)}
+                  {selectedService.serviceTime && ` at ${formatTime(selectedService.serviceTime)}`} - {formatServiceType(selectedService.serviceType)}
                 </div>
               )}
 
@@ -745,7 +808,14 @@ export default function AttendancePage() {
                               formatServiceType(service.serviceType)
                             )}
                           </TableCell>
-                          <TableCell className="text-xs md:text-sm">{formatDate(service.serviceDate)}</TableCell>
+                          <TableCell className="text-xs md:text-sm">
+                            {formatDate(service.serviceDate)}
+                            {service.serviceTime && (
+                              <span className="text-muted-foreground ml-2">
+                                {formatTime(service.serviceTime)}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-center text-xs md:text-sm">
                             {service.attendeesCount}
                           </TableCell>
@@ -884,7 +954,8 @@ export default function AttendancePage() {
               <div>
                 <Label className="text-sm font-medium">Service</Label>
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(editingRecord.service.serviceDate)} - {formatServiceType(editingRecord.service.serviceType)}
+                  {formatDate(editingRecord.service.serviceDate)}
+                  {editingRecord.service.serviceTime && ` at ${formatTime(editingRecord.service.serviceTime)}`} - {formatServiceType(editingRecord.service.serviceType)}
                 </p>
               </div>
               <div className="flex items-center space-x-2">
@@ -958,7 +1029,8 @@ export default function AttendancePage() {
               {selectedServiceForDelete && (
                 <>
                   This will permanently delete the service from{" "}
-                  <strong>{formatDate(selectedServiceForDelete.serviceDate)}</strong> (
+                  <strong>{formatDate(selectedServiceForDelete.serviceDate)}
+                  {selectedServiceForDelete.serviceTime && ` at ${formatTime(selectedServiceForDelete.serviceTime)}`}</strong> (
                   {formatServiceType(selectedServiceForDelete.serviceType)}) and all associated
                   attendance records ({selectedServiceForDelete.attendeesCount} attendees).
                   This action cannot be undone.

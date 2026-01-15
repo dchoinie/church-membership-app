@@ -111,6 +111,36 @@ export async function PUT(
 
     const finalServiceType = body.serviceType !== undefined ? body.serviceType : existingService.serviceType;
 
+    // Validate service time format if provided (HH:MM:SS)
+    let serviceTime: string | null | undefined = undefined;
+    if (body.serviceTime !== undefined) {
+      if (body.serviceTime === null || body.serviceTime === "") {
+        serviceTime = null;
+      } else {
+        if (typeof body.serviceTime !== "string") {
+          return NextResponse.json(
+            { error: "Service time must be a string" },
+            { status: 400 },
+          );
+        }
+        // Validate format: HH:MM:SS or HH:MM
+        const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/;
+        if (!timeRegex.test(body.serviceTime)) {
+          return NextResponse.json(
+            { error: "Invalid time format (use HH:MM or HH:MM:SS)" },
+            { status: 400 },
+          );
+        }
+        // Normalize to HH:MM:SS format
+        const timeParts = body.serviceTime.split(":");
+        if (timeParts.length === 2) {
+          serviceTime = `${timeParts[0].padStart(2, "0")}:${timeParts[1].padStart(2, "0")}:00`;
+        } else {
+          serviceTime = body.serviceTime;
+        }
+      }
+    }
+
     // Check if another service exists with same date and type (within same church)
     if (body.serviceDate !== undefined || body.serviceType !== undefined) {
       const [duplicate] = await db
@@ -134,14 +164,27 @@ export async function PUT(
       }
     }
 
+    // Build update object
+    const updateData: {
+      serviceDate: string;
+      serviceType: string;
+      serviceTime?: string | null;
+      updatedAt: Date;
+    } = {
+      serviceDate,
+      serviceType: finalServiceType,
+      updatedAt: new Date(),
+    };
+
+    // Only include serviceTime in update if it was provided
+    if (serviceTime !== undefined) {
+      updateData.serviceTime = serviceTime;
+    }
+
     // Update service
     const [updatedService] = await db
       .update(services)
-      .set({
-        serviceDate,
-        serviceType: finalServiceType,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(services.id, id))
       .returning();
 

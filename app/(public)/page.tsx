@@ -25,6 +25,7 @@ import {
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { useMarketing } from "@/components/marketing-context";
 import { authClient } from "@/lib/auth-client";
+import Image from "next/image";
 
 /**
  * Extract subdomain from hostname (client-side)
@@ -341,17 +342,7 @@ export default function LandingPage() {
           {/* Hero Image Placeholder */}
           <div className="mt-16 max-w-5xl mx-auto">
             <div className="relative rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 aspect-video flex items-center justify-center">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <FileText className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-muted-foreground font-medium">
-                  Dashboard Screenshot Placeholder
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Replace this with a screenshot of your dashboard
-                </p>
-              </div>
+              <Image src="/dashboard_1.png" alt="Dashboard" width={1000} height={1000} />
             </div>
           </div>
         </div>
@@ -412,17 +403,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="relative rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 aspect-video flex items-center justify-center">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <Zap className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-muted-foreground font-medium">
-                  Interface Screenshot Placeholder
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Replace this with a screenshot of your interface
-                </p>
-              </div>
+              <Image src="/ui_1.png" alt="UI" width={1000} height={1000} />
             </div>
           </div>
         </div>
@@ -434,14 +415,14 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your church size. All plans include a 14-day free trial.
+              Choose the plan that fits your church size.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto">
             {pricingPlans.map((plan, index) => (
               <div
                 key={index}
-                className={`relative p-8 rounded-lg border-2 ${
+                className={`relative p-8 rounded-lg border-2 w-full md:w-[calc(50%-1rem)] ${
                   plan.popular
                     ? "border-primary bg-background shadow-lg"
                     : "border-border bg-background"

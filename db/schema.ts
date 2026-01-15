@@ -301,6 +301,7 @@ export const services = pgTable(
       .references(() => churches.id, { onDelete: "cascade" }),
     serviceDate: date("service_date").notNull(),
     serviceType: text("service_type").notNull(), // Changed from enum to text to support custom types
+    serviceTime: text("service_time"), // Stored as HH:MM:SS format (local church time), converted to user timezone on display
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

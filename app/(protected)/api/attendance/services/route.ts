@@ -27,6 +27,7 @@ export async function GET(request: Request) {
         serviceId: services.id,
         serviceDate: services.serviceDate,
         serviceType: services.serviceType,
+        serviceTime: services.serviceTime,
         createdAt: services.createdAt,
         updatedAt: services.updatedAt,
         attendeesCount: sql<number>`count(${attendance.id})::int`.as("attendees_count"),
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
       .from(services)
       .leftJoin(attendance, eq(services.id, attendance.serviceId))
       .where(eq(services.churchId, churchId))
-      .groupBy(services.id, services.serviceDate, services.serviceType, services.createdAt, services.updatedAt)
+      .groupBy(services.id, services.serviceDate, services.serviceType, services.serviceTime, services.createdAt, services.updatedAt)
       .orderBy(desc(services.serviceDate))
       .limit(validPageSize)
       .offset(offset);

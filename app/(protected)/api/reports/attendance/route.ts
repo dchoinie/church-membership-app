@@ -88,6 +88,7 @@ export async function GET(request: Request) {
         serviceId: service.id,
         serviceDate: service.serviceDate,
         serviceType: service.serviceType,
+        serviceTime: service.serviceTime,
         totalAttendance: totalAttended,
         totalCommunion,
         maleCount,
