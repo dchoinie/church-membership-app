@@ -81,6 +81,10 @@ export default function LandingPage() {
     return verified === "true" && signin === "true";
   }, [searchParams]);
 
+  // Get session and router - needed for authentication checks
+  const { data: session } = authClient.useSession();
+  const router = useRouter();
+
   // Auto-open login dialog if on subdomain AND user is not authenticated
   useEffect(() => {
     if (isSubdomain && !session?.user?.emailVerified) {
@@ -126,11 +130,6 @@ export default function LandingPage() {
     }
   }, [showVerifiedMessage, openLogin]);
 
-  // If on subdomain, show login page instead of marketing page
-  // But check if user is already authenticated - redirect to /dashboard or /setup
-  const { data: session } = authClient.useSession();
-  const router = useRouter();
-  
   // Redirect authenticated users on subdomain root to /dashboard or /setup
   // Always redirect if authenticated, regardless of login param (prevents double login)
   useEffect(() => {
