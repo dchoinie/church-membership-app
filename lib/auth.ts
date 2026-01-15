@@ -58,9 +58,27 @@ const getCookieDomain = () => {
     }
     
     // For production, use the root domain with dot prefix for subdomain support
-    const domain = process.env.BETTER_AUTH_PROD_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || "simplechurchtools.com"
-    // Remove protocol and port if present, extract just the domain
-    let cleanDomain = domain.replace(/^https?:\/\//, "").split(":")[0]
+    // Check same env vars as getBaseURL() for consistency
+    const domain = process.env.BETTER_AUTH_PROD_URL || process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || "simplechurchtools.com"
+    
+    // Extract root domain if URL contains a subdomain (same logic as getBaseURL)
+    let cleanDomain: string
+    try {
+        // Remove protocol and port if present, extract just the domain
+        let domainOnly = domain.replace(/^https?:\/\//, "").split(":")[0].split("/")[0]
+        
+        // Extract root domain (e.g., "example.com" from "subdomain.example.com")
+        const domainParts = domainOnly.split('.')
+        if (domainParts.length > 2) {
+            // Has subdomain, extract root domain
+            cleanDomain = domainParts.slice(-2).join('.')
+        } else {
+            cleanDomain = domainOnly
+        }
+    } catch {
+        // If parsing fails, fallback to simple extraction
+        cleanDomain = domain.replace(/^https?:\/\//, "").split(":")[0].split("/")[0]
+    }
     
     // Add dot prefix if not already present (for subdomain cookie sharing)
     if (!cleanDomain.startsWith(".")) {
