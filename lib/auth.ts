@@ -97,14 +97,29 @@ const getTrustedOrigins = (): string[] | undefined => {
         ]
     }
     
-    // In production, don't restrict trustedOrigins to allow subdomains
-    // Better-auth will validate origins against baseURL, and if baseURL is set to root domain,
-    // it should accept subdomains. If we explicitly set trustedOrigins with only root domain,
-    // it might do strict matching and reject subdomains.
-    // 
-    // By returning undefined, we let better-auth use its default validation which should
-    // be more permissive with subdomains when baseURL is set correctly.
-    return undefined
+    // In production, explicitly allow root domain and all subdomains using wildcards
+    // Better-auth supports wildcard patterns like "https://*.example.com" to trust all subdomains
+    const baseUrl = getBaseURL()
+    
+    try {
+        const urlObj = new URL(baseUrl)
+        const rootDomain = urlObj.hostname
+        const protocol = urlObj.protocol // "https:" or "http:"
+        
+        // Build trusted origins array with root domain and wildcard subdomain pattern
+        const origins: string[] = [
+            `${protocol}//${rootDomain}`, // Root domain
+            `${protocol}//*.${rootDomain}`, // All subdomains (wildcard)
+        ]
+        
+        // Also include without protocol for flexibility (though better-auth prefers full URLs)
+        // But better-auth expects full URLs, so we'll stick with protocol-prefixed
+        
+        return origins
+    } catch {
+        // If URL parsing fails, return undefined to let better-auth use default
+        return undefined
+    }
 }
 
 export const auth = betterAuth({
