@@ -104,6 +104,7 @@ export default function AuthLayout({
   const [church, setChurch] = useState<Church | null>(null);
 
   // Fetch church data for branding (only for authenticated, non-public routes)
+  // Only fetch once when needed - prevents refetching on every route change
   useEffect(() => {
     const fetchChurch = async () => {
       try {
@@ -118,10 +119,12 @@ export default function AuthLayout({
     };
 
     const isPublicRoute = publicRoutes.includes(pathname);
-    if (!isPublicRoute && session?.user) {
+    // Only fetch if authenticated, not on public route, and church data not already loaded
+    // The !church check prevents unnecessary refetches when navigating between protected routes
+    if (!isPublicRoute && session?.user && !church) {
       fetchChurch();
     }
-  }, [pathname, session]);
+  }, [pathname, session, church]); // Include church to satisfy exhaustive-deps, but !church guard prevents refetch loops
 
   // Close mobile menu when route changes
   useEffect(() => {
