@@ -22,30 +22,6 @@ interface LoginDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/**
- * Extract subdomain from hostname (client-side)
- */
-function extractSubdomain(hostname: string): string | null {
-  const hostWithoutPort = hostname.split(":")[0];
-  const parts = hostWithoutPort.split(".");
-  
-  if (parts.length <= 1 || hostWithoutPort === "localhost") {
-    return null;
-  }
-  
-  // Handle subdomain.localhost format for local development
-  if (parts.length === 2 && parts[1] === "localhost") {
-    return parts[0];
-  }
-  
-  // For subdomain.domain.com, return the subdomain
-  if (parts.length >= 3) {
-    return parts[0];
-  }
-  
-  return null;
-}
-
 export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -202,18 +178,12 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         throw new Error(signInError.message || "Failed to sign in");
       }
 
-      // Force refresh the session and wait for it to be available
-      // The useSession hook needs time to update after sign-in
-      await authClient.getSession();
-      
-      // Wait a bit more and verify session is actually available
-      // Sometimes the cookie needs a moment to propagate
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Verify session one more time
+      // Use signInResponse directly - it contains all user data immediately after sign-in
+      // The cookie is set synchronously by the browser, no timeout needed
+      // Refresh session hook state for components using useSession()
       await authClient.getSession();
 
-      // Check email verification status
+      // Check email verification status using signInResponse directly
       if (signInResponse?.user && !signInResponse.user.emailVerified) {
         // User is not verified, redirect to verification page
         onOpenChange(false);
@@ -222,98 +192,59 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         return;
       }
 
-      // User is verified - check subscription status and redirect accordingly
-      const isOnSubdomain = extractSubdomain(window.location.hostname);
-      
-      if (!isOnSubdomain) {
-        // We're on root domain - need to get user's church subdomain and subscription status
-        try {
-          const churchResponse = await fetch("/api/user/church-subdomain", {
-            credentials: "include",
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+      // User is verified - fetch church subdomain and redirect to appropriate subdomain
+      // Login always happens from root domain, so we always need to fetch the subdomain
+      try {
+        const churchResponse = await fetch("/api/user/church-subdomain", {
+          credentials: "include",
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        
+        if (churchResponse.ok) {
+          const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId } = await churchResponse.json();
           
-          if (churchResponse.ok) {
-            const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId } = await churchResponse.json();
-            
-            // Check subscription status to determine redirect path
-            const hasActiveSubscription = 
-              subscriptionStatus === "active" ||
-              (subscriptionStatus === "trialing" && stripeSubscriptionId !== null);
-            
-            // Build subdomain URL - redirect directly to /dashboard or /setup
-            const baseUrl = window.location.origin;
-            const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-            
-            const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
-            let subdomainUrl: string;
-            
-            if (isLocalhost) {
-              const port = window.location.port ? `:${window.location.port}` : '';
-              subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
-            } else {
-              subdomainUrl = `${baseUrl.replace(
-                /^https?:\/\//,
-                `https://${subdomain}.`
-              )}${targetPath}`;
-            }
-            
-            onOpenChange(false);
-            // Redirect directly to /dashboard or /setup on subdomain - bypasses root page logic
-            window.location.href = subdomainUrl;
-            return;
+          // Check subscription status to determine redirect path
+          const hasActiveSubscription = 
+            subscriptionStatus === "active" ||
+            (subscriptionStatus === "trialing" && stripeSubscriptionId !== null);
+          
+          // Build subdomain URL - redirect directly to /dashboard or /setup
+          const baseUrl = window.location.origin;
+          const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+          
+          const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+          let subdomainUrl: string;
+          
+          if (isLocalhost) {
+            const port = window.location.port ? `:${window.location.port}` : '';
+            subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
           } else {
-            const errorData = await churchResponse.json().catch(() => ({ error: "Unknown error" }));
-            const errorMessage = errorData.error || `Failed to fetch church subdomain: ${churchResponse.statusText}`;
-            setError(errorMessage);
-            setIsSubmitting(false);
-            return;
+            subdomainUrl = `${baseUrl.replace(
+              /^https?:\/\//,
+              `https://${subdomain}.`
+            )}${targetPath}`;
           }
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : "Failed to fetch church subdomain. Please try again.";
+          
+          onOpenChange(false);
+          // Redirect directly to /dashboard or /setup on subdomain
+          window.location.href = subdomainUrl;
+          return;
+        } else {
+          const errorData = await churchResponse.json().catch(() => ({ error: "Unknown error" }));
+          const errorMessage = errorData.error || `Failed to fetch church subdomain: ${churchResponse.statusText}`;
           setError(errorMessage);
           setIsSubmitting(false);
           return;
         }
-      }
-
-      // On subdomain - check subscription status
-      try {
-        const churchResponse = await fetch("/api/church", {
-          credentials: "include",
-        });
-        
-        if (churchResponse.ok) {
-          const { church } = await churchResponse.json();
-          
-          // Check if subscription is active
-          const hasActiveSubscription = 
-            church.subscriptionStatus === "active" ||
-            (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId);
-          
-          onOpenChange(false);
-          
-          // Use full page navigation to ensure cookie is picked up
-          // This avoids race conditions with client-side routing
-          const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
-          
-          // Use window.location for full page reload to ensure session cookie is read
-          window.location.href = targetPath;
-          return;
-        }
       } catch (err) {
-        console.error("Error checking subscription status:", err);
-        // Fall through to default redirect
+        const errorMessage = err instanceof Error ? err.message : "Failed to fetch church subdomain. Please try again.";
+        setError(errorMessage);
+        setIsSubmitting(false);
+        return;
       }
-
-      // Default: redirect to setup page (will check subscription there)
-      onOpenChange(false);
-      
-      // Use window.location for full page reload to ensure session cookie is read
-      window.location.href = "/setup";
     } catch (err) {
       // Handle rate limit errors specifically
       // When rate limited, the middleware returns 429 before better-auth processes it

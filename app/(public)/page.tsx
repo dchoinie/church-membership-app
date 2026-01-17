@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +85,7 @@ export default function LandingPage() {
   // Get session and router - needed for authentication checks
   const { data: session, isPending: isSessionPending } = authClient.useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   // Auto-open login dialog if on subdomain AND user is not authenticated
   // Wait for session to finish loading (isSessionPending === false) before making decisions
@@ -147,42 +148,51 @@ export default function LandingPage() {
   }, [showVerifiedMessage, openLogin]);
 
   // Redirect authenticated users on subdomain root to /dashboard or /setup
-  // Always redirect if authenticated, regardless of login param (prevents double login)
-  // Wait for session to finish loading before redirecting
+  // This is a safety net for edge cases (client-side navigation, race conditions)
+  // Middleware already handles server-side redirects, but this catches cases where:
+  // - Client-side navigation bypasses middleware
+  // - Session hook updates after middleware check
+  // Optimized: Only fetch church data if middleware didn't redirect (edge case)
+  // Middleware already validated subscription status, so this is just a fallback
   useEffect(() => {
     if (isSubdomain && !isSessionPending && session?.user?.emailVerified) {
-      // Fetch church data to check subscription status
-      const checkSubscriptionAndRedirect = async () => {
-        try {
-          const response = await fetch("/api/church", {
-            credentials: "include",
-          });
-          
-          if (response.ok) {
-            const { church } = await response.json();
+      // Check if we're already being redirected by middleware
+      // If pathname is still "/", middleware didn't redirect (edge case)
+      if (pathname === "/") {
+        // Fetch church data to determine redirect path
+        // This is optimized - only runs in edge cases where middleware didn't catch it
+        const checkSubscriptionAndRedirect = async () => {
+          try {
+            const response = await fetch("/api/church", {
+              credentials: "include",
+            });
             
-            // Check if subscription is active
-            const hasActiveSubscription = 
-              church.subscriptionStatus === "active" ||
-              (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
-            
-            // Redirect to appropriate page
-            const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
-            router.replace(targetPath);
-          } else {
-            // If can't fetch church, default to setup
+            if (response.ok) {
+              const { church } = await response.json();
+              
+              // Check if subscription is active
+              const hasActiveSubscription = 
+                church.subscriptionStatus === "active" ||
+                (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+              
+              // Redirect to appropriate page
+              const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+              router.replace(targetPath);
+            } else {
+              // If can't fetch church, default to setup
+              router.replace("/setup");
+            }
+          } catch (error) {
+            console.error("Error checking subscription:", error);
+            // Default to setup on error
             router.replace("/setup");
           }
-        } catch (error) {
-          console.error("Error checking subscription:", error);
-          // Default to setup on error
-          router.replace("/setup");
-        }
-      };
-      
-      checkSubscriptionAndRedirect();
+        };
+        
+        checkSubscriptionAndRedirect();
+      }
     }
-  }, [isSubdomain, isSessionPending, session, router]);
+  }, [isSubdomain, isSessionPending, session, pathname, router]);
   
   if (isSubdomain) {
     // If user is authenticated, show loading while redirecting (handled by useEffect above)

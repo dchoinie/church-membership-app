@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, startTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -99,7 +99,6 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [church, setChurch] = useState<Church | null>(null);
@@ -138,21 +137,33 @@ export default function AuthLayout({
   // Redirect to login if not authenticated and not on public route
   // Only redirect after session has finished loading (isPending === false)
   // This prevents redirect loops when session cookie is still propagating after login
-  // Don't redirect if we're on subdomain root with ?login=true (prevents double redirect after login)
+  // Always redirect to root domain for login (consistent with design goal - all logins happen on root domain)
   useEffect(() => {
     // Wait for session to finish loading before making authentication decisions
     if (!isPending && !isAuthenticated && !isPublicRoute) {
-      // Check if we're on subdomain root with login param - if so, don't redirect
-      // This prevents redirect loop when user arrives at subdomain after login
-      // The page component will handle waiting for session and redirecting authenticated users
-      const isSubdomainRootWithLogin = pathname === "/" && typeof window !== "undefined" && 
-        new URLSearchParams(window.location.search).get("login") === "true";
+      // Extract root domain from current origin
+      const currentOrigin = window.location.origin;
+      const isLocalhost = currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1');
       
-      if (!isSubdomainRootWithLogin) {
-        router.replace("/?login=true");
+      let rootDomain: string;
+      if (isLocalhost) {
+        const port = window.location.port ? `:${window.location.port}` : '';
+        rootDomain = `http://localhost${port}`;
+      } else {
+        // Extract root domain (remove subdomain)
+        const url = new URL(currentOrigin);
+        const hostname = url.hostname;
+        const parts = hostname.split('.');
+        // Get root domain (last 2 parts: domain.com)
+        const rootHostname = parts.slice(-2).join('.');
+        rootDomain = `${url.protocol}//${rootHostname}${url.port ? `:${url.port}` : ''}`;
       }
+      
+      // Redirect to root domain for login (consistent with design goal)
+      // After login, the login flow will redirect to the correct subdomain
+      window.location.href = `${rootDomain}/?login=true`;
     }
-  }, [isPending, isAuthenticated, isPublicRoute, pathname, router]);
+  }, [isPending, isAuthenticated, isPublicRoute, pathname]);
 
   // Show loading state only while session is being fetched
   // Middleware handles all redirects, so we just wait for session to load
