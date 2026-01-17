@@ -173,7 +173,13 @@ export default function SetupPage() {
         const port = window.location.port ? `:${window.location.port}` : '';
         successUrl = `http://${church.subdomain}.localhost${port}/dashboard?checkout=success`;
       } else {
-        successUrl = `${baseUrl.replace(/^https?:\/\//, `https://${church.subdomain}.`)}/dashboard?checkout=success`;
+        // Extract root domain (remove any existing subdomain like 'www')
+        const url = new URL(baseUrl);
+        const hostname = url.hostname;
+        const parts = hostname.split('.');
+        // Get root domain (last 2 parts: domain.com)
+        const rootHostname = parts.slice(-2).join('.');
+        successUrl = `https://${church.subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}/dashboard?checkout=success`;
       }
       
       const cancelUrl = `${baseUrl}/setup`;

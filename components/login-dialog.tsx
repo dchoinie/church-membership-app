@@ -222,10 +222,13 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             const port = window.location.port ? `:${window.location.port}` : '';
             subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
           } else {
-            subdomainUrl = `${baseUrl.replace(
-              /^https?:\/\//,
-              `https://${subdomain}.`
-            )}${targetPath}`;
+            // Extract root domain (remove any existing subdomain like 'www')
+            const url = new URL(baseUrl);
+            const hostname = url.hostname;
+            const parts = hostname.split('.');
+            // Get root domain (last 2 parts: domain.com)
+            const rootHostname = parts.slice(-2).join('.');
+            subdomainUrl = `https://${subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}${targetPath}`;
           }
           
           onOpenChange(false);

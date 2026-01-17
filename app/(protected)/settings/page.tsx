@@ -189,7 +189,13 @@ export default function SettingsPage() {
         const port = window.location.port ? `:${window.location.port}` : '';
         successUrl = `http://${church.subdomain}.localhost${port}/settings?checkout=success`;
       } else {
-        successUrl = `${baseUrl.replace(/^https?:\/\//, `https://${church.subdomain}.`)}/settings?checkout=success`;
+        // Extract root domain (remove any existing subdomain like 'www')
+        const url = new URL(baseUrl);
+        const hostname = url.hostname;
+        const parts = hostname.split('.');
+        // Get root domain (last 2 parts: domain.com)
+        const rootHostname = parts.slice(-2).join('.');
+        successUrl = `https://${church.subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}/settings?checkout=success`;
       }
       
       const cancelUrl = `${baseUrl}/settings`;
