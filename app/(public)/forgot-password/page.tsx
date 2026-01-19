@@ -65,21 +65,21 @@ export default function ForgotPasswordPage() {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12 py-16 relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-primary/10">
         {/* Decorative background elements */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/10 blur-3xl"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full bg-primary/5 blur-3xl"></div>
+          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/10 blur-3xl animate-float-slow"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl animate-float-reverse"></div>
+          <div className="absolute top-1/2 left-1/4 w-64 h-64 rounded-full bg-primary/5 blur-3xl animate-pulse-slow"></div>
         </div>
 
         {/* Content */}
         <div className="relative z-10 max-w-lg">
           <div className="mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
-              <Shield className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6 border border-accent/20">
+              <Shield className="w-4 h-4 text-accent" />
               <span className="text-sm font-medium">Secure Password Reset</span>
             </div>
             <h1 className="text-5xl font-bold tracking-tight mb-4">
               Reset Your{" "}
-              <span className="text-primary">Password</span>
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Password</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
               Enter your email address and we&apos;ll send you a link to reset your password.

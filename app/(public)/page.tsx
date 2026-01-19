@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ReCAPTCHA from "react-google-recaptcha";
 import {
   Users,
   DollarSign,
@@ -19,13 +19,21 @@ import {
   Mail,
   Phone,
   Sparkles,
-  Zap,
   Lock,
+  LogIn,
 } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { useMarketing } from "@/components/marketing-context";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
+import {
+  GridPattern,
+  DotPattern,
+  BlurOrbs,
+  DecorativeCircles,
+  ShimmerLine,
+  GradientMesh,
+} from "@/components/marketing-patterns";
 
 /**
  * Extract subdomain from hostname (client-side)
@@ -67,6 +75,9 @@ export default function LandingPage() {
   });
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   // Compute subdomain during render (client-side only)
   const isSubdomain = useMemo(() => {
@@ -243,14 +254,56 @@ export default function LandingPage() {
     e.preventDefault();
     setIsSubmittingContact(true);
     setContactSuccess(false);
+    setContactError(null);
 
-    // TODO: Implement contact form submission API
-    // For now, just simulate success
-    setTimeout(() => {
-      setContactSuccess(true);
+    // Validate reCAPTCHA (only if configured)
+    if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken) {
+      setContactError("Please complete the reCAPTCHA verification");
       setIsSubmittingContact(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: contactFormData.name,
+          email: contactFormData.email,
+          message: contactFormData.message,
+          recaptchaToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send message");
+      }
+
+      // Success
+      setContactSuccess(true);
       setContactFormData({ name: "", email: "", message: "" });
-    }, 1000);
+      setRecaptchaToken(null);
+      // Reset reCAPTCHA
+      if (recaptchaRef.current) {
+        recaptchaRef.current.reset();
+      }
+    } catch (error) {
+      console.error("Error submitting contact form:", error);
+      setContactError(
+        error instanceof Error ? error.message : "Failed to send message. Please try again."
+      );
+      // Reset reCAPTCHA on error
+      if (recaptchaRef.current) {
+        recaptchaRef.current.reset();
+      }
+      setRecaptchaToken(null);
+    } finally {
+      setIsSubmittingContact(false);
+    }
   };
 
   const features = [
@@ -311,56 +364,103 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20 sm:py-32 lg:py-40">
+        {/* Multi-layered background with gradients and patterns */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/10 blur-3xl"></div>
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl"></div>
+          {/* Gradient mesh overlay */}
+          <GradientMesh colors={["primary", "gold"]} />
+          
+          {/* Blur orbs */}
+          <BlurOrbs count={3} />
+          
+          {/* Grid pattern */}
+          <GridPattern />
+          
+          {/* Dot pattern */}
+          <DotPattern />
+          
+          {/* Decorative shapes */}
+          <DecorativeCircles position="top-right" />
+          
+          {/* Shimmer lines */}
+          <ShimmerLine className="top-1/4" />
+          <ShimmerLine className="top-3/4" delay={2} />
         </div>
+        
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">Trusted by churches nationwide</span>
+            {/* Enhanced Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-linear-to-r from-primary/15 via-accent/10 to-primary/15 border border-accent/20 text-primary mb-6 backdrop-blur-sm shadow-lg animate-fade-in">
+              <Sparkles className="w-4 h-4 text-accent" />
+              <span className="text-sm font-medium">Designed for small churches everywhere</span>
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Complete Church Management
+            
+            {/* Enhanced Heading with Gradient */}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-fade-in-up">
+              Essential Church Management
               <br />
-              <span className="text-primary">Made Simple</span>
+              <span className="bg-linear-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-gradient-shift">
+                Made Simple
+              </span>
             </h1>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-in-up-delayed">
               Manage your members, track giving, monitor attendance, and generate reports—all in one powerful, easy-to-use platform designed specifically for churches.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                size="lg"
-                onClick={openSignup}
-                className="text-lg px-8 py-6 cursor-pointer"
-              >
-                Get Started
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up-delayed-2">
               <Button
                 size="lg"
                 variant="outline"
                 onClick={openLogin}
-                className="text-lg px-8 py-6 cursor-pointer"
+                className="text-lg px-8 py-6 cursor-pointer backdrop-blur-sm transition-all duration-300 hover:scale-[1.02]"
               >
-                Sign In
+                <LogIn className="mr-2 h-5 w-5" />
+                <span>Sign In</span>
+              </Button>
+              <Button
+                size="lg"
+                onClick={openSignup}
+                variant="gold"
+                className="group text-lg px-8 py-6 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+              >
+                <span>Get Started</span>
+                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
             </div>
           </div>
 
-          {/* Hero Image Placeholder */}
-          <div className="mt-16 max-w-5xl mx-auto">
-            <div className="relative rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 aspect-video flex items-center justify-center">
-              <Image src="/dashboard_1.png" alt="Dashboard" width={1000} height={1000} />
+          {/* Enhanced Hero Image Container */}
+          <div className="mt-16 max-w-5xl mx-auto animate-fade-in-up-delayed-3">
+            <div className="relative group">
+              {/* Animated glow effect behind image */}
+              <div className="absolute -inset-4 bg-linear-to-r from-primary/20 via-accent/20 to-primary/20 rounded-2xl blur-2xl opacity-60 group-hover:opacity-100 transition-opacity duration-500 animate-pulse-glow"></div>
+              
+              {/* Image container with enhanced styling */}
+              <div className="relative rounded-xl border border-primary/20 bg-linear-to-br from-background/90 via-muted/20 to-background/90 backdrop-blur-sm overflow-hidden shadow-2xl group-hover:shadow-primary/20 transition-all duration-500">
+                
+                {/* Subtle inner glow */}
+                <div className="absolute inset-0 bg-linear-to-t from-transparent via-transparent to-primary/5 pointer-events-none"></div>
+                
+                <div className="relative z-10 flex items-center justify-center overflow-hidden">
+                  <Image 
+                    src="/dashboard_1.png" 
+                    alt="Dashboard" 
+                    width={1000} 
+                    height={1000}
+                    className="w-full h-auto transition-transform duration-700 group-hover:scale-[1.02]"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 sm:py-32 bg-muted/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="features" className="relative py-20 sm:py-32 bg-muted/30 overflow-hidden">
+        <GridPattern />
+        <DotPattern />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               Everything You Need to Manage Your Church
@@ -373,10 +473,10 @@ export default function LandingPage() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="p-6 rounded-lg border bg-background hover:shadow-lg transition-shadow"
+                className="p-6 rounded-lg border bg-background hover:shadow-lg hover:border-accent/20 transition-all duration-300"
               >
-                <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <feature.icon className="w-6 h-6 text-primary" />
+                <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-accent/10 transition-colors">
+                  <feature.icon className="w-6 h-6 text-primary group-hover:text-accent transition-colors" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
@@ -412,16 +512,17 @@ export default function LandingPage() {
                 </li>
               </ul>
             </div>
-            <div className="relative rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 aspect-video flex items-center justify-center">
-              <Image src="/ui_1.png" alt="UI" width={1000} height={1000} />
+            <div className="relative rounded-lg bg-muted/30 flex items-center justify-center">
+              <Image src="/ui_1.png" alt="UI" width={1000} height={1000} className="rounded-lg" />
             </div>
           </div>
         </div>
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-20 sm:py-32 bg-muted/30">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="pricing" className="relative py-20 sm:py-32 bg-muted/30 overflow-hidden">
+        <GradientMesh colors={["primary"]} />
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -432,15 +533,15 @@ export default function LandingPage() {
             {pricingPlans.map((plan, index) => (
               <div
                 key={index}
-                className={`relative p-8 rounded-lg border-2 w-full md:w-[calc(50%-1rem)] ${
+                className={`relative p-8 rounded-lg border-2 w-full md:w-[calc(50%-1rem)] transition-all duration-300 ${
                   plan.popular
-                    ? "border-primary bg-background shadow-lg"
-                    : "border-border bg-background"
+                    ? "border-accent bg-background shadow-lg hover:shadow-xl"
+                    : "border-border bg-background hover:border-primary/50"
                 }`}
               >
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="bg-primary text-primary-foreground px-4 py-1 rounded-full text-sm font-medium">
+                    <span className="bg-accent text-accent-foreground px-4 py-1 rounded-full text-sm font-medium shadow-md">
                       Most Popular
                     </span>
                   </div>
@@ -457,14 +558,14 @@ export default function LandingPage() {
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((feature, featureIndex) => (
                     <li key={featureIndex} className="flex items-start gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${plan.popular ? "text-accent" : "text-primary"}`} />
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}
                 </ul>
                 <Button
                   className="w-full"
-                  variant={plan.popular ? "default" : "outline"}
+                  variant={plan.popular ? "gold" : "outline"}
                   onClick={openSignup}
                 >
                   Get Started
@@ -564,6 +665,16 @@ export default function LandingPage() {
               </div>
             </div>
             <form onSubmit={handleContactSubmit} className="space-y-6 bg-background p-8 rounded-lg border">
+              {/* Honeypot field - hidden from users but bots might fill it */}
+              <input
+                type="text"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                style={{ position: "absolute", left: "-9999px" }}
+                aria-hidden="true"
+              />
+              
               <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="name">Name</Label>
@@ -611,15 +722,50 @@ export default function LandingPage() {
                   rows={6}
                 />
               </div>
-              {contactSuccess && (
-                <div className="rounded-md bg-green-500/10 p-3 text-sm text-green-600 dark:text-green-400 border border-green-500/20">
-                  Thank you for your message! We&apos;ll get back to you soon.
+              
+              {/* reCAPTCHA */}
+              {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+                <div className="flex justify-center">
+                  <ReCAPTCHA
+                    ref={recaptchaRef}
+                    sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                    onChange={(token) => setRecaptchaToken(token)}
+                    onExpired={() => setRecaptchaToken(null)}
+                    onError={() => {
+                      setRecaptchaToken(null);
+                      setContactError("reCAPTCHA error. Please refresh the page and try again.");
+                    }}
+                  />
                 </div>
               )}
+              {!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+                <div className="rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
+                  reCAPTCHA is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.
+                </div>
+              )}
+
+              {/* Success message */}
+              {contactSuccess && (
+                <div className="rounded-md bg-green-500/10 p-4 text-sm text-green-600 dark:text-green-400 border border-green-500/20 flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 shrink-0" />
+                  <span>Your message has been sent successfully! We&apos;ll get back to you soon.</span>
+                </div>
+              )}
+
+              {/* Error message */}
+              {contactError && (
+                <div className="rounded-md bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400 border border-red-500/20">
+                  {contactError}
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isSubmittingContact}
+                disabled={
+                  isSubmittingContact ||
+                  (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)
+                }
               >
                 {isSubmittingContact ? "Sending..." : "Send Message"}
               </Button>
