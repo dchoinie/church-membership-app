@@ -257,7 +257,7 @@ export default function LandingPage() {
     setContactError(null);
 
     // Validate reCAPTCHA (only if configured)
-    if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken) {
+    if (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken) {
       setContactError("Please complete the reCAPTCHA verification");
       setIsSubmittingContact(false);
       return;
@@ -724,7 +724,7 @@ export default function LandingPage() {
               </div>
               
               {/* reCAPTCHA */}
-              {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+              {!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
                 <div className="flex justify-center">
                   <ReCAPTCHA
                     ref={recaptchaRef}
@@ -764,7 +764,7 @@ export default function LandingPage() {
                 className="w-full"
                 disabled={
                   isSubmittingContact ||
-                  (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)
+                  (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)
                 }
               >
                 {isSubmittingContact ? "Sending..." : "Send Message"}
