@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import ReCAPTCHA from "react-google-recaptcha";
 import {
   Users,
   DollarSign,
@@ -76,8 +75,6 @@ export default function LandingPage() {
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
-  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
 
   // Compute subdomain during render (client-side only)
   const isSubdomain = useMemo(() => {
@@ -142,6 +139,27 @@ export default function LandingPage() {
       openLogin();
     }
   }, [searchParams, openLogin]);
+
+  // Load reCAPTCHA v3 script
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) return;
+
+    const script = document.createElement("script");
+    script.src = `https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}`;
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+
+    return () => {
+      // Cleanup script on unmount
+      const existingScript = document.querySelector(
+        `script[src*="recaptcha/api.js"]`
+      );
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
+    };
+  }, []);
 
   // Handle verified parameter - clear query params and open login
   useEffect(() => {
@@ -256,14 +274,37 @@ export default function LandingPage() {
     setContactSuccess(false);
     setContactError(null);
 
-    // Validate reCAPTCHA (only if configured)
-    if (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken) {
-      setContactError("Please complete the reCAPTCHA verification");
-      setIsSubmittingContact(false);
-      return;
-    }
-
     try {
+      let recaptchaToken: string | null = null;
+
+      // Get reCAPTCHA v3 token if configured
+      if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+        try {
+          recaptchaToken = await new Promise<string>((resolve, reject) => {
+            if (typeof window === "undefined" || !window.grecaptcha) {
+              reject(new Error("reCAPTCHA not loaded"));
+              return;
+            }
+
+            window.grecaptcha.ready(() => {
+              window.grecaptcha
+                .execute(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!, {
+                  action: "submit",
+                })
+                .then((token: string) => {
+                  resolve(token);
+                })
+                .catch(reject);
+            });
+          });
+        } catch (recaptchaError) {
+          console.error("reCAPTCHA error:", recaptchaError);
+          setContactError("reCAPTCHA verification failed. Please refresh the page and try again.");
+          setIsSubmittingContact(false);
+          return;
+        }
+      }
+
       const response = await fetch("/api/contact", {
         method: "POST",
         headers: {
@@ -286,21 +327,11 @@ export default function LandingPage() {
       // Success
       setContactSuccess(true);
       setContactFormData({ name: "", email: "", message: "" });
-      setRecaptchaToken(null);
-      // Reset reCAPTCHA
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
     } catch (error) {
       console.error("Error submitting contact form:", error);
       setContactError(
         error instanceof Error ? error.message : "Failed to send message. Please try again."
       );
-      // Reset reCAPTCHA on error
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
-      setRecaptchaToken(null);
     } finally {
       setIsSubmittingContact(false);
     }
@@ -723,21 +754,7 @@ export default function LandingPage() {
                 />
               </div>
               
-              {/* reCAPTCHA */}
-              {!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
-                <div className="flex justify-center">
-                  <ReCAPTCHA
-                    ref={recaptchaRef}
-                    sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
-                    onChange={(token) => setRecaptchaToken(token)}
-                    onExpired={() => setRecaptchaToken(null)}
-                    onError={() => {
-                      setRecaptchaToken(null);
-                      setContactError("reCAPTCHA error. Please refresh the page and try again.");
-                    }}
-                  />
-                </div>
-              )}
+              {/* reCAPTCHA v3 runs invisibly in the background - no UI needed */}
               {!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
                 <div className="rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
                   reCAPTCHA is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.
@@ -762,10 +779,7 @@ export default function LandingPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={
-                  isSubmittingContact ||
-                  (!!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !recaptchaToken)
-                }
+                disabled={isSubmittingContact}
               >
                 {isSubmittingContact ? "Sending..." : "Send Message"}
               </Button>

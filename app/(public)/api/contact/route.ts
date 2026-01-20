@@ -38,7 +38,18 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
     });
 
     const data = await response.json();
-    return data.success === true && data.score >= 0.5; // Score threshold for v3, or just success for v2
+    
+    // For v3: check success and score (0.0 = bot, 1.0 = human)
+    // For v2: just check success
+    if (data.success === true) {
+      // If score exists (v3), require score >= 0.5
+      // If no score (v2), just check success
+      if (data.score !== undefined) {
+        return data.score >= 0.5;
+      }
+      return true; // v2 - success is enough
+    }
+    return false;
   } catch (error) {
     console.error("Error verifying reCAPTCHA:", error);
     return false;
