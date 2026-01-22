@@ -87,6 +87,7 @@ export default function MemberGivingPage({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<GivingRecord | null>(null);
   const [memberId, setMemberId] = useState<string>("");
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   const editForm = useForm<GivingFormData>({
     defaultValues: {
@@ -124,6 +125,21 @@ export default function MemberGivingPage({
     }
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
   }, []);
 
   const fetchMember = async (id: string) => {
@@ -184,12 +200,18 @@ export default function MemberGivingPage({
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch(`/api/giving/${editingRecord.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           currentAmount: current,
@@ -235,12 +257,18 @@ export default function MemberGivingPage({
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch("/api/giving", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           memberId: memberId,

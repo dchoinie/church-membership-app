@@ -13,6 +13,8 @@ const PUBLIC_ROUTES = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  "/privacy",
+  "/terms",
   "/api/auth",
   "/api/signup",
   "/api/invite",
@@ -72,8 +74,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // Handle root domain - allow root path and API routes
-  if (!subdomain && pathname !== "/" && !pathname.startsWith("/api/")) {
+  // Handle root domain - allow root path, API routes, and public routes
+  if (!subdomain && pathname !== "/" && !pathname.startsWith("/api/") && !isPublicRoute) {
     // Redirect unknown routes on root domain to home
     const homeUrl = new URL("/", request.url);
     return NextResponse.redirect(homeUrl);

@@ -8,6 +8,9 @@ import { handleAuthError } from "@/lib/error-handler";
 /**
  * Get authenticated user and tenant context for API routes
  * Returns { user, churchId } or throws error response
+ * 
+ * For super admins: Allows overriding churchId via ?churchId query param or x-church-id header
+ * This allows super admins to access any church's data regardless of subdomain
  */
 export async function getAuthContext(request: Request): Promise<{
   user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
@@ -22,13 +25,7 @@ export async function getAuthContext(request: Request): Promise<{
     throw new Error("UNAUTHORIZED");
   }
 
-  // Get tenant context
-  const churchId = await getTenantFromRequest(request);
-  if (!churchId) {
-    throw new Error("TENANT_NOT_FOUND");
-  }
-
-  // Get full user record
+  // Get full user record first to check if super admin
   const { db } = await import("@/db");
   const { user } = await import("@/auth-schema");
   const { eq } = await import("drizzle-orm");
@@ -41,11 +38,44 @@ export async function getAuthContext(request: Request): Promise<{
     throw new Error("USER_NOT_FOUND");
   }
 
+  // For super admins: Check if they're overriding the churchId
+  let churchId: string | null = null;
+  if (userRecord.isSuperAdmin) {
+    // Super admins can override churchId via query param or header
+    const url = new URL(request.url);
+    const queryChurchId = url.searchParams.get("churchId");
+    const headerChurchId = request.headers.get("x-church-id-override");
+    
+    if (queryChurchId || headerChurchId) {
+      churchId = queryChurchId || headerChurchId;
+    }
+  }
+
+  // If no override, get tenant context from subdomain
+  if (!churchId) {
+    churchId = await getTenantFromRequest(request);
+  }
+
+  if (!churchId) {
+    throw new Error("TENANT_NOT_FOUND");
+  }
+
   // Verify user belongs to church (unless super admin)
   if (!userRecord.isSuperAdmin) {
     const belongs = await verifyUserBelongsToChurch(userRecord.id, churchId);
     if (!belongs) {
       throw new Error("FORBIDDEN");
+    }
+  }
+
+  // For super admins overriding churchId, verify the church exists
+  if (userRecord.isSuperAdmin && (new URL(request.url).searchParams.get("churchId") || request.headers.get("x-church-id-override"))) {
+    const { churches } = await import("@/db/schema");
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, churchId),
+    });
+    if (!church) {
+      throw new Error("TENANT_NOT_FOUND");
     }
   }
 

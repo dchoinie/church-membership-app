@@ -86,11 +86,13 @@ export async function POST(request: Request) {
     }
 
     // Update user to be super admin
+    // Note: We only set isSuperAdmin boolean, not the role enum
+    // Super admins can have any church-level role (admin/viewer) but isSuperAdmin grants system-wide access
     await db
       .update(user)
       .set({
         isSuperAdmin: true,
-        role: "super_admin",
+        // Keep the default role (admin or viewer) - super admin status is separate
       })
       .where(eq(user.id, userId));
 

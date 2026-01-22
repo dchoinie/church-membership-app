@@ -55,12 +55,12 @@ export async function DELETE(request: Request) {
     });
 
     const adminUsers = allChurchUsers.filter(
-      (u) => u.role === "admin" || u.role === "super_admin"
+      (u) => u.role === "admin" || u.isSuperAdmin
     );
 
     if (
       adminUsers.length === 1 &&
-      (userToDelete.role === "admin" || userToDelete.role === "super_admin")
+      (userToDelete.role === "admin" || userToDelete.isSuperAdmin)
     ) {
       return NextResponse.json(
         { error: "Cannot delete the last admin user for this church" },

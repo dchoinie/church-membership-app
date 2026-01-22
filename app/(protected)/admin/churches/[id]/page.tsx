@@ -6,7 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, ArrowLeft, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 interface Church {
@@ -30,17 +40,36 @@ export default function ChurchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteType, setDeleteType] = useState<"church" | "giving" | "members" | "attendance" | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchChurch();
+    fetchCsrfToken();
   }, [churchId]);
+
+  const fetchCsrfToken = async () => {
+    try {
+      const response = await fetch("/api/csrf-token");
+      if (response.ok) {
+        const data = await response.json();
+        setCsrfToken(data.token);
+      }
+    } catch (err) {
+      console.error("Failed to fetch CSRF token:", err);
+    }
+  };
 
   const fetchChurch = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch(`/api/admin/churches/${churchId}`);
       if (!response.ok) {
-        throw new Error("Failed to fetch church");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch church (${response.status})`);
       }
       const data = await response.json();
       setChurch(data.church);
@@ -84,6 +113,64 @@ export default function ChurchDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!csrfToken || !deleteType) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      let endpoint = "";
+      switch (deleteType) {
+        case "church":
+          endpoint = `/api/admin/churches/${churchId}`;
+          break;
+        case "giving":
+          endpoint = `/api/admin/churches/${churchId}/delete-giving`;
+          break;
+        case "members":
+          endpoint = `/api/admin/churches/${churchId}/delete-members-households`;
+          break;
+        case "attendance":
+          endpoint = `/api/admin/churches/${churchId}/delete-attendance`;
+          break;
+      }
+
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to delete");
+      }
+
+      const data = await response.json();
+      
+      if (deleteType === "church") {
+        // Redirect to churches list after deleting church
+        router.push("/admin/churches");
+      } else {
+        // Refresh church data
+        fetchChurch();
+        setDeleteDialogOpen(false);
+        setDeleteType(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDeleteDialog = (type: "church" | "giving" | "members" | "attendance") => {
+    setDeleteType(type);
+    setDeleteDialogOpen(true);
   };
 
   if (loading) {
@@ -217,6 +304,134 @@ export default function ChurchDetailPage() {
           </CardContent>
         </Card>
       </form>
+
+      {/* Super Admin Actions */}
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="text-destructive">Danger Zone</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            These actions are irreversible. Use with extreme caution.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button
+            variant="destructive"
+            onClick={() => openDeleteDialog("attendance")}
+            disabled={!csrfToken || deleting}
+            className="w-full"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete All Attendance Records
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => openDeleteDialog("giving")}
+            disabled={!csrfToken || deleting}
+            className="w-full"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete All Giving Records
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => openDeleteDialog("members")}
+            disabled={!csrfToken || deleting}
+            className="w-full"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete All Members & Households
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => openDeleteDialog("church")}
+            disabled={!csrfToken || deleting}
+            className="w-full"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Entire Church
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              {deleteType === "church" && (
+                <>
+                  <p>
+                    This will <strong>permanently delete</strong> the entire church and{" "}
+                    <strong>all associated data</strong>:
+                  </p>
+                  <ul className="list-disc list-inside ml-2 space-y-1">
+                    <li>All members and households</li>
+                    <li>All giving records</li>
+                    <li>All attendance records</li>
+                    <li>All services</li>
+                    <li>All invitations</li>
+                    <li>All user accounts linked to this church</li>
+                  </ul>
+                  <p className="font-semibold text-destructive mt-2">
+                    This action cannot be undone.
+                  </p>
+                </>
+              )}
+              {deleteType === "giving" && (
+                <>
+                  <p>
+                    This will <strong>permanently delete all giving records</strong> for this church.
+                  </p>
+                  <p className="font-semibold text-destructive mt-2">
+                    This action cannot be undone.
+                  </p>
+                </>
+              )}
+              {deleteType === "members" && (
+                <>
+                  <p>
+                    This will <strong>permanently delete all members and households</strong> for this church.
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Note: This will also delete all giving and attendance records associated with these members.
+                  </p>
+                  <p className="font-semibold text-destructive mt-2">
+                    This action cannot be undone.
+                  </p>
+                </>
+              )}
+              {deleteType === "attendance" && (
+                <>
+                  <p>
+                    This will <strong>permanently delete all attendance records</strong> for this church.
+                  </p>
+                  <p className="font-semibold text-destructive mt-2">
+                    This action cannot be undone.
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting || !csrfToken}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -144,6 +144,7 @@ export default function GivingPage() {
     failed: number;
     errors: string[];
   } | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -239,6 +240,21 @@ export default function GivingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
+  }, []);
+
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
@@ -273,6 +289,11 @@ export default function GivingPage() {
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Create a single giving record for the envelope number (household level)
@@ -281,6 +302,7 @@ export default function GivingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           envelopeNumber: envelopeNum,
@@ -587,6 +609,11 @@ export default function GivingPage() {
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setBulkInputSubmitting(true);
     setBulkInputResults(null);
 
@@ -595,6 +622,7 @@ export default function GivingPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           records: validRecords,
@@ -667,6 +695,11 @@ export default function GivingPage() {
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setImporting(true);
     setImportResults(null);
 
@@ -676,6 +709,9 @@ export default function GivingPage() {
 
       const response = await fetch("/api/giving/bulk-import", {
         method: "POST",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
         body: formData,
       });
 

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Church, ArrowRight, LogIn } from "lucide-react";
+import Link from "next/link";
 
 interface MarketingNavProps {
   onLoginClick: () => void;
@@ -13,10 +14,10 @@ export function MarketingNav({ onLoginClick, onSignupClick }: MarketingNavProps)
     <nav className="border-b border-primary/10 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Church className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold font-heading">Simple Church Tools</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-4">
             <Button
               variant="outline"

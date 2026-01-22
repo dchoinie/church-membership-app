@@ -109,6 +109,7 @@ export default function MembershipPage() {
     failed: number;
     errors: string[];
   } | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -174,6 +175,21 @@ export default function MembershipPage() {
   useEffect(() => {
     fetchHouseholds(currentPage);
   }, [currentPage]);
+
+  useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
+  }, []);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -272,11 +288,17 @@ export default function MembershipPage() {
   const onEditSubmit = async (data: HouseholdFormData) => {
     if (!selectedHousehold) return;
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     try {
       const response = await fetch(`/api/families/${selectedHousehold.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           name: data.name || null,
@@ -312,9 +334,17 @@ export default function MembershipPage() {
   const handleDeleteConfirm = async () => {
     if (!selectedHousehold) return;
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     try {
       const response = await fetch(`/api/families/${selectedHousehold.id}`, {
         method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
       });
 
       if (response.ok) {
@@ -363,6 +393,11 @@ export default function MembershipPage() {
       return;
     }
 
+    if (!csrfToken) {
+      alert("CSRF token not loaded. Please refresh the page and try again.");
+      return;
+    }
+
     setImporting(true);
     setImportResults(null);
 
@@ -372,23 +407,35 @@ export default function MembershipPage() {
 
       const response = await fetch("/api/members/bulk-import", {
         method: "POST",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
         body: formData,
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        setImportResults({
-          success: data.success || 0,
-          failed: data.failed || 0,
-          errors: data.errors || [],
-        });
+        // Refresh households data
         fetchHouseholds(currentPage);
+        
+        // Clear file input
         setImportFile(null);
         const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
         if (fileInput) {
           fileInput.value = "";
         }
+        
+        // Show success message and close dialog
+        const successCount = data.success || 0;
+        const failedCount = data.failed || 0;
+        if (failedCount > 0) {
+          alert(`Import completed: ${successCount} successful, ${failedCount} failed. Check console for details.`);
+        } else {
+          alert(`Successfully imported ${successCount} member(s).`);
+        }
+        setImportDialogOpen(false);
+        setImportResults(null);
       } else {
         alert(data.error || "Failed to import members");
       }

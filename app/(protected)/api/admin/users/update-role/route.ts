@@ -43,8 +43,8 @@ export async function PUT(request: Request) {
     }
     
     // TypeScript now knows role is one of the valid roles after validation
-    // Assert to the full enum type that Drizzle expects: "super_admin" | "admin" | "viewer"
-    const validRole = role as "super_admin" | "admin" | "viewer";
+    // Assert to the enum type that Drizzle expects: "admin" | "viewer"
+    const validRole = role as "admin" | "viewer";
 
     // Only admins can update roles
     if (currentUser.role !== "admin" && !currentUser.isSuperAdmin) {
@@ -84,7 +84,7 @@ export async function PUT(request: Request) {
       });
 
       const adminUsers = allChurchUsers.filter(
-        (u) => u.role === "admin" || u.role === "super_admin"
+        (u) => u.role === "admin" || u.isSuperAdmin
       );
 
       if (adminUsers.length === 1) {
