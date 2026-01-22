@@ -18,19 +18,29 @@ export async function DELETE(
     await requireSuperAdmin(request);
     const { id: churchId } = await params;
 
-    // Delete all members first (this will cascade delete giving and attendance)
-    const deletedMembers = await db
+    // Count members before deleting (this will cascade delete giving and attendance)
+    const membersToDelete = await db
+      .select({ id: members.id })
+      .from(members)
+      .where(eq(members.churchId, churchId));
+    const memberCount = membersToDelete.length;
+    
+    // Delete all members
+    await db
       .delete(members)
       .where(eq(members.churchId, churchId));
 
-    const memberCount = deletedMembers.rowCount || 0;
-
+    // Count households before deleting
+    const householdsToDelete = await db
+      .select({ id: household.id })
+      .from(household)
+      .where(eq(household.churchId, churchId));
+    const householdCount = householdsToDelete.length;
+    
     // Delete all households for this church
-    const deletedHouseholds = await db
+    await db
       .delete(household)
       .where(eq(household.churchId, churchId));
-
-    const householdCount = deletedHouseholds.rowCount || 0;
 
     return NextResponse.json({
       success: true,

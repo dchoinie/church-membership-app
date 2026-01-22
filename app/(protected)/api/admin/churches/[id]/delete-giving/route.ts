@@ -35,11 +35,17 @@ export async function DELETE(
     }
 
     // Delete all giving records for these members using IN clause
-    const deleted = await db
+    // Count records before deleting
+    const recordsToDelete = await db
+      .select({ id: giving.id })
+      .from(giving)
+      .where(inArray(giving.memberId, memberIds));
+    const deletedCount = recordsToDelete.length;
+    
+    // Then delete
+    await db
       .delete(giving)
       .where(inArray(giving.memberId, memberIds));
-
-    const deletedCount = deleted.rowCount || 0;
 
     return NextResponse.json({
       success: true,

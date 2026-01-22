@@ -52,10 +52,17 @@ export async function DELETE(
 
     let deletedCount = 0;
     if (conditions.length > 0) {
-      const deleted = await db
+      // Count records before deleting
+      const recordsToDelete = await db
+        .select({ id: attendance.id })
+        .from(attendance)
+        .where(or(...conditions));
+      deletedCount = recordsToDelete.length;
+      
+      // Then delete
+      await db
         .delete(attendance)
         .where(or(...conditions));
-      deletedCount = deleted.rowCount || 0;
     }
 
     return NextResponse.json({
