@@ -9,12 +9,29 @@ import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 
 /**
  * One-time endpoint to create the first super admin
- * Should be disabled/removed after first super admin is created
+ * DISABLED: This endpoint should only be used during initial setup.
+ * After the first super admin is created, use the script instead:
+ * npm run create-super-admin <email> <password> <name>
+ * 
+ * To re-enable this endpoint, set ENABLE_CREATE_SUPER_ADMIN=true in environment variables
  * POST /api/admin/create-super-admin
  * Body: { email, password, name }
  */
 export async function POST(request: Request) {
   try {
+    // SECURITY: Disable this endpoint by default after initial setup
+    // Only enable via environment variable if absolutely necessary
+    const isEnabled = process.env.ENABLE_CREATE_SUPER_ADMIN === "true";
+    
+    if (!isEnabled) {
+      return NextResponse.json(
+        { 
+          error: "This endpoint is disabled for security reasons. Use the script instead: npm run create-super-admin" 
+        },
+        { status: 404 }
+      );
+    }
+
     // Check CSRF token
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
