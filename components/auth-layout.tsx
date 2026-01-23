@@ -32,7 +32,7 @@ const navItems = [
   { label: "Church Settings", href: "/settings" },
 ];
 
-const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms"];
+const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms", "/about"];
 const setupRoutes = ["/setup"];
 
 // Sidebar content component

@@ -539,7 +539,7 @@ export default function LandingPage() {
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-                  <span>Customizable to match your church&apos;s branding</span>
+                  <span>No training required for staff or volunteers</span>
                 </li>
               </ul>
             </div>
@@ -590,7 +590,7 @@ export default function LandingPage() {
                   {plan.features.map((feature, featureIndex) => (
                     <li key={featureIndex} className="flex items-start gap-3">
                       <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${plan.popular ? "text-accent" : "text-primary"}`} />
-                      <span className="text-sm">{feature}</span>
+                      <span className="text-sm self-center">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -604,6 +604,54 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+          
+          {/* Shared Features Section */}
+          <div className="mt-16 max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <h3 className="text-xl font-semibold mb-2">Included in All Plans</h3>
+              <p className="text-muted-foreground text-sm">
+                Every plan includes these essential features
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-background/50 border border-border/50">
+                <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium text-sm">Enterprise-grade Security</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Encrypted data storage and secure subdomain isolation
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-background/50 border border-border/50">
+                <Lock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium text-sm">You Own Your Data</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Full data ownership with export capabilities
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-background/50 border border-border/50">
+                <FileText className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium text-sm">All Core Features</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Member directory, giving tracking, attendance, and reports
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-background/50 border border-border/50">
+                <BarChart3 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium text-sm">Regular Backups</span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Automated daily backups to protect your data
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -611,18 +659,8 @@ export default function LandingPage() {
       <section id="security" className="py-20 sm:py-32">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="relative rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 aspect-video flex items-center justify-center order-2 lg:order-1">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <Lock className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-muted-foreground font-medium">
-                  Security Illustration Placeholder
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Replace this with a security illustration
-                </p>
-              </div>
+            <div className="relative rounded-lg flex items-center justify-center order-2 lg:order-1 overflow-hidden aspect-video">
+              <Image src="/security.png" alt="Security" width={1000} height={700} className="rounded-lg object-cover w-full h-full object-[center_40%]" />
             </div>
             <div className="order-1 lg:order-2">
               <h2 className="text-3xl sm:text-4xl font-bold mb-4">
@@ -675,24 +713,13 @@ export default function LandingPage() {
                 Have questions? We&apos;d love to hear from you. Send us a message and we&apos;ll respond as soon as possible.
               </p>
             </div>
-            <div className="grid md:grid-cols-2 gap-8 mb-12">
-              <div className="flex items-start gap-4">
-                <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Mail className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">Email</h3>
-                  <p className="text-muted-foreground">support@simplechurchtools.com</p>
-                </div>
+            <div className="flex justify-center gap-4 mb-12">
+              <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Mail className="w-6 h-6 text-primary" />
               </div>
-              <div className="flex items-start gap-4">
-                <div className="shrink-0 w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Phone className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">Phone</h3>
-                  <p className="text-muted-foreground">1-800-CHURCH-1</p>
-                </div>
+              <div>
+                <h3 className="font-semibold mb-1">Email</h3>
+                <p className="text-muted-foreground">support@simplechurchtools.com</p>
               </div>
             </div>
             <form onSubmit={handleContactSubmit} className="space-y-6 bg-background p-8 rounded-lg border">

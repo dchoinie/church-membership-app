@@ -53,13 +53,13 @@ export const SUBSCRIPTION_PLANS = {
     name: "Basic",
     priceId: "price_1SnnGYE37eeYXorXLDiGjlml", // Used for display only - actual price ID resolved server-side
     price: 9.99,
-    features: ["Up to 300 members", "Up to 3 admin users"],
+    features: ["Up to 300 members", "Up to 3 admin users", "Admin & Viewer roles"],
   },
   premium: {
     name: "Premium",
     priceId: "price_1SnnHDE37eeYXorXbI5WTIPl", // Used for display only - actual price ID resolved server-side
     price: 29.99,
-    features: ["300+ members", "Up to 10 admin users"],
+    features: ["300+ members", "Up to 10 admin users", "Advanced feature based roles"],
   },
 } as const;
 

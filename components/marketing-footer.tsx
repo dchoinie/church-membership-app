@@ -42,18 +42,13 @@ export function MarketingFooter() {
             <h4 className="font-semibold mb-4">Company</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="#about" className="hover:text-accent transition-colors">
+                <Link href="/about" className="hover:text-accent transition-colors">
                   About
                 </Link>
               </li>
               <li>
                 <Link href="#contact" className="hover:text-accent transition-colors">
                   Contact
-                </Link>
-              </li>
-              <li>
-                <Link href="#blog" className="hover:text-accent transition-colors">
-                  Blog
                 </Link>
               </li>
             </ul>
