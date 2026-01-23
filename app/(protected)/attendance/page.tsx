@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -142,6 +143,7 @@ const formatServiceType = (type: string) => {
 };
 
 export default function AttendancePage() {
+  const { canEditAttendance } = usePermissions();
   const [members, setMembers] = useState<Member[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [servicesWithStats, setServicesWithStats] = useState<ServiceWithStats[]>([]);
@@ -689,6 +691,9 @@ export default function AttendancePage() {
                 </Form>
               </DialogContent>
             </Dialog>
+            ) : (
+              <p className="text-muted-foreground">Select a service to view attendance records.</p>
+            )
           ) : (
             <>
               {selectedService && (
@@ -727,6 +732,7 @@ export default function AttendancePage() {
                               onCheckedChange={(checked) =>
                                 handleCheckboxChange(member.id, "attended", checked === true)
                               }
+                              disabled={!canEditAttendance}
                             />
                           </TableCell>
                           <TableCell className="text-center">
@@ -735,7 +741,7 @@ export default function AttendancePage() {
                               onCheckedChange={(checked) =>
                                 handleCheckboxChange(member.id, "tookCommunion", checked === true)
                               }
-                              disabled={!formData[member.id]?.attended}
+                              disabled={!canEditAttendance || !formData[member.id]?.attended}
                             />
                           </TableCell>
                         </TableRow>
@@ -790,7 +796,7 @@ export default function AttendancePage() {
                       <TableHead className="text-xs md:text-sm">Service Date</TableHead>
                       <TableHead className="text-center text-xs md:text-sm">Members Attended</TableHead>
                       <TableHead className="text-center text-xs md:text-sm">Took Communion</TableHead>
-                      <TableHead className="text-right text-xs md:text-sm">Actions</TableHead>
+                      {canEditAttendance && <TableHead className="text-right text-xs md:text-sm">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -935,7 +941,8 @@ export default function AttendancePage() {
       </Card>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      {canEditAttendance && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Attendance Record</DialogTitle>
@@ -1057,6 +1064,7 @@ export default function AttendancePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
     </div>
   );
 }

@@ -3,6 +3,11 @@ import { pgTable, text, timestamp, boolean, uuid, pgEnum, index } from "drizzle-
 export const userRoleEnum = pgEnum("user_role_enum", [
   "admin",
   "viewer",
+  "members_editor",
+  "giving_editor",
+  "attendance_editor",
+  "reports_viewer",
+  "analytics_viewer",
 ]);
 
 export const user = pgTable(

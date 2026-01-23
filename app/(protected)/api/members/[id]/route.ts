@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { members, household } from "@/db/schema";
-import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
@@ -113,8 +113,8 @@ export async function PUT(
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    // Require admin role
-    const { churchId } = await requireAdmin(request);
+    // Require members_edit permission
+    const { churchId } = await requirePermission("members_edit", request);
     const { id } = await params;
     const body = await request.json();
 
@@ -247,8 +247,8 @@ export async function DELETE(
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    // Require admin role
-    const { churchId } = await requireAdmin(request);
+    // Require members_edit permission
+    const { churchId } = await requirePermission("members_edit", request);
     const { id } = await params;
 
     // Check if member exists and belongs to church

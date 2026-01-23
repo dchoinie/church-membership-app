@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -79,6 +80,7 @@ export default function MemberGivingPage({
 }: {
   params: Promise<{ memberId: string }>;
 }) {
+  const { canEditGiving } = usePermissions();
   const [member, setMember] = useState<Member | null>(null);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -379,15 +381,17 @@ export default function MemberGivingPage({
             </p>
           </div>
         </div>
-        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-          <Button
-            onClick={() => setAddDialogOpen(true)}
-            className="cursor-pointer"
-          >
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Add Record
-          </Button>
-        </Dialog>
+        {canEditGiving && (
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <Button
+              onClick={() => setAddDialogOpen(true)}
+              className="cursor-pointer"
+            >
+              <PlusIcon className="mr-2 h-4 w-4" />
+              Add Record
+            </Button>
+          </Dialog>
+        )}
       </div>
 
       {member && (
@@ -447,7 +451,7 @@ export default function MemberGivingPage({
                   <TableHead>Miscellaneous</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canEditGiving && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -667,13 +671,15 @@ export default function MemberGivingPage({
                   {submitting ? "Updating..." : "Update Record"}
                 </Button>
               </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+      )}
 
       {/* Add Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      {canEditGiving && (
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Giving Record</DialogTitle>

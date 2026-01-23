@@ -3,7 +3,7 @@ import { eq, and, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { attendance, members, services } from "@/db/schema";
-import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 
@@ -68,8 +68,8 @@ export async function PUT(
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    // Require admin role
-    const { churchId } = await requireAdmin(request);
+    // Require attendance_edit permission
+    const { churchId } = await requirePermission("attendance_edit", request);
     const { id } = await params;
     const body = await request.json();
 

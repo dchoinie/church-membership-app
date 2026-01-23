@@ -38,6 +38,7 @@ function generateCsv(rows: Array<Record<string, string | null>>, headers?: strin
 
 export async function GET(request: Request) {
   try {
+    // Allow all authenticated users to view reports
     const { churchId } = await getAuthContext(request);
 
     // Parse query parameters

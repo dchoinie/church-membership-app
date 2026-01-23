@@ -8,6 +8,8 @@ import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeEmail } from "@/lib/sanitize";
 import { checkAdminLimit } from "@/lib/admin-limits";
+import { isRoleAvailableForPlan, getAvailableRoles } from "@/lib/permissions";
+import { churches } from "@/db/schema";
 
 export async function PUT(request: Request) {
   try {
@@ -33,19 +35,29 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Validate role
-    const validRoles = ["admin", "viewer"] as const;
-    
-    if (!validRoles.includes(role as typeof validRoles[number])) {
+    // Get church subscription plan
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, churchId),
+      columns: {
+        subscriptionPlan: true,
+      },
+    });
+
+    const subscriptionPlan = (church?.subscriptionPlan || "basic") as "basic" | "premium";
+
+    // Validate role is available for the subscription plan
+    if (!isRoleAvailableForPlan(role, subscriptionPlan)) {
+      const availableRoles = getAvailableRoles(subscriptionPlan);
       return NextResponse.json(
-        { error: "Invalid role. Must be 'admin' or 'viewer'" },
+        { 
+          error: `Role '${role}' is not available for ${subscriptionPlan} plan. Available roles: ${availableRoles.join(", ")}` 
+        },
         { status: 400 },
       );
     }
     
-    // TypeScript now knows role is one of the valid roles after validation
-    // Assert to the enum type that Drizzle expects: "admin" | "viewer"
-    const validRole = role as "admin" | "viewer";
+    // TypeScript now knows role is valid after validation
+    const validRole = role as "admin" | "viewer" | "members_editor" | "giving_editor" | "attendance_editor" | "reports_viewer" | "analytics_viewer";
 
     // Only admins can update roles
     if (currentUser.role !== "admin" && !currentUser.isSuperAdmin) {

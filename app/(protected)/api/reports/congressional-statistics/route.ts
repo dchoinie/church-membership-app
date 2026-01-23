@@ -51,6 +51,7 @@ function calculateAgeAtDate(birthDate: string | null, targetDate: string): numbe
 
 export async function GET(request: Request) {
   try {
+    // Allow all authenticated users to view reports
     const { churchId } = await getAuthContext(request);
 
     // Parse query parameters

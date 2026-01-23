@@ -15,7 +15,7 @@ export function MarketingFooter() {
               <span className="text-lg font-bold font-heading">Simple Church Tools</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Complete church management made simple.
+              Essential church management made simple.
             </p>
           </div>
           <div>

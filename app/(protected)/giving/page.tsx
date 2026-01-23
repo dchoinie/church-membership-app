@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -102,6 +103,7 @@ interface MemberWithEnvelope extends Member {
 }
 
 export default function GivingPage() {
+  const { canEditGiving } = usePermissions();
   const [allMembers, setAllMembers] = useState<MemberWithEnvelope[]>([]);
   const [envelopeNumbers, setEnvelopeNumbers] = useState<number[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
@@ -965,8 +967,10 @@ export default function GivingPage() {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog
-            open={bulkImportDialogOpen}
+          )}
+          {canEditGiving && (
+            <Dialog
+              open={bulkImportDialogOpen}
             onOpenChange={(open) => {
               setBulkImportDialogOpen(open);
               if (!open) {
@@ -1099,8 +1103,10 @@ export default function GivingPage() {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog
-            open={dialogOpen}
+          )}
+          {canEditGiving && (
+            <Dialog
+              open={dialogOpen}
             onOpenChange={(open) => {
               setDialogOpen(open);
               if (!open) {

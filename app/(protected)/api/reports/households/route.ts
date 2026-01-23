@@ -8,6 +8,7 @@ import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(request: Request) {
   try {
+    // Allow all authenticated users to view reports
     const { churchId } = await getAuthContext(request);
 
     // Get all households with their members and envelope numbers (filtered by churchId)

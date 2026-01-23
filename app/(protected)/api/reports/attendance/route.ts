@@ -8,6 +8,7 @@ import { createErrorResponse } from "@/lib/error-handler";
 
 export async function GET(request: Request) {
   try {
+    // Allow all authenticated users to view analytics
     const { churchId } = await getAuthContext(request);
 
     // Parse query parameters

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft, PencilIcon } from "lucide-react";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -84,8 +85,11 @@ export default function ServiceAttendancePage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canEditAttendance } = usePermissions();
   const serviceId = params.serviceId as string;
-  const mode = searchParams.get("mode") || "view"; // Default to view mode
+  const modeParam = searchParams.get("mode");
+  // Force view mode if user doesn't have edit permission
+  const mode = canEditAttendance ? (modeParam || "view") : "view";
 
   const [service, setService] = useState<Service | null>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -209,7 +213,7 @@ export default function ServiceAttendancePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Members Who Attended</CardTitle>
-            {!isEditMode && (
+            {!isEditMode && canEditAttendance && (
               <Button
                 variant="outline"
                 onClick={() => router.push(`/attendance/service/${serviceId}?mode=edit`)}
@@ -373,6 +377,7 @@ export default function ServiceAttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { eq, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
-import { getAuthContext, requireAdmin } from "@/lib/api-helpers";
+import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText } from "@/lib/sanitize";
@@ -86,7 +86,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { churchId } = await getAuthContext(request);
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
+    // Require members_edit permission
+    const { churchId } = await requirePermission("members_edit", request);
 
     const body = await request.json();
 

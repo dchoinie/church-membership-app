@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PencilIcon, SaveIcon, XIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -126,6 +127,7 @@ export default function MemberDetailPage({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canEditMembers } = usePermissions();
   const [member, setMember] = useState<Member | null>(null);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(true);
@@ -455,6 +457,8 @@ export default function MemberDetailPage({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                  </>
+                )}
               </>
             )}
           </div>

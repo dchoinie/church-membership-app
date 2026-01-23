@@ -5,12 +5,13 @@ import { createInvite } from "@/lib/invitations";
 import { sendInvitationEmail } from "@/lib/email";
 import { requireAdmin } from "@/lib/api-helpers";
 import { user } from "@/auth-schema";
-import { invitations } from "@/db/schema";
+import { invitations, churches } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeEmail } from "@/lib/sanitize";
 import { checkAdminLimit } from "@/lib/admin-limits";
+import { isRoleAvailableForPlan, getAvailableRoles } from "@/lib/permissions";
 
 export async function POST(request: Request) {
   try {
@@ -29,11 +30,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate role
-    const validRoles = ["admin", "viewer"];
-    if (role && !validRoles.includes(role)) {
+    // Get church subscription plan
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, churchId),
+      columns: {
+        subscriptionPlan: true,
+      },
+    });
+
+    const subscriptionPlan = (church?.subscriptionPlan || "basic") as "basic" | "premium";
+
+    // Validate role is available for the subscription plan
+    if (role && !isRoleAvailableForPlan(role, subscriptionPlan)) {
+      const availableRoles = getAvailableRoles(subscriptionPlan);
       return NextResponse.json(
-        { error: "Invalid role. Must be 'admin' or 'viewer'" },
+        { 
+          error: `Role '${role}' is not available for ${subscriptionPlan} plan. Available roles: ${availableRoles.join(", ")}` 
+        },
         { status: 400 },
       );
     }

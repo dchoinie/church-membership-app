@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 
 type UserStatus = "active" | "invited" | "expired";
-type UserRole = "admin" | "viewer";
+type UserRole = "admin" | "viewer" | "members_editor" | "giving_editor" | "attendance_editor" | "reports_viewer" | "analytics_viewer";
 
 interface User {
   id: string | null;
@@ -72,6 +72,7 @@ export default function ManageAdminAccessPage() {
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
   const [adminLimit, setAdminLimit] = useState<number | null>(null);
   const [adminCount, setAdminCount] = useState<number | null>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<"basic" | "premium">("basic");
 
   const fetchUsers = async () => {
     try {
@@ -95,8 +96,21 @@ export default function ManageAdminAccessPage() {
     }
   };
 
+  const fetchChurch = async () => {
+    try {
+      const response = await fetch("/api/church");
+      if (response.ok) {
+        const data = await response.json();
+        setSubscriptionPlan(data.church.subscriptionPlan || "basic");
+      }
+    } catch (err) {
+      console.error("Failed to fetch church subscription plan:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchChurch();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -196,20 +210,48 @@ export default function ManageAdminAccessPage() {
     }
   };
 
+  const getRoleDisplayName = (role?: string): string => {
+    const roleNames: Record<string, string> = {
+      admin: "Admin",
+      viewer: "Viewer",
+      members_editor: "Members Editor",
+      giving_editor: "Giving Editor",
+      attendance_editor: "Attendance Editor",
+      reports_viewer: "Reports Viewer",
+      analytics_viewer: "Analytics Viewer",
+    };
+    return roleNames[role || "viewer"] || role || "Viewer";
+  };
+
   const getRoleBadge = (role?: UserRole) => {
     const displayRole = role || "viewer";
+    const isAdmin = displayRole === "admin";
     return (
       <Badge
-        variant={displayRole === "admin" ? "default" : "outline"}
+        variant={isAdmin ? "default" : "outline"}
         className={
-          displayRole === "admin"
+          isAdmin
             ? "bg-blue-500 hover:bg-blue-600"
             : "border-gray-400 text-gray-700"
         }
       >
-        {displayRole === "admin" ? "Admin" : "Viewer"}
+        {getRoleDisplayName(displayRole)}
       </Badge>
     );
+  };
+
+  const getAvailableRoles = (): UserRole[] => {
+    const basicRoles: UserRole[] = ["admin", "viewer"];
+    const premiumRoles: UserRole[] = [
+      "admin",
+      "viewer",
+      "members_editor",
+      "giving_editor",
+      "attendance_editor",
+      "reports_viewer",
+      "analytics_viewer",
+    ];
+    return subscriptionPlan === "premium" ? premiumRoles : basicRoles;
   };
 
   const handleRoleChange = async (userEmail: string, newRole: UserRole) => {
@@ -293,18 +335,22 @@ export default function ManageAdminAccessPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem 
-                    value="admin"
-                    disabled={adminLimit !== null && adminCount !== null && adminCount >= adminLimit}
-                  >
-                    Admin
-                    {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && " (Limit reached)"}
-                  </SelectItem>
+                  {getAvailableRoles().map((role) => (
+                    <SelectItem 
+                      key={role}
+                      value={role}
+                      disabled={role === "admin" && adminLimit !== null && adminCount !== null && adminCount >= adminLimit}
+                    >
+                      {getRoleDisplayName(role)}
+                      {role === "admin" && adminLimit !== null && adminCount !== null && adminCount >= adminLimit && " (Limit reached)"}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Viewers can view data but cannot make changes. Admins have full access.
+                {subscriptionPlan === "basic" 
+                  ? "Viewers can view data but cannot make changes. Admins have full access."
+                  : "Choose a role based on the permissions needed. Admins have full access to all features."}
                 {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && (
                   <span className="block mt-1 text-destructive">
                     Admin user limit reached. Upgrade to Premium plan for more admin users.
@@ -374,18 +420,20 @@ export default function ManageAdminAccessPage() {
                           }
                           disabled={updatingRoles.has(user.email)}
                         >
-                          <SelectTrigger className="w-[120px] h-8">
+                          <SelectTrigger className="w-[180px] h-8">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem 
-                              value="admin"
-                              disabled={adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin"}
-                            >
-                              Admin
-                              {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin" && " (Limit reached)"}
-                            </SelectItem>
+                            {getAvailableRoles().map((role) => (
+                              <SelectItem 
+                                key={role}
+                                value={role}
+                                disabled={role === "admin" && adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin"}
+                              >
+                                {getRoleDisplayName(role)}
+                                {role === "admin" && adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin" && " (Limit reached)"}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       ) : (

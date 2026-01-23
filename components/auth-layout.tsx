@@ -7,6 +7,7 @@ import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 import {
   Sheet,
   SheetContent,
@@ -44,6 +45,7 @@ function SidebarContent({
   onNavigate: () => void;
   church: Church | null;
 }) {
+  const { canManageUsers } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
   return (
@@ -70,18 +72,20 @@ function SidebarContent({
           );
         })}
         <div className="mt-auto">
-          <Link
-            href="/manage-admin-access"
-            onClick={onNavigate}
-            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
-              pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
-                ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            }`}
-          >
-            <Settings className="size-4" />
-            Manage Admin Access
-          </Link>
+          {canManageUsers && (
+            <Link
+              href="/manage-admin-access"
+              onClick={onNavigate}
+              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
+                pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                  : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              <Settings className="size-4" />
+              Manage Admin Access
+            </Link>
+          )}
           <div className="border-t border-sidebar-border pt-4">
             <div className="px-3">
               <UserMenu />

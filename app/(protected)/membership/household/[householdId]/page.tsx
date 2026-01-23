@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 import {
   ArrowLeftIcon,
   PlusIcon,
@@ -601,17 +602,19 @@ export default function HouseholdViewPage({
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleEditClick} className="cursor-pointer">
-            <PencilIcon className="mr-2 h-4 w-4" />
-            Edit Household
-          </Button>
-          <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="cursor-pointer">
-                <PlusIcon className="mr-2 h-4 w-4" />
-                Add Member
+          {canEditMembers && (
+            <>
+              <Button variant="outline" onClick={handleEditClick} className="cursor-pointer">
+                <PencilIcon className="mr-2 h-4 w-4" />
+                Edit Household
               </Button>
-            </DialogTrigger>
+              <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="cursor-pointer">
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Add Member
+                  </Button>
+                </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Member to Household</DialogTitle>
@@ -1006,11 +1009,13 @@ export default function HouseholdViewPage({
               </Form>
             </DialogContent>
           </Dialog>
-          {members.length === 0 && (
-            <Button variant="destructive" onClick={() => setDeleteHouseholdDialogOpen(true)} className="cursor-pointer">
-              <TrashIcon className="mr-2 h-4 w-4" />
-              Delete Household
-            </Button>
+              {members.length === 0 && (
+                <Button variant="destructive" onClick={() => setDeleteHouseholdDialogOpen(true)} className="cursor-pointer">
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  Delete Household
+                </Button>
+              )}
+            </>
           )}
           <Button asChild variant="outline">
             <Link href="/membership">
@@ -1107,17 +1112,19 @@ export default function HouseholdViewPage({
                               <EyeIcon className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveMemberClick(member);
-                            }}
-                            className="cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </Button>
+                          {canEditMembers && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveMemberClick(member);
+                              }}
+                              className="cursor-pointer text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1130,7 +1137,8 @@ export default function HouseholdViewPage({
       </Card>
 
       {/* Edit Household Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      {canEditMembers && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Household</DialogTitle>
@@ -1338,6 +1346,7 @@ export default function HouseholdViewPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
 
       {/* Transfer Member Dialog */}
       <Dialog open={transferMemberDialogOpen} onOpenChange={setTransferMemberDialogOpen}>
@@ -1419,7 +1428,8 @@ export default function HouseholdViewPage({
       </Dialog>
 
       {/* Delete Household Dialog */}
-      <AlertDialog open={deleteHouseholdDialogOpen} onOpenChange={setDeleteHouseholdDialogOpen}>
+      {canEditMembers && (
+        <AlertDialog open={deleteHouseholdDialogOpen} onOpenChange={setDeleteHouseholdDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -1433,6 +1443,7 @@ export default function HouseholdViewPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      )}
     </div>
   );
 }

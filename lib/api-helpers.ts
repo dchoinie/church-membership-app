@@ -4,6 +4,14 @@ import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { verifyUserBelongsToChurch } from "@/lib/tenant-db";
 import { handleAuthError } from "@/lib/error-handler";
+import {
+  canEditMembers,
+  canEditGiving,
+  canEditAttendance,
+  canViewReports,
+  canViewAnalytics,
+  type SubscriptionPlan,
+} from "@/lib/permissions";
 
 /**
  * Get authenticated user and tenant context for API routes
@@ -94,6 +102,7 @@ export async function getAuthContext(request: Request): Promise<{
 /**
  * Require admin role - throws error if user is not admin or super admin
  * Use this in POST/PUT/DELETE endpoints to prevent viewers from modifying data
+ * Also use for user management operations (admin only)
  */
 export async function requireAdmin(request: Request): Promise<{
   user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
@@ -112,6 +121,83 @@ export async function requireAdmin(request: Request): Promise<{
   }
 
   return context;
+}
+
+/**
+ * Require specific permission - throws error if user doesn't have the required permission
+ * Fetches church subscription plan and checks permission based on role and plan
+ */
+export async function requirePermission(
+  permission: "members_edit" | "giving_edit" | "attendance_edit" | "reports_view" | "analytics_view",
+  request: Request,
+): Promise<{
+  user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
+  churchId: string;
+  subscriptionPlan: SubscriptionPlan;
+}> {
+  const context = await getAuthContext(request);
+
+  // Super admins can always perform any action
+  if (context.user.isSuperAdmin) {
+    // Fetch subscription plan for consistency
+    const { db } = await import("@/db");
+    const { churches } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, context.churchId),
+    });
+
+    return {
+      ...context,
+      subscriptionPlan: (church?.subscriptionPlan || "basic") as SubscriptionPlan,
+    };
+  }
+
+  // Fetch church subscription plan
+  const { db } = await import("@/db");
+  const { churches } = await import("@/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const church = await db.query.churches.findFirst({
+    where: eq(churches.id, context.churchId),
+  });
+
+  if (!church) {
+    throw new Error("TENANT_NOT_FOUND");
+  }
+
+  const subscriptionPlan = (church.subscriptionPlan || "basic") as SubscriptionPlan;
+
+  // Check permission based on role and subscription plan
+  let hasPermission = false;
+
+  switch (permission) {
+    case "members_edit":
+      hasPermission = canEditMembers(context.user.role, subscriptionPlan);
+      break;
+    case "giving_edit":
+      hasPermission = canEditGiving(context.user.role, subscriptionPlan);
+      break;
+    case "attendance_edit":
+      hasPermission = canEditAttendance(context.user.role, subscriptionPlan);
+      break;
+    case "reports_view":
+      hasPermission = canViewReports(context.user.role, subscriptionPlan);
+      break;
+    case "analytics_view":
+      hasPermission = canViewAnalytics(context.user.role, subscriptionPlan);
+      break;
+  }
+
+  if (!hasPermission) {
+    throw new Error("FORBIDDEN");
+  }
+
+  return {
+    ...context,
+    subscriptionPlan,
+  };
 }
 
 // Re-export handleAuthError for backward compatibility
