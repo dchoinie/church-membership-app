@@ -693,8 +693,8 @@ export default function AttendancePage() {
             </Dialog>
             ) : (
               <p className="text-muted-foreground">Select a service to view attendance records.</p>
-            )
-          ) : (
+            )}
+          {selectedServiceId && (
             <>
               {selectedService && (
                 <div className="text-sm text-muted-foreground mb-4">
@@ -1026,9 +1026,11 @@ export default function AttendancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Delete Service Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {canEditAttendance && (
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>

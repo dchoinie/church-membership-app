@@ -1,6 +1,7 @@
 /**
  * Playwright fixtures for test data management
  */
+/* eslint-disable react-hooks/rules-of-hooks */
 
 import { test as base } from "@playwright/test";
 import {
@@ -25,7 +26,7 @@ type TestFixtures = {
 
 export const test = base.extend<TestFixtures>({
   // Auto-create test user for each test
-  testUser: async ({}, use) => {
+  testUser: async ({}, fixture) => {
     const identifiers = generateTestIdentifiers("user");
     const userData: TestUserData = {
       email: identifiers.email,
@@ -39,7 +40,7 @@ export const test = base.extend<TestFixtures>({
       subdomain: identifiers.subdomain,
     });
 
-    await use({
+    await fixture({
       ...userData,
       userId,
       email,
@@ -53,7 +54,7 @@ export const test = base.extend<TestFixtures>({
   },
 
   // Auto-create test church for each test
-  testChurch: async ({}, use) => {
+  testChurch: async ({}, useFixture) => {
     const identifiers = generateTestIdentifiers("church");
     const churchData: TestChurchData = {
       name: identifiers.name + " Church",
@@ -72,7 +73,7 @@ export const test = base.extend<TestFixtures>({
       churchData
     );
 
-    await use({
+    await useFixture({
       ...churchData,
       churchId: setup.churchId,
       subdomain: setup.subdomain,
@@ -88,7 +89,7 @@ export const test = base.extend<TestFixtures>({
   },
 
   // Complete test setup: user + church + link
-  testSetup: async ({}, use) => {
+  testSetup: async ({}, fixture) => {
     const identifiers = generateTestIdentifiers("setup");
     const password = "TestPassword123!";
 
@@ -107,7 +108,7 @@ export const test = base.extend<TestFixtures>({
       }
     );
 
-    await use({
+    await fixture({
       ...setup,
       password,
     });

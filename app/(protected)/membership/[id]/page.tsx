@@ -457,8 +457,6 @@ export default function MemberDetailPage({
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-                  </>
-                )}
               </>
             )}
           </div>

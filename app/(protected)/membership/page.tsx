@@ -96,6 +96,7 @@ interface PaginationInfo {
 
 export default function MembershipPage() {
   const router = useRouter();
+  const { canEditMembers } = usePermissions();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -654,13 +655,15 @@ export default function MembershipPage() {
               </Form>
             </DialogContent>
           </Dialog>
-          <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="cursor-pointer">
-                <UploadIcon className="mr-2 h-4 w-4" />
-                Bulk Import
-              </Button>
-            </DialogTrigger>
+            )}
+            {canEditMembers && (
+              <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="cursor-pointer">
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  Bulk Import
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Bulk Import Members</DialogTitle>
@@ -753,7 +756,7 @@ export default function MembershipPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          )}
+            )}
         </div>
       </div>
 
@@ -1158,11 +1161,13 @@ export default function MembershipPage() {
               </DialogFooter>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete Household Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {canEditMembers && (
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>

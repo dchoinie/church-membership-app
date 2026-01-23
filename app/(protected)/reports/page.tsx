@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { DownloadIcon, FileTextIcon, Loader2 } from "lucide-react";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +65,7 @@ const PARTICIPATION_STATUSES = [
 const ALL_STATUS_VALUES = PARTICIPATION_STATUSES.map(s => s.value);
 
 export default function ReportsPage() {
+  const { canViewReports } = usePermissions();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [loadingHouseholds, setLoadingHouseholds] = useState(true);
   const [generatingGivingReport, setGeneratingGivingReport] = useState(false);
@@ -460,19 +462,21 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              <Button type="submit" disabled={generatingGivingReport} className="cursor-pointer">
-                {generatingGivingReport ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <DownloadIcon className="mr-2 h-4 w-4" />
-                    Generate Giving Report
-                  </>
-                )}
-              </Button>
+              {canViewReports && (
+                <Button type="submit" disabled={generatingGivingReport} className="cursor-pointer">
+                  {generatingGivingReport ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <DownloadIcon className="mr-2 h-4 w-4" />
+                      Generate Giving Report
+                    </>
+                  )}
+                </Button>
+              )}
             </form>
           </Form>
         </CardContent>
@@ -706,19 +710,21 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              <Button type="submit" disabled={generatingCongressionalReport} className="cursor-pointer">
-                {generatingCongressionalReport ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <DownloadIcon className="mr-2 h-4 w-4" />
-                    Generate Congressional Statistics Report
-                  </>
-                )}
-              </Button>
+              {canViewReports && (
+                <Button type="submit" disabled={generatingCongressionalReport} className="cursor-pointer">
+                  {generatingCongressionalReport ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <DownloadIcon className="mr-2 h-4 w-4" />
+                      Generate Congressional Statistics Report
+                    </>
+                  )}
+                </Button>
+              )}
             </form>
           </Form>
         </CardContent>

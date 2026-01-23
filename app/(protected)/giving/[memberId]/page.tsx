@@ -499,8 +499,9 @@ export default function MemberGivingPage({
       </Card>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-lg">
+      {canEditGiving && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Giving Record</DialogTitle>
             <DialogDescription>
@@ -673,8 +674,8 @@ export default function MemberGivingPage({
               </DialogFooter>
                 </form>
               </Form>
-            </DialogContent>
-          </Dialog>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Add Dialog */}
@@ -852,6 +853,7 @@ export default function MemberGivingPage({
           </Form>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

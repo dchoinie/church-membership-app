@@ -294,7 +294,8 @@ export default function ServiceAttendancePage() {
       </Card>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      {canEditAttendance && (
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Attendance Record</DialogTitle>

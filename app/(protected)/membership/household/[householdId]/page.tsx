@@ -146,6 +146,7 @@ export default function HouseholdViewPage({
   params: Promise<{ householdId: string }>;
 }) {
   const router = useRouter();
+  const { canEditMembers } = usePermissions();
   const [members, setMembers] = useState<Member[]>([]);
   const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1322,6 +1323,7 @@ export default function HouseholdViewPage({
           </Form>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Delete Member Dialog */}
       <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
@@ -1346,7 +1348,6 @@ export default function HouseholdViewPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      )}
 
       {/* Transfer Member Dialog */}
       <Dialog open={transferMemberDialogOpen} onOpenChange={setTransferMemberDialogOpen}>

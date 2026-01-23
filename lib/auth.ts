@@ -65,7 +65,7 @@ const getCookieDomain = () => {
     let cleanDomain: string
     try {
         // Remove protocol and port if present, extract just the domain
-        let domainOnly = domain.replace(/^https?:\/\//, "").split(":")[0].split("/")[0]
+        const domainOnly: string = domain.replace(/^https?:\/\//, "").split(":")[0].split("/")[0]
         
         // Extract root domain (e.g., "example.com" from "subdomain.example.com")
         const domainParts = domainOnly.split('.')

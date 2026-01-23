@@ -753,8 +753,10 @@ export default function GivingPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          <Dialog
-            open={bulkInputDialogOpen}
+          {canEditGiving && (
+            <>
+              <Dialog
+                open={bulkInputDialogOpen}
             onOpenChange={(open) => {
               setBulkInputDialogOpen(open);
               // Clear results whenever dialog opens or closes
@@ -967,10 +969,8 @@ export default function GivingPage() {
               </div>
             </DialogContent>
           </Dialog>
-          )}
-          {canEditGiving && (
-            <Dialog
-              open={bulkImportDialogOpen}
+          <Dialog
+            open={bulkImportDialogOpen}
             onOpenChange={(open) => {
               setBulkImportDialogOpen(open);
               if (!open) {
@@ -1103,6 +1103,7 @@ export default function GivingPage() {
               </div>
             </DialogContent>
           </Dialog>
+            </>
           )}
           {canEditGiving && (
             <Dialog
@@ -1350,6 +1351,7 @@ export default function GivingPage() {
               </Form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
