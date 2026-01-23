@@ -10,6 +10,7 @@ import { eq, and } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeEmail } from "@/lib/sanitize";
+import { checkAdminLimit } from "@/lib/admin-limits";
 
 export async function POST(request: Request) {
   try {
@@ -35,6 +36,22 @@ export async function POST(request: Request) {
         { error: "Invalid role. Must be 'admin' or 'viewer'" },
         { status: 400 },
       );
+    }
+
+    // Check admin limit if inviting with admin role
+    if (role === "admin") {
+      const adminLimitCheck = await checkAdminLimit(churchId, 1);
+      if (!adminLimitCheck.allowed) {
+        const upgradeMessage = adminLimitCheck.plan === "basic"
+          ? "Upgrade to Premium plan for up to 10 admin users."
+          : "Admin user limit reached for your plan.";
+        return NextResponse.json(
+          { 
+            error: `Admin user limit reached (${adminLimitCheck.currentCount}/${adminLimitCheck.limit}). ${upgradeMessage}` 
+          },
+          { status: 403 },
+        );
+      }
     }
 
     // Sanitize email

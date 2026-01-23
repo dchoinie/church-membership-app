@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeEmail } from "@/lib/sanitize";
+import { checkAdminLimit } from "@/lib/admin-limits";
 
 export async function PUT(request: Request) {
   try {
@@ -84,13 +85,29 @@ export async function PUT(request: Request) {
       });
 
       const adminUsers = allChurchUsers.filter(
-        (u) => u.role === "admin" || u.isSuperAdmin
+        (u) => u.role === "admin" && !u.isSuperAdmin
       );
 
       if (adminUsers.length === 1) {
         return NextResponse.json(
           { error: "Cannot change the last admin user to viewer" },
           { status: 400 },
+        );
+      }
+    }
+
+    // Check admin limit if updating role to admin
+    if (userToUpdate.role !== "admin" && validRole === "admin") {
+      const adminLimitCheck = await checkAdminLimit(churchId, 1);
+      if (!adminLimitCheck.allowed) {
+        const upgradeMessage = adminLimitCheck.plan === "basic"
+          ? "Upgrade to Premium plan for up to 10 admin users."
+          : "Admin user limit reached for your plan.";
+        return NextResponse.json(
+          { 
+            error: `Admin user limit reached (${adminLimitCheck.currentCount}/${adminLimitCheck.limit}). ${upgradeMessage}` 
+          },
+          { status: 403 },
         );
       }
     }

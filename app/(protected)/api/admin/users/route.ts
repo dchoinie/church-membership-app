@@ -3,9 +3,10 @@ import { desc, eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/auth-schema";
-import { invitations } from "@/db/schema";
+import { invitations, churches } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { checkAdminLimit, getAdminLimit } from "@/lib/admin-limits";
 
 export async function GET(request: Request) {
   try {
@@ -71,8 +72,34 @@ export async function GET(request: Request) {
       };
     });
 
+    // Get admin limit info for the UI
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, churchId),
+      columns: {
+        subscriptionPlan: true,
+      },
+    });
+
+    const plan = church?.subscriptionPlan || "basic";
+    const adminLimit = getAdminLimit(plan as "basic" | "premium" | "free");
+    
+    // Count current admin users (excluding super admins)
+    const allChurchUsers = await db.query.user.findMany({
+      where: eq(user.churchId, churchId),
+      columns: {
+        role: true,
+        isSuperAdmin: true,
+      },
+    });
+
+    const adminCount = allChurchUsers.filter(
+      (u) => u.role === "admin" && !u.isSuperAdmin
+    ).length;
+
     return NextResponse.json({
       users: [...usersWithStatus, ...pendingInvitesWithStatus],
+      adminLimit,
+      adminCount,
     });
   } catch (error) {
     return createErrorResponse(error);

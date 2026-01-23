@@ -52,6 +52,12 @@ interface User {
   emailVerified: boolean;
 }
 
+interface UsersResponse {
+  users: User[];
+  adminLimit?: number;
+  adminCount?: number;
+}
+
 export default function ManageAdminAccessPage() {
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("viewer");
@@ -64,6 +70,8 @@ export default function ManageAdminAccessPage() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
+  const [adminLimit, setAdminLimit] = useState<number | null>(null);
+  const [adminCount, setAdminCount] = useState<number | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -72,8 +80,14 @@ export default function ManageAdminAccessPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch users");
       }
-      const data = await response.json();
+      const data: UsersResponse = await response.json();
       setUsers(data.users);
+      if (data.adminLimit !== undefined) {
+        setAdminLimit(data.adminLimit);
+      }
+      if (data.adminCount !== undefined) {
+        setAdminCount(data.adminCount);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
@@ -244,6 +258,14 @@ export default function ManageAdminAccessPage() {
           <CardTitle>Invite New User</CardTitle>
           <CardDescription>
             Send an invitation to a new user by email address. Choose their role (Admin or Viewer).
+            {adminLimit !== null && adminCount !== null && (
+              <span className="block mt-1 text-sm">
+                Admin users: {adminCount}/{adminLimit}
+                {adminCount >= adminLimit && (
+                  <span className="text-destructive ml-2">(Limit reached)</span>
+                )}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -265,18 +287,29 @@ export default function ManageAdminAccessPage() {
               <Select
                 value={inviteRole}
                 onValueChange={(value) => setInviteRole(value as UserRole)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || (inviteRole === "admin" && adminLimit !== null && adminCount !== null && adminCount >= adminLimit)}
               >
                 <SelectTrigger id="role" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="viewer">Viewer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem 
+                    value="admin"
+                    disabled={adminLimit !== null && adminCount !== null && adminCount >= adminLimit}
+                  >
+                    Admin
+                    {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && " (Limit reached)"}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
                 Viewers can view data but cannot make changes. Admins have full access.
+                {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && (
+                  <span className="block mt-1 text-destructive">
+                    Admin user limit reached. Upgrade to Premium plan for more admin users.
+                  </span>
+                )}
               </p>
             </div>
             {error && (
@@ -346,7 +379,13 @@ export default function ManageAdminAccessPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem 
+                              value="admin"
+                              disabled={adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin"}
+                            >
+                              Admin
+                              {adminLimit !== null && adminCount !== null && adminCount >= adminLimit && user.role !== "admin" && " (Limit reached)"}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
