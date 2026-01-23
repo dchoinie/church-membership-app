@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
+import { user } from "@/auth-schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
@@ -20,7 +21,30 @@ export async function GET(request: Request) {
       );
     }
 
-    const churchId = await getTenantFromRequest(request);
+    // Try to get tenant context from subdomain first
+    let churchId = await getTenantFromRequest(request);
+    
+    // If no tenant context from subdomain, fall back to user's churchId
+    // This handles cases where subdomain lookup fails (e.g., Supabase query issues)
+    if (!churchId) {
+      const url = new URL(request.url);
+      const hostname = url.hostname || request.headers.get("host") || "";
+      console.log(`No tenant context from subdomain. Hostname: ${hostname}, User: ${session.user.id}`);
+      
+      const userRecord = await db.query.user.findFirst({
+        where: eq(user.id, session.user.id),
+        columns: {
+          churchId: true,
+        },
+      });
+
+      if (userRecord?.churchId) {
+        churchId = userRecord.churchId;
+        console.log(`Using fallback churchId from user record: ${churchId}`);
+      } else {
+        console.error(`User ${session.user.id} has no churchId in database`);
+      }
+    }
     
     if (!churchId) {
       return NextResponse.json(
@@ -34,6 +58,7 @@ export async function GET(request: Request) {
     });
 
     if (!church) {
+      console.error(`Church ${churchId} not found in database`);
       return NextResponse.json(
         { error: "Church not found" },
         { status: 404 }

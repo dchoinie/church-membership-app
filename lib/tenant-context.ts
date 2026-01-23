@@ -99,14 +99,28 @@ export async function getChurchBySubdomain(
   const { createServiceClient } = await import("@/utils/supabase/service");
   const supabase = createServiceClient();
   
+  const normalizedSubdomain = subdomain.toLowerCase().trim();
+  
   const { data: church, error } = await supabase
     .from("churches")
     .select("*")
-    .eq("subdomain", subdomain.toLowerCase())
+    .eq("subdomain", normalizedSubdomain)
     .limit(1)
     .single();
 
-  if (error || !church) {
+  if (error) {
+    // Log the error for debugging - this will help identify if Supabase query is failing
+    console.error(`Error looking up church by subdomain "${normalizedSubdomain}":`, {
+      error,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return null;
+  }
+
+  if (!church) {
+    console.warn(`Church not found for subdomain "${normalizedSubdomain}"`);
     return null;
   }
 
