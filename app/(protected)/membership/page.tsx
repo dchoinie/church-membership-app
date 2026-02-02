@@ -694,15 +694,6 @@ export default function MembershipPage() {
             </DialogContent>
           </Dialog>
             )}
-            <Button
-              variant="outline"
-              onClick={handleExportMembers}
-              disabled={exporting}
-              className="cursor-pointer"
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" />
-              {exporting ? "Exporting..." : "Export Members"}
-            </Button>
             {canEditMembers && (
               <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
               <DialogTrigger asChild>
@@ -804,6 +795,15 @@ export default function MembershipPage() {
             </DialogContent>
           </Dialog>
             )}
+            <Button
+              variant="outline"
+              onClick={handleExportMembers}
+              disabled={exporting}
+              className="cursor-pointer"
+            >
+              <DownloadIcon className="mr-2 h-4 w-4" />
+              {exporting ? "Exporting..." : "Export Members"}
+            </Button>
         </div>
       </div>
 

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { verifyUserBelongsToChurch } from "@/lib/tenant-db";
@@ -24,9 +23,16 @@ export async function getAuthContext(request: Request): Promise<{
   user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
   churchId: string;
 }> {
-  // Get session
+  // Get session - convert request headers to Headers object for better-auth
+  // This works more reliably in API route handlers, especially in production
+  // Using next/headers() can fail in API routes, so we use request headers directly
+  const headers = new Headers();
+  request.headers.forEach((value, key) => {
+    headers.set(key, value);
+  });
+  
   const session = await auth.api.getSession({
-    headers: await headers(),
+    headers,
   });
 
   if (!session?.user) {
