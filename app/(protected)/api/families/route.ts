@@ -10,7 +10,9 @@ import { sanitizeText } from "@/lib/sanitize";
 
 export async function GET(request: Request) {
   try {
+    console.log("[GET /api/families] Starting request");
     const { churchId } = await getAuthContext(request);
+    console.log("[GET /api/families] Got churchId:", churchId);
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -80,6 +82,11 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    console.error("[GET /api/families] Error:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
+    });
     return createErrorResponse(error);
   }
 }

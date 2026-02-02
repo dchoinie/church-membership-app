@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
 import { verifyUserBelongsToChurch } from "@/lib/tenant-db";
@@ -23,17 +24,40 @@ export async function getAuthContext(request: Request): Promise<{
   user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
   churchId: string;
 }> {
-  // Get session - convert request headers to Headers object for better-auth
-  // This works more reliably in API route handlers, especially in production
-  // Using next/headers() can fail in API routes, so we use request headers directly
-  const headers = new Headers();
-  request.headers.forEach((value, key) => {
-    headers.set(key, value);
-  });
+  // Get session - better-auth's getSession expects headers from next/headers()
+  // However, in some production environments, headers() can fail in API routes
+  // We'll try headers() first, and if it fails, use request headers directly
+  let session;
   
-  const session = await auth.api.getSession({
-    headers,
-  });
+  try {
+    // Try the recommended approach first
+    const nextHeaders = await headers();
+    session = await auth.api.getSession({
+      headers: nextHeaders,
+    });
+  } catch (headersError: any) {
+    // If headers() fails, try using request headers
+    // This can happen in production API routes
+    const errorMessage = headersError?.message || String(headersError);
+    console.error("[getAuthContext] headers() failed, using request headers:", errorMessage);
+    
+    // Create a Headers object from the request
+    // Note: better-auth might need cookies specifically, so we ensure they're included
+    const requestHeaders = new Headers();
+    request.headers.forEach((value, key) => {
+      requestHeaders.set(key, value);
+    });
+    
+    // Ensure cookies are properly set (critical for session)
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      requestHeaders.set("cookie", cookieHeader);
+    }
+    
+    session = await auth.api.getSession({
+      headers: requestHeaders,
+    });
+  }
 
   if (!session?.user) {
     throw new Error("UNAUTHORIZED");
