@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,7 @@ export default function MembershipPage() {
     errors: string[];
   } | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -449,6 +450,43 @@ export default function MembershipPage() {
     }
   };
 
+  const handleExportMembers = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch("/api/members/export");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to export members");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `members_export_${new Date().toISOString().split("T")[0]}.csv`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Error exporting members:", error);
+      alert(error instanceof Error ? error.message : "Failed to export members. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -656,6 +694,15 @@ export default function MembershipPage() {
             </DialogContent>
           </Dialog>
             )}
+            <Button
+              variant="outline"
+              onClick={handleExportMembers}
+              disabled={exporting}
+              className="cursor-pointer"
+            >
+              <DownloadIcon className="mr-2 h-4 w-4" />
+              {exporting ? "Exporting..." : "Export Members"}
+            </Button>
             {canEditMembers && (
               <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
               <DialogTrigger asChild>
