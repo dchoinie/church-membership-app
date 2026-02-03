@@ -47,20 +47,7 @@ export default function ChurchDetailPage() {
 
   useEffect(() => {
     fetchChurch();
-    fetchCsrfToken();
   }, [churchId]);
-
-  const fetchCsrfToken = async () => {
-    try {
-      const response = await fetch("/api/csrf-token");
-      if (response.ok) {
-        const data = await response.json();
-        setCsrfToken(data.token);
-      }
-    } catch (err) {
-      console.error("Failed to fetch CSRF token:", err);
-    }
-  };
 
   const fetchChurch = async () => {
     try {
