@@ -198,6 +198,11 @@ export default function GivingPage() {
   // Update filtered members when envelope number changes
   useEffect(() => {
     if (selectedEnvelopeNumber) {
+      // Handle guest selection (envelope number 0)
+      if (selectedEnvelopeNumber === "0") {
+        setFilteredMembers([]); // Guest doesn't show member list
+        return;
+      }
       const envelopeNum = parseInt(selectedEnvelopeNumber, 10);
       const membersForEnvelope = allMembers
         .filter((m) => m.envelopeNumber === envelopeNum)
@@ -270,11 +275,15 @@ export default function GivingPage() {
     }
 
     const envelopeNum = parseInt(data.envelopeNumber, 10);
-    const membersForEnvelope = allMembers.filter((m) => m.envelopeNumber === envelopeNum);
+    
+    // Skip validation for guest (envelope 0) - API will handle guest member lookup
+    if (envelopeNum !== 0) {
+      const membersForEnvelope = allMembers.filter((m) => m.envelopeNumber === envelopeNum);
 
-    if (membersForEnvelope.length === 0) {
-      alert("No members found for this envelope number");
-      return;
+      if (membersForEnvelope.length === 0) {
+        alert("No members found for this envelope number");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -503,11 +512,14 @@ export default function GivingPage() {
         return;
       }
 
-      // Check if envelope exists
-      const envelopeExists = envelopeNumbers.includes(envelopeNum);
-      if (!envelopeExists) {
-        errors.push(`Row ${index + 1}: No members found for envelope number ${envelopeNum}`);
-        return;
+      // Skip envelope existence check for guest (envelope 0) - API will handle guest member lookup
+      if (envelopeNum !== 0) {
+        // Check if envelope exists
+        const envelopeExists = envelopeNumbers.includes(envelopeNum);
+        if (!envelopeExists) {
+          errors.push(`Row ${index + 1}: No members found for envelope number ${envelopeNum}`);
+          return;
+        }
       }
 
       // Parse amounts
@@ -786,6 +798,7 @@ export default function GivingPage() {
                                   <SelectValue placeholder="Select" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="0">Guest</SelectItem>
                                   {envelopeNumbers.map((num) => (
                                     <SelectItem key={num} value={num.toString()}>
                                       {num}
@@ -1118,6 +1131,7 @@ export default function GivingPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
+                            <SelectItem value="0">Guest</SelectItem>
                             {envelopeNumbers.map((envelopeNum) => (
                               <SelectItem key={envelopeNum} value={envelopeNum.toString()}>
                                 {envelopeNum}
@@ -1144,7 +1158,14 @@ export default function GivingPage() {
                       </div>
                     </div>
                   )}
-                  {selectedEnvelopeNumber && filteredMembers.length === 0 && (
+                  {selectedEnvelopeNumber === "0" && (
+                    <div className="p-4 bg-muted rounded-md">
+                      <p className="text-sm text-muted-foreground">
+                        Guest giving record will be created for anonymous donations.
+                      </p>
+                    </div>
+                  )}
+                  {selectedEnvelopeNumber && selectedEnvelopeNumber !== "0" && filteredMembers.length === 0 && (
                     <div className="p-4 bg-muted rounded-md">
                       <p className="text-sm text-muted-foreground">
                         No members found for envelope number {selectedEnvelopeNumber}.

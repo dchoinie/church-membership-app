@@ -119,19 +119,39 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Find members with this envelope number
-        const membersForEnvelope = membersByEnvelope.get(envelopeNum);
-        if (!membersForEnvelope || membersForEnvelope.length === 0) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: No members found for envelope number ${envelopeNum}`,
-          );
-          continue;
-        }
+        // Handle guest (envelope number 0) - find a guest member
+        let targetMemberId: string;
+        if (envelopeNum === 0) {
+          const [guestMember] = await db
+            .select({ id: members.id })
+            .from(members)
+            .where(and(eq(members.membershipCode, "GUEST"), eq(members.churchId, churchId)))
+            .limit(1);
 
-        // Find head of household using sequence column
-        const firstMember = membersForEnvelope[0];
-        const targetMemberId = await findHeadOfHousehold(firstMember.householdId) || firstMember.id;
+          if (!guestMember) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: No guest member found. Please create a guest member through attendance records first.`,
+            );
+            continue;
+          }
+
+          targetMemberId = guestMember.id;
+        } else {
+          // Find members with this envelope number
+          const membersForEnvelope = membersByEnvelope.get(envelopeNum);
+          if (!membersForEnvelope || membersForEnvelope.length === 0) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: No members found for envelope number ${envelopeNum}`,
+            );
+            continue;
+          }
+
+          // Find head of household using sequence column
+          const firstMember = membersForEnvelope[0];
+          targetMemberId = await findHeadOfHousehold(firstMember.householdId) || firstMember.id;
+        }
 
         // Parse amounts
         const currentAmount = record.currentAmount ? parseFloat(record.currentAmount) : null;

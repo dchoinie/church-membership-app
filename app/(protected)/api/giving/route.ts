@@ -221,48 +221,66 @@ export async function POST(request: Request) {
         );
       }
 
-      // Find all members with this envelope number (filtered by churchId)
-      const membersWithEnvelope = await db
-        .select({
-          id: members.id,
-          householdId: members.householdId,
-          sex: members.sex,
-          dateOfBirth: members.dateOfBirth,
-        })
-        .from(members)
-        .where(and(eq(members.envelopeNumber, envelopeNum), eq(members.churchId, churchId)));
-
-      if (membersWithEnvelope.length === 0) {
-        return NextResponse.json(
-          { error: "No members found for this envelope number" },
-          { status: 404 },
-        );
-      }
-
-      // Find head of household using sequence column
-      // Get household ID from first member with this envelope number
-      const firstMember = membersWithEnvelope[0];
-      if (firstMember.householdId) {
-        const [headOfHousehold] = await db
+      // Handle guest (envelope number 0) - find a guest member
+      if (envelopeNum === 0) {
+        const [guestMember] = await db
           .select({ id: members.id })
           .from(members)
-          .where(
-            and(
-              eq(members.householdId, firstMember.householdId),
-              eq(members.sequence, "head_of_house")
-            )
-          )
+          .where(and(eq(members.membershipCode, "GUEST"), eq(members.churchId, churchId)))
           .limit(1);
 
-        if (headOfHousehold) {
-          targetMemberId = headOfHousehold.id;
+        if (!guestMember) {
+          return NextResponse.json(
+            { error: "No guest member found. Please create a guest member through attendance records first." },
+            { status: 404 },
+          );
+        }
+
+        targetMemberId = guestMember.id;
+      } else {
+        // Find all members with this envelope number (filtered by churchId)
+        const membersWithEnvelope = await db
+          .select({
+            id: members.id,
+            householdId: members.householdId,
+            sex: members.sex,
+            dateOfBirth: members.dateOfBirth,
+          })
+          .from(members)
+          .where(and(eq(members.envelopeNumber, envelopeNum), eq(members.churchId, churchId)));
+
+        if (membersWithEnvelope.length === 0) {
+          return NextResponse.json(
+            { error: "No members found for this envelope number" },
+            { status: 404 },
+          );
+        }
+
+        // Find head of household using sequence column
+        // Get household ID from first member with this envelope number
+        const firstMember = membersWithEnvelope[0];
+        if (firstMember.householdId) {
+          const [headOfHousehold] = await db
+            .select({ id: members.id })
+            .from(members)
+            .where(
+              and(
+                eq(members.householdId, firstMember.householdId),
+                eq(members.sequence, "head_of_house")
+              )
+            )
+            .limit(1);
+
+          if (headOfHousehold) {
+            targetMemberId = headOfHousehold.id;
+          } else {
+            // Fallback to first member if no head of house found
+            targetMemberId = firstMember.id;
+          }
         } else {
-          // Fallback to first member if no head of house found
+          // Fallback to first member if no household ID
           targetMemberId = firstMember.id;
         }
-      } else {
-        // Fallback to first member if no household ID
-        targetMemberId = firstMember.id;
       }
     } else {
       // Use provided memberId
