@@ -166,6 +166,7 @@ export default function AttendancePage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const serviceForm = useForm<ServiceFormData>({
     defaultValues: {
@@ -260,6 +261,21 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
+  }, []);
+
+  useEffect(() => {
     fetchMembers();
     fetchServices();
     fetchServicesWithStats(currentPage);
@@ -285,6 +301,9 @@ export default function AttendancePage() {
     try {
       const response = await fetch(`/api/services/${selectedServiceForDelete.serviceId}`, {
         method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
       });
 
       if (!response.ok) {
@@ -372,6 +391,7 @@ export default function AttendancePage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           serviceDate: data.serviceDate,
