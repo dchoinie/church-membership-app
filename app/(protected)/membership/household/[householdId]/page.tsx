@@ -158,6 +158,7 @@ export default function HouseholdViewPage({
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [allHouseholds, setAllHouseholds] = useState<HouseholdOption[]>([]);
+  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const editForm = useForm<HouseholdFormData>({
     defaultValues: {
@@ -206,6 +207,21 @@ export default function HouseholdViewPage({
       createNewHousehold: false,
     },
   });
+
+  useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -365,6 +381,7 @@ export default function HouseholdViewPage({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           name: data.name || null,
@@ -401,6 +418,7 @@ export default function HouseholdViewPage({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           ...data,
@@ -434,6 +452,9 @@ export default function HouseholdViewPage({
     try {
       const response = await fetch(`/api/members/${selectedMember.id}`, {
         method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
       });
 
       if (response.ok) {
@@ -463,6 +484,7 @@ export default function HouseholdViewPage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "x-csrf-token": csrfToken,
           },
           body: JSON.stringify({
             name: `${selectedMember.firstName} ${selectedMember.lastName}`,
@@ -496,6 +518,7 @@ export default function HouseholdViewPage({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify({
           firstName: selectedMember.firstName,
@@ -529,6 +552,9 @@ export default function HouseholdViewPage({
     try {
       const response = await fetch(`/api/families/${householdId}`, {
         method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
       });
 
       if (response.ok) {

@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { checkCsrfToken } from "@/lib/csrf";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function PUT(request: Request) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     const { churchId, user } = await getAuthContext(request);
     
     if (!churchId) {

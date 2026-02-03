@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { createCustomerPortalSession } from "@/lib/stripe";
+import { checkCsrfToken } from "@/lib/csrf";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -9,6 +10,10 @@ import { getTenantFromRequest } from "@/lib/tenant-context";
 
 export async function POST(request: Request) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     const session = await auth.api.getSession({
       headers: await headers(),
     });

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createCheckoutSession } from "@/lib/stripe";
 import { getPriceId } from "@/lib/pricing";
+import { checkCsrfToken } from "@/lib/csrf";
 
 export async function POST(request: Request) {
   try {
+    // Check CSRF token
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) return csrfError;
+
     const { customerId, plan, priceId, churchId, successUrl, cancelUrl } =
       await request.json();
 

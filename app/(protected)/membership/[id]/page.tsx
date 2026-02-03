@@ -133,6 +133,7 @@ export default function MemberDetailPage({
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [memberId, setMemberId] = useState<string>("");
+  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const form = useForm<MemberFormData>({
     defaultValues: {
@@ -232,6 +233,21 @@ export default function MemberDetailPage({
   }, [form]);
 
   useEffect(() => {
+    const fetchCsrfToken = async () => {
+      try {
+        const response = await fetch("/api/csrf-token");
+        if (response.ok) {
+          const data = await response.json();
+          setCsrfToken(data.token);
+        }
+      } catch (err) {
+        console.error("Failed to fetch CSRF token:", err);
+      }
+    };
+    fetchCsrfToken();
+  }, []);
+
+  useEffect(() => {
     const init = async () => {
       const resolvedParams = await params;
       const id = resolvedParams.id;
@@ -316,6 +332,7 @@ export default function MemberDetailPage({
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "x-csrf-token": csrfToken,
         },
         body: JSON.stringify(payload),
       });
@@ -338,6 +355,9 @@ export default function MemberDetailPage({
     try {
       const response = await fetch(`/api/members/${memberId}`, {
         method: "DELETE",
+        headers: {
+          "x-csrf-token": csrfToken,
+        },
       });
 
       if (response.ok) {
