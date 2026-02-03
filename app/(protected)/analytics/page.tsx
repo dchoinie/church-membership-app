@@ -37,6 +37,8 @@ interface AttendanceAnalytics {
     malePercent: number;
     femalePercent: number;
     childrenCount: number;
+    memberCount: number;
+    guestCount: number;
   }>;
   divineServiceComparison: {
     divineService: {
@@ -50,11 +52,23 @@ interface AttendanceAnalytics {
       averageAttendance: number;
     };
   };
+  memberVsGuestComparison: {
+    members: {
+      totalAttendance: number;
+      averageAttendance: number;
+    };
+    guests: {
+      totalAttendance: number;
+      averageAttendance: number;
+    };
+  };
   monthlyTrend: Array<{
     month: string;
     attendance: number;
     communion: number;
     serviceCount: number;
+    memberAttendance: number;
+    guestAttendance: number;
   }>;
   year: number | null;
   startDate?: string;
@@ -388,6 +402,39 @@ export default function AnalyticsPage() {
       services: analytics.divineServiceComparison.otherServices.serviceCount,
     },
   ] : [];
+
+  // Member vs Guest data preparation
+  const memberVsGuestData = analytics ? [
+    {
+      name: "Members",
+      total: analytics.memberVsGuestComparison.members.totalAttendance,
+      average: analytics.memberVsGuestComparison.members.averageAttendance,
+    },
+    {
+      name: "Guests",
+      total: analytics.memberVsGuestComparison.guests.totalAttendance,
+      average: analytics.memberVsGuestComparison.guests.averageAttendance,
+    },
+  ] : [];
+
+  const monthlyMemberVsGuestData = analytics?.monthlyTrend.map((item) => {
+    // Extract month name (handle both "January" and "January 2024" formats)
+    const monthParts = item.month.split(" ");
+    const monthName = monthParts[0].substring(0, 3);
+    return {
+      month: monthName,
+      members: item.memberAttendance,
+      guests: item.guestAttendance,
+      serviceCount: item.serviceCount,
+    };
+  }) || [];
+
+  const totalMemberAttendance = analytics?.memberVsGuestComparison.members.totalAttendance || 0;
+  const totalGuestAttendance = analytics?.memberVsGuestComparison.guests.totalAttendance || 0;
+  const memberVsGuestPieData = [
+    { name: "Members", value: totalMemberAttendance },
+    { name: "Guests", value: totalGuestAttendance },
+  ].filter((item) => item.value > 0);
 
   // Giving analytics data preparation
   const monthlyGivingTrendData = givingAnalytics?.monthlyTrend.map((item) => {
@@ -978,6 +1025,52 @@ export default function AnalyticsPage() {
                 </CardContent>
               </Card>
 
+              {/* Monthly Member vs Guest Trend */}
+              {monthlyMemberVsGuestData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <TrendingUpIcon className="h-4 w-4 md:h-5 md:w-5" />
+                      Monthly Member vs Guest Trend (Average Per Service)
+                    </CardTitle>
+                    <CardDescription className="text-xs md:text-sm">Average member and guest attendance per service by month</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
+                      <LineChart data={monthlyMemberVsGuestData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value: number, name: string, props?: { payload?: { serviceCount?: number } }) => {
+                            const serviceCount = props?.payload?.serviceCount || 0;
+                            if (name === "Members" || name === "Guests") {
+                              return [`${typeof value === 'number' ? value.toFixed(1) : value}${serviceCount > 0 ? ` (${serviceCount} service${serviceCount !== 1 ? 's' : ''})` : ''}`, name];
+                            }
+                            return [typeof value === 'number' ? value.toFixed(1) : value, name];
+                          }}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="members"
+                          stroke="#8884d8"
+                          name="Members"
+                          strokeWidth={2}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="guests"
+                          stroke="#ff7300"
+                          name="Guests"
+                          strokeWidth={2}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Divine Service vs Other Services */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
@@ -1022,6 +1115,85 @@ export default function AnalyticsPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Member vs Guest Comparison */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
+                      Total Attendance: Members vs Guests
+                    </CardTitle>
+                    <CardDescription className="text-xs md:text-sm">Total member and guest attendance comparison</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
+                      <BarChart data={memberVsGuestData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="total" fill="#8884d8" name="Total Attendance" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <BarChart3Icon className="h-4 w-4 md:h-5 md:w-5" />
+                      Average Attendance: Members vs Guests
+                    </CardTitle>
+                    <CardDescription className="text-xs md:text-sm">Average attendance per service</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
+                      <BarChart data={memberVsGuestData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="average" fill="#82ca9d" name="Average Attendance" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Member vs Guest Pie Chart */}
+              {memberVsGuestPieData.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                      <UsersIcon className="h-4 w-4 md:h-5 md:w-5" />
+                      Member vs Guest Distribution
+                    </CardTitle>
+                    <CardDescription className="text-xs md:text-sm">Overall percentage breakdown of members vs guests</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
+                      <PieChart>
+                        <Pie
+                          data={memberVsGuestPieData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {memberVsGuestPieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Service Type Distribution */}
               <Card>

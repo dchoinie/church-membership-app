@@ -46,6 +46,7 @@ export async function GET(request: Request) {
         serviceType: services.serviceType,
         memberSex: members.sex,
         memberDateOfBirth: members.dateOfBirth,
+        memberMembershipCode: members.membershipCode,
       })
       .from(attendance)
       .innerJoin(services, eq(attendance.serviceId, services.id))
@@ -85,6 +86,10 @@ export async function GET(request: Request) {
         return actualAge < 18;
       }).length;
 
+      // Calculate member vs guest counts
+      const memberCount = attendedRecords.filter((a) => a.memberMembershipCode !== "GUEST").length;
+      const guestCount = attendedRecords.filter((a) => a.memberMembershipCode === "GUEST").length;
+
       return {
         serviceId: service.id,
         serviceDate: service.serviceDate,
@@ -97,6 +102,8 @@ export async function GET(request: Request) {
         malePercent: Math.round(malePercent * 100) / 100,
         femalePercent: Math.round(femalePercent * 100) / 100,
         childrenCount,
+        memberCount,
+        guestCount,
       };
     });
 
@@ -112,8 +119,15 @@ export async function GET(request: Request) {
     const divineServiceCount = attendancePerService.filter((s) => s.serviceType === "divine_service").length;
     const otherServiceCount = attendancePerService.filter((s) => s.serviceType !== "divine_service").length;
 
+    // Calculate member vs guest comparison
+    const totalMemberAttendance = attendancePerService.reduce((sum, s) => sum + s.memberCount, 0);
+    const totalGuestAttendance = attendancePerService.reduce((sum, s) => sum + s.guestCount, 0);
+    const totalServices = attendancePerService.length;
+    const averageMemberAttendance = totalServices > 0 ? Math.round((totalMemberAttendance / totalServices) * 100) / 100 : 0;
+    const averageGuestAttendance = totalServices > 0 ? Math.round((totalGuestAttendance / totalServices) * 100) / 100 : 0;
+
     // Calculate monthly attendance trend (average per service)
-    const monthlyTrend: { month: string; attendance: number; communion: number; serviceCount: number }[] = [];
+    const monthlyTrend: { month: string; attendance: number; communion: number; serviceCount: number; memberAttendance: number; guestAttendance: number }[] = [];
     
     // Get date range
     const startDate = new Date(yearStart);
@@ -152,11 +166,20 @@ export async function GET(request: Request) {
         const avgAttendance = serviceCount > 0 ? Math.round((monthAttended / serviceCount) * 100) / 100 : 0;
         const avgCommunion = serviceCount > 0 ? Math.round((monthCommunion / serviceCount) * 100) / 100 : 0;
 
+        // Calculate member vs guest attendance
+        const monthAttendedRecords = monthAttendance.filter((a) => a.attended);
+        const monthMemberAttendance = monthAttendedRecords.filter((a) => a.memberMembershipCode !== "GUEST").length;
+        const monthGuestAttendance = monthAttendedRecords.filter((a) => a.memberMembershipCode === "GUEST").length;
+        const avgMemberAttendance = serviceCount > 0 ? Math.round((monthMemberAttendance / serviceCount) * 100) / 100 : 0;
+        const avgGuestAttendance = serviceCount > 0 ? Math.round((monthGuestAttendance / serviceCount) * 100) / 100 : 0;
+
         monthlyTrend.push({
           month: monthStartDate.toLocaleString("default", { month: "long", year: "numeric" }),
           attendance: avgAttendance,
           communion: avgCommunion,
           serviceCount,
+          memberAttendance: avgMemberAttendance,
+          guestAttendance: avgGuestAttendance,
         });
       }
     }
@@ -173,6 +196,16 @@ export async function GET(request: Request) {
           totalAttendance: otherServiceAttendance,
           serviceCount: otherServiceCount,
           averageAttendance: otherServiceCount > 0 ? Math.round((otherServiceAttendance / otherServiceCount) * 100) / 100 : 0,
+        },
+      },
+      memberVsGuestComparison: {
+        members: {
+          totalAttendance: totalMemberAttendance,
+          averageAttendance: averageMemberAttendance,
+        },
+        guests: {
+          totalAttendance: totalGuestAttendance,
+          averageAttendance: averageGuestAttendance,
         },
       },
       monthlyTrend,
