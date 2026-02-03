@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -111,7 +112,6 @@ export default function MembershipPage() {
     failed: number;
     errors: string[];
   } | null>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   // Pagination state
@@ -154,7 +154,7 @@ export default function MembershipPage() {
   const fetchHouseholds = async (page: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/families?page=${page}&pageSize=50`);
+      const response = await apiFetch(`/api/families?page=${page}&pageSize=50`);
       if (response.ok) {
         const data = await response.json();
         const fetchedHouseholds = data.households || [];
@@ -179,20 +179,6 @@ export default function MembershipPage() {
     fetchHouseholds(currentPage);
   }, [currentPage]);
 
-  useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -258,11 +244,8 @@ export default function MembershipPage() {
 
   const onCreateSubmit = async (data: HouseholdFormData) => {
     try {
-      const response = await fetch("/api/families", {
+      const response = await apiFetch("/api/families", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           name: data.name || null,
           type: data.type || null,
@@ -291,18 +274,9 @@ export default function MembershipPage() {
   const onEditSubmit = async (data: HouseholdFormData) => {
     if (!selectedHousehold) return;
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     try {
-      const response = await fetch(`/api/families/${selectedHousehold.id}`, {
+      const response = await apiFetch(`/api/families/${selectedHousehold.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           name: data.name || null,
           type: data.type || null,
@@ -337,17 +311,9 @@ export default function MembershipPage() {
   const handleDeleteConfirm = async () => {
     if (!selectedHousehold) return;
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     try {
-      const response = await fetch(`/api/families/${selectedHousehold.id}`, {
+      const response = await apiFetch(`/api/families/${selectedHousehold.id}`, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (response.ok) {
@@ -396,11 +362,6 @@ export default function MembershipPage() {
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setImporting(true);
     setImportResults(null);
 
@@ -408,11 +369,8 @@ export default function MembershipPage() {
       const formData = new FormData();
       formData.append("file", importFile);
 
-      const response = await fetch("/api/members/bulk-import", {
+      const response = await apiFetch("/api/members/bulk-import", {
         method: "POST",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
         body: formData,
       });
 
@@ -453,7 +411,7 @@ export default function MembershipPage() {
   const handleExportMembers = async () => {
     setExporting(true);
     try {
-      const response = await fetch("/api/members/export");
+      const response = await apiFetch("/api/members/export");
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to export members");

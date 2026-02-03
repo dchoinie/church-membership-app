@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon } from "lucide-react";
@@ -146,7 +147,6 @@ export default function GivingPage() {
     failed: number;
     errors: string[];
   } | null>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
@@ -176,7 +176,7 @@ export default function GivingPage() {
   const fetchMembers = async () => {
     try {
       // Fetch all members (with a large page size to get all)
-      const response = await fetch("/api/members?page=1&pageSize=10000");
+      const response = await apiFetch("/api/members?page=1&pageSize=10000");
       if (response.ok) {
         const data = await response.json();
         const membersWithEnvelopes = (data.members || []).filter(
@@ -216,7 +216,7 @@ export default function GivingPage() {
   const fetchGivingRecords = async (page: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/giving?page=${page}&pageSize=50`);
+      const response = await apiFetch(`/api/giving?page=${page}&pageSize=50`);
       if (response.ok) {
         const data = await response.json();
         setGivingRecords(data.giving || []);
@@ -242,20 +242,6 @@ export default function GivingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -291,21 +277,12 @@ export default function GivingPage() {
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setSubmitting(true);
     try {
       // Create a single giving record for the envelope number (household level)
       // The API will automatically find the head of household
-      const response = await fetch("/api/giving", {
+      const response = await apiFetch("/api/giving", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           envelopeNumber: envelopeNum,
           currentAmount: current,
@@ -611,21 +588,12 @@ export default function GivingPage() {
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setBulkInputSubmitting(true);
     setBulkInputResults(null);
 
     try {
-      const response = await fetch("/api/giving/bulk-input", {
+      const response = await apiFetch("/api/giving/bulk-input", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           records: validRecords,
         }),
@@ -697,11 +665,6 @@ export default function GivingPage() {
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setImporting(true);
     setImportResults(null);
 
@@ -709,11 +672,8 @@ export default function GivingPage() {
       const formData = new FormData();
       formData.append("file", importFile);
 
-      const response = await fetch("/api/giving/bulk-import", {
+      const response = await apiFetch("/api/giving/bulk-import", {
         method: "POST",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
         body: formData,
       });
 

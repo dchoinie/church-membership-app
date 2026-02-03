@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
   PlusIcon,
@@ -158,7 +159,6 @@ export default function HouseholdViewPage({
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [allHouseholds, setAllHouseholds] = useState<HouseholdOption[]>([]);
-  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const editForm = useForm<HouseholdFormData>({
     defaultValues: {
@@ -209,21 +209,6 @@ export default function HouseholdViewPage({
   });
 
   useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
-
-  useEffect(() => {
     const init = async () => {
       const resolvedParams = await params;
       const id = resolvedParams.householdId;
@@ -236,7 +221,7 @@ export default function HouseholdViewPage({
 
   const fetchHouseholdData = async (id: string) => {
     try {
-      const response = await fetch(`/api/families/${id}`);
+      const response = await apiFetch(`/api/families/${id}`);
       if (response.ok) {
         const data = await response.json();
         setMembers(data.members || []);
@@ -253,7 +238,7 @@ export default function HouseholdViewPage({
 
   const fetchAllHouseholds = async () => {
     try {
-      const response = await fetch("/api/families?page=1&pageSize=1000");
+      const response = await apiFetch("/api/families?page=1&pageSize=1000");
       if (response.ok) {
         const data = await response.json();
         setAllHouseholds(data.households || []);
@@ -377,12 +362,8 @@ export default function HouseholdViewPage({
 
   const onEditSubmit = async (data: HouseholdFormData) => {
     try {
-      const response = await fetch(`/api/families/${householdId}`, {
+      const response = await apiFetch(`/api/families/${householdId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           name: data.name || null,
           type: data.type || null,
@@ -414,12 +395,8 @@ export default function HouseholdViewPage({
     }
 
     try {
-      const response = await fetch("/api/members", {
+      const response = await apiFetch("/api/members", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           ...data,
           householdId: householdId,
@@ -450,11 +427,8 @@ export default function HouseholdViewPage({
     if (!selectedMember) return;
 
     try {
-      const response = await fetch(`/api/members/${selectedMember.id}`, {
+      const response = await apiFetch(`/api/members/${selectedMember.id}`, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (response.ok) {
@@ -480,12 +454,8 @@ export default function HouseholdViewPage({
     if (formData.createNewHousehold) {
       // Create new individual household
       try {
-        const response = await fetch("/api/families", {
+        const response = await apiFetch("/api/families", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-csrf-token": csrfToken,
-          },
           body: JSON.stringify({
             name: `${selectedMember.firstName} ${selectedMember.lastName}`,
             type: "single",
@@ -514,12 +484,8 @@ export default function HouseholdViewPage({
     }
 
     try {
-      const response = await fetch(`/api/members/${selectedMember.id}`, {
+      const response = await apiFetch(`/api/members/${selectedMember.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           firstName: selectedMember.firstName,
           lastName: selectedMember.lastName,
@@ -550,11 +516,8 @@ export default function HouseholdViewPage({
     }
 
     try {
-      const response = await fetch(`/api/families/${householdId}`, {
+      const response = await apiFetch(`/api/families/${householdId}`, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (response.ok) {

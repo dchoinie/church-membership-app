@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
@@ -89,7 +90,6 @@ export default function MemberGivingPage({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<GivingRecord | null>(null);
   const [memberId, setMemberId] = useState<string>("");
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   const editForm = useForm<GivingFormData>({
     defaultValues: {
@@ -129,24 +129,10 @@ export default function MemberGivingPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
 
   const fetchMember = async (id: string) => {
     try {
-      const response = await fetch(`/api/members/${id}`);
+      const response = await apiFetch(`/api/members/${id}`);
       if (response.ok) {
         const data = await response.json();
         setMember(data.member);
@@ -159,7 +145,7 @@ export default function MemberGivingPage({
   const fetchGivingRecords = async (id: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/giving/member/${id}`);
+      const response = await apiFetch(`/api/giving/member/${id}`);
       if (response.ok) {
         const data = await response.json();
         setGivingRecords(data.giving || []);
@@ -202,19 +188,10 @@ export default function MemberGivingPage({
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/giving/${editingRecord.id}`, {
+      const response = await apiFetch(`/api/giving/${editingRecord.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           currentAmount: current,
           missionAmount: mission,
@@ -259,19 +236,10 @@ export default function MemberGivingPage({
       return;
     }
 
-    if (!csrfToken) {
-      alert("CSRF token not loaded. Please refresh the page and try again.");
-      return;
-    }
-
     setSubmitting(true);
     try {
-      const response = await fetch("/api/giving", {
+      const response = await apiFetch("/api/giving", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           memberId: memberId,
           currentAmount: current,

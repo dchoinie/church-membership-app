@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,7 +63,6 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [csrfToken, setCsrfToken] = useState<string>("");
   
   // Form state
   const [formData, setFormData] = useState({
@@ -79,7 +79,7 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchChurch = async () => {
       try {
-        const response = await fetch("/api/church");
+        const response = await apiFetch("/api/church");
         
         if (!response.ok) {
           throw new Error(`Failed to fetch church data: ${response.status} ${response.statusText}`);
@@ -111,21 +111,6 @@ export default function SettingsPage() {
     fetchChurch();
   }, []);
 
-  useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
-
   const handleSaveSettings = async () => {
     if (!church) return;
 
@@ -139,12 +124,8 @@ export default function SettingsPage() {
         ? formData.otherDenomination 
         : formData.denomination;
 
-      const response = await fetch("/api/church/settings", {
+      const response = await apiFetch("/api/church/settings", {
         method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           phone: formData.phone || null,
           email: formData.email || null,
@@ -219,12 +200,8 @@ export default function SettingsPage() {
       
       const cancelUrl = `${baseUrl}/settings`;
 
-      const response = await fetch("/api/stripe/create-checkout", {
+      const response = await apiFetch("/api/stripe/create-checkout", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           customerId: church.stripeCustomerId,
           plan: targetPlan, // Send target plan (opposite of current)

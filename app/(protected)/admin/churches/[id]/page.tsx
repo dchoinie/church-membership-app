@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api-client";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,6 @@ export default function ChurchDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteType, setDeleteType] = useState<"church" | "giving" | "members" | "attendance" | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -66,7 +66,7 @@ export default function ChurchDetailPage() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/admin/churches/${churchId}`);
+      const response = await apiFetch(`/api/admin/churches/${churchId}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch church (${response.status})`);
@@ -89,9 +89,8 @@ export default function ChurchDetailPage() {
 
     try {
       const formData = new FormData(e.currentTarget);
-      const response = await fetch(`/api/admin/churches/${churchId}`, {
+      const response = await apiFetch(`/api/admin/churches/${churchId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.get("name"),
           email: formData.get("email"),
@@ -116,7 +115,7 @@ export default function ChurchDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!csrfToken || !deleteType) return;
+    if (!deleteType) return;
 
     setDeleting(true);
     setError(null);
@@ -138,11 +137,8 @@ export default function ChurchDetailPage() {
           break;
       }
 
-      const response = await fetch(endpoint, {
+      const response = await apiFetch(endpoint, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (!response.ok) {
@@ -317,7 +313,7 @@ export default function ChurchDetailPage() {
           <Button
             variant="destructive"
             onClick={() => openDeleteDialog("attendance")}
-            disabled={!csrfToken || deleting}
+            disabled={deleting}
             className="w-full"
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -326,7 +322,7 @@ export default function ChurchDetailPage() {
           <Button
             variant="destructive"
             onClick={() => openDeleteDialog("giving")}
-            disabled={!csrfToken || deleting}
+            disabled={deleting}
             className="w-full"
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -335,7 +331,7 @@ export default function ChurchDetailPage() {
           <Button
             variant="destructive"
             onClick={() => openDeleteDialog("members")}
-            disabled={!csrfToken || deleting}
+            disabled={deleting}
             className="w-full"
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -344,7 +340,7 @@ export default function ChurchDetailPage() {
           <Button
             variant="destructive"
             onClick={() => openDeleteDialog("church")}
-            disabled={!csrfToken || deleting}
+            disabled={deleting}
             className="w-full"
           >
             <Trash2 className="mr-2 h-4 w-4" />
@@ -417,7 +413,7 @@ export default function ChurchDetailPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              disabled={deleting || !csrfToken}
+              disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? (

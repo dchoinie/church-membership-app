@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -166,7 +167,6 @@ export default function AttendancePage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
-  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const serviceForm = useForm<ServiceFormData>({
     defaultValues: {
@@ -200,7 +200,7 @@ export default function AttendancePage() {
   // Fetch active members
   const fetchMembers = async () => {
     try {
-      const response = await fetch("/api/attendance/members");
+      const response = await apiFetch("/api/attendance/members");
       if (response.ok) {
         const data = await response.json();
         setMembers(data.members || []);
@@ -223,7 +223,7 @@ export default function AttendancePage() {
   // Fetch services
   const fetchServices = async () => {
     try {
-      const response = await fetch("/api/services?pageSize=1000");
+      const response = await apiFetch("/api/services?pageSize=1000");
       if (response.ok) {
         const data = await response.json();
         const servicesList = (data.services || []).sort((a: Service, b: Service) => 
@@ -240,7 +240,7 @@ export default function AttendancePage() {
   const fetchServicesWithStats = async (page: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/attendance/services?page=${page}&pageSize=50`);
+      const response = await apiFetch(`/api/attendance/services?page=${page}&pageSize=50`);
       if (response.ok) {
         const data = await response.json();
         setServicesWithStats(data.services || []);
@@ -259,21 +259,6 @@ export default function AttendancePage() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
 
   useEffect(() => {
     fetchMembers();
@@ -299,11 +284,8 @@ export default function AttendancePage() {
 
     setDeleting(true);
     try {
-      const response = await fetch(`/api/services/${selectedServiceForDelete.serviceId}`, {
+      const response = await apiFetch(`/api/services/${selectedServiceForDelete.serviceId}`, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (!response.ok) {
@@ -387,12 +369,8 @@ export default function AttendancePage() {
         }
       }
 
-      const response = await fetch("/api/services", {
+      const response = await apiFetch("/api/services", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify({
           serviceDate: data.serviceDate,
           serviceType: finalServiceType,
@@ -448,11 +426,8 @@ export default function AttendancePage() {
         return;
       }
 
-      const response = await fetch("/api/attendance", {
+      const response = await apiFetch("/api/attendance", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           serviceId: selectedServiceId,
           records,
@@ -501,11 +476,8 @@ export default function AttendancePage() {
 
     setEditSubmitting(true);
     try {
-      const response = await fetch(`/api/attendance/${editingRecord.id}`, {
+      const response = await apiFetch(`/api/attendance/${editingRecord.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           attended: editingRecord.attended,
           tookCommunion: editingRecord.tookCommunion,

@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { PencilIcon, SaveIcon, XIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -133,7 +134,6 @@ export default function MemberDetailPage({
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [memberId, setMemberId] = useState<string>("");
-  const [csrfToken, setCsrfToken] = useState<string>("");
 
   const form = useForm<MemberFormData>({
     defaultValues: {
@@ -191,7 +191,7 @@ export default function MemberDetailPage({
 
   const fetchMember = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/members/${id}`);
+      const response = await apiFetch(`/api/members/${id}`);
       if (response.ok) {
         const data = await response.json();
         setMember(data.member);
@@ -233,21 +233,6 @@ export default function MemberDetailPage({
   }, [form]);
 
   useEffect(() => {
-    const fetchCsrfToken = async () => {
-      try {
-        const response = await fetch("/api/csrf-token");
-        if (response.ok) {
-          const data = await response.json();
-          setCsrfToken(data.token);
-        }
-      } catch (err) {
-        console.error("Failed to fetch CSRF token:", err);
-      }
-    };
-    fetchCsrfToken();
-  }, []);
-
-  useEffect(() => {
     const init = async () => {
       const resolvedParams = await params;
       const id = resolvedParams.id;
@@ -262,7 +247,7 @@ export default function MemberDetailPage({
 
   const fetchHouseholds = async () => {
     try {
-      const response = await fetch("/api/families?page=1&pageSize=1000");
+      const response = await apiFetch("/api/families?page=1&pageSize=1000");
       if (response.ok) {
         const data = await response.json();
         setHouseholds(data.households || []);
@@ -328,12 +313,8 @@ export default function MemberDetailPage({
         envelopeNumber: data.envelopeNumber ? parseInt(data.envelopeNumber, 10) : null,
       };
 
-      const response = await fetch(`/api/members/${memberId}`, {
+      const response = await apiFetch(`/api/members/${memberId}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-csrf-token": csrfToken,
-        },
         body: JSON.stringify(payload),
       });
 
@@ -353,11 +334,8 @@ export default function MemberDetailPage({
 
   const handleDelete = async () => {
     try {
-      const response = await fetch(`/api/members/${memberId}`, {
+      const response = await apiFetch(`/api/members/${memberId}`, {
         method: "DELETE",
-        headers: {
-          "x-csrf-token": csrfToken,
-        },
       });
 
       if (response.ok) {
