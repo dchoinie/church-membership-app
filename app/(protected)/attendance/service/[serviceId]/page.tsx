@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft, PencilIcon } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,12 @@ interface Service {
   serviceType: string;
 }
 
+interface Member {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface AttendanceRecord {
   id: string;
   memberId: string;
@@ -50,6 +57,13 @@ interface AttendanceRecord {
     id: string;
     serviceDate: string;
     serviceType: string;
+  };
+}
+
+interface AttendanceFormData {
+  [memberId: string]: {
+    attended: boolean;
+    tookCommunion: boolean;
   };
 }
 
@@ -93,7 +107,11 @@ export default function ServiceAttendancePage() {
 
   const [service, setService] = useState<Service | null>(null);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [formData, setFormData] = useState<AttendanceFormData>({});
   const [loading, setLoading] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -102,14 +120,37 @@ export default function ServiceAttendancePage() {
   useEffect(() => {
     if (serviceId) {
       fetchServiceAttendance();
+      if (isEditMode) {
+        fetchMembers();
+      } else {
+        // Clear members when switching to view mode
+        setMembers([]);
+        setFormData({});
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId, mode]);
 
+
+  const fetchMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      const response = await apiFetch("/api/attendance/members");
+      if (response.ok) {
+        const data = await response.json();
+        setMembers(data.members || []);
+      }
+    } catch (error) {
+      console.error("Error fetching members:", error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
   const fetchServiceAttendance = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/attendance/service/${serviceId}`);
+      const response = await apiFetch(`/api/attendance/service/${serviceId}`);
       if (response.ok) {
         const data = await response.json();
         setService(data.service);
@@ -121,6 +162,108 @@ export default function ServiceAttendancePage() {
       console.error("Error fetching service attendance:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Initialize form data when members and attendance records are loaded
+  useEffect(() => {
+    if (isEditMode && members.length > 0 && attendanceRecords.length >= 0) {
+      const initialFormData: AttendanceFormData = {};
+      members.forEach((member) => {
+        const existingRecord = attendanceRecords.find(
+          (r) => r.memberId === member.id
+        );
+        initialFormData[member.id] = {
+          attended: existingRecord?.attended || false,
+          tookCommunion: existingRecord?.tookCommunion || false,
+        };
+      });
+      setFormData(initialFormData);
+    }
+  }, [isEditMode, members, attendanceRecords]);
+
+  const handleCheckboxChange = (memberId: string, field: "attended" | "tookCommunion", checked: boolean) => {
+    setFormData((prev) => {
+      const currentData = prev[memberId] || { attended: false, tookCommunion: false };
+      
+      // If unchecking "attended", also uncheck "tookCommunion" (can't take communion without attending)
+      if (field === "attended" && !checked) {
+        return {
+          ...prev,
+          [memberId]: {
+            attended: false,
+            tookCommunion: false,
+          },
+        };
+      }
+      
+      // If checking "tookCommunion", ensure "attended" is also checked
+      if (field === "tookCommunion" && checked && !currentData.attended) {
+        return {
+          ...prev,
+          [memberId]: {
+            attended: true,
+            tookCommunion: true,
+          },
+        };
+      }
+      
+      return {
+        ...prev,
+        [memberId]: {
+          ...currentData,
+          [field]: checked,
+        },
+      };
+    });
+  };
+
+  const handleSave = async () => {
+    if (!serviceId) return;
+
+    setSubmitting(true);
+    try {
+      // Only include records for members who attended
+      const records = Object.entries(formData)
+        .filter(([, data]) => data.attended)
+        .map(([memberId, data]) => ({
+          memberId,
+          attended: data.attended,
+          tookCommunion: data.tookCommunion,
+        }));
+
+      const response = await apiFetch("/api/attendance", {
+        method: "POST",
+        body: JSON.stringify({
+          serviceId,
+          records,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Failed to save attendance: ${error.error || "Unknown error"}`);
+        return;
+      }
+
+      const result = await response.json();
+      
+      if (result.failed > 0 && result.errors.length > 0) {
+        alert(`Some records failed to save:\n${result.errors.join("\n")}`);
+      }
+
+      // Refresh attendance records
+      await fetchServiceAttendance();
+      
+      alert(`Successfully saved ${result.success} attendance record(s)`);
+      
+      // Switch back to view mode
+      router.push(`/attendance/service/${serviceId}?mode=view`);
+    } catch (error) {
+      console.error("Error saving attendance:", error);
+      alert("Failed to save attendance");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -139,11 +282,8 @@ export default function ServiceAttendancePage() {
 
     setEditSubmitting(true);
     try {
-      const response = await fetch(`/api/attendance/${editingRecord.id}`, {
+      const response = await apiFetch(`/api/attendance/${editingRecord.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           attended: editingRecord.attended,
           tookCommunion: editingRecord.tookCommunion,
@@ -233,61 +373,117 @@ export default function ServiceAttendancePage() {
           </div>
         </CardHeader>
         <CardContent>
-          {attendanceRecords.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No attendance records found for this service
-            </div>
+          {isEditMode ? (
+            <>
+              {loadingMembers || members.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {loadingMembers ? "Loading members..." : "No active members found"}
+                </div>
+              ) : (
+                <>
+                  <div className="border rounded-md max-h-[600px] overflow-auto">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[300px]">Member Name</TableHead>
+                            <TableHead className="text-center">Attended</TableHead>
+                            <TableHead className="text-center">Took Communion</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {members.map((member) => (
+                            <TableRow key={member.id}>
+                              <TableCell className="font-medium">
+                                {member.firstName} {member.lastName}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={formData[member.id]?.attended || false}
+                                  onCheckedChange={(checked) =>
+                                    handleCheckboxChange(member.id, "attended", checked === true)
+                                  }
+                                  disabled={!canEditAttendance}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={formData[member.id]?.tookCommunion || false}
+                                  onCheckedChange={(checked) =>
+                                    handleCheckboxChange(member.id, "tookCommunion", checked === true)
+                                  }
+                                  disabled={!canEditAttendance || !formData[member.id]?.attended}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={submitting || members.length === 0}
+                    className="w-full mt-4"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </Button>
+                </>
+              )}
+            </>
           ) : (
             <>
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Member Name</TableHead>
-                      <TableHead className="text-center">Attended</TableHead>
-                      <TableHead className="text-center">Took Communion</TableHead>
-                      {isEditMode && (
-                        <TableHead className="text-right">Actions</TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendanceRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium">
-                          {record.member.firstName} {record.member.lastName}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {record.attended ? "Yes" : "No"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {record.tookCommunion ? "Yes" : "No"}
-                        </TableCell>
-                        {isEditMode && (
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEdit(record)}
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              {attendanceRecords.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No attendance records found for this service
+                </div>
+              ) : (
+                <>
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Member Name</TableHead>
+                          <TableHead className="text-center">Attended</TableHead>
+                          <TableHead className="text-center">Took Communion</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {attendanceRecords.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="font-medium">
+                              {record.member.firstName} {record.member.lastName}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {record.attended ? "Yes" : "No"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {record.tookCommunion ? "Yes" : "No"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
 
-              <div className="mt-4 text-sm text-muted-foreground">
-                Total: {attendanceRecords.length} member{attendanceRecords.length !== 1 ? "s" : ""} attended
-                {attendanceRecords.filter((r) => r.tookCommunion).length > 0 && (
-                  <span className="ml-2">
-                    ({attendanceRecords.filter((r) => r.tookCommunion).length} took communion)
-                  </span>
-                )}
-              </div>
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    Total: {attendanceRecords.length} member{attendanceRecords.length !== 1 ? "s" : ""} attended
+                    {attendanceRecords.filter((r) => r.tookCommunion).length > 0 && (
+                      <span className="ml-2">
+                        ({attendanceRecords.filter((r) => r.tookCommunion).length} took communion)
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
         </CardContent>
