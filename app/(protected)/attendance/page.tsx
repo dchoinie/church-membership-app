@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { apiFetch } from "@/lib/api-client";
@@ -124,6 +124,11 @@ interface AttendanceFormData {
   };
 }
 
+interface NonMemberFormData {
+  name: string;
+  tookCommunion: boolean;
+}
+
 interface ServiceFormData {
   serviceDate: string;
   serviceType: string;
@@ -164,6 +169,7 @@ export default function AttendancePage() {
   const [selectedServiceForDelete, setSelectedServiceForDelete] = useState<ServiceWithStats | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState<AttendanceFormData>({});
+  const [nonMembers, setNonMembers] = useState<NonMemberFormData[]>([{ name: "", tookCommunion: false }]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
@@ -402,6 +408,26 @@ export default function AttendancePage() {
     }
   };
 
+  const handleAddNonMember = () => {
+    setNonMembers([...nonMembers, { name: "", tookCommunion: false }]);
+  };
+
+  const handleRemoveNonMember = (index: number) => {
+    setNonMembers(nonMembers.filter((_, i) => i !== index));
+  };
+
+  const handleNonMemberNameChange = (index: number, name: string) => {
+    const updated = [...nonMembers];
+    updated[index].name = name;
+    setNonMembers(updated);
+  };
+
+  const handleNonMemberCommunionChange = (index: number, checked: boolean) => {
+    const updated = [...nonMembers];
+    updated[index].tookCommunion = checked;
+    setNonMembers(updated);
+  };
+
   const handleSubmit = async () => {
     if (!selectedServiceId) {
       alert("Please select a service");
@@ -410,8 +436,11 @@ export default function AttendancePage() {
 
     setSubmitting(true);
     try {
+      // Filter out empty non-member names
+      const validNonMembers = nonMembers.filter((nm) => nm.name.trim() !== "");
+
       // Only include records for members who attended
-      const records = Object.entries(formData)
+      const memberRecords = Object.entries(formData)
         .filter(([, data]) => data.attended)
         .map(([memberId, data]) => ({
           memberId,
@@ -419,9 +448,55 @@ export default function AttendancePage() {
           tookCommunion: data.tookCommunion,
         }));
 
+      // Create guest member records for non-members and get their IDs
+      const guestMemberIds: string[] = [];
+      if (validNonMembers.length > 0) {
+        for (const nonMember of validNonMembers) {
+          try {
+            const nameParts = nonMember.name.trim().split(" ");
+            const firstName = nameParts[0] || "Guest";
+            const lastName = nameParts.slice(1).join(" ") || "Visitor";
+            
+            // Create a guest member record with a new household
+            const guestResponse = await apiFetch("/api/members", {
+              method: "POST",
+              body: JSON.stringify({
+                firstName,
+                lastName,
+                createNewHousehold: true,
+                householdName: "Guests",
+                householdType: "other",
+                participation: "inactive", // Mark as inactive to distinguish from regular members
+                membershipCode: "GUEST", // Mark as guest
+              }),
+            });
+
+            if (guestResponse.ok) {
+              const guestData = await guestResponse.json();
+              guestMemberIds.push(guestData.member.id);
+            } else {
+              const errorData = await guestResponse.json().catch(() => ({ error: "Unknown error" }));
+              console.error(`Failed to create guest member for ${nonMember.name}:`, errorData.error);
+            }
+          } catch (error) {
+            console.error(`Error creating guest member for ${nonMember.name}:`, error);
+          }
+        }
+      }
+
+      // Combine member records with guest member records
+      const allRecords = [
+        ...memberRecords,
+        ...guestMemberIds.map((memberId, index) => ({
+          memberId,
+          attended: true,
+          tookCommunion: validNonMembers[index].tookCommunion,
+        })),
+      ];
+
       // If no one attended, show a message
-      if (records.length === 0) {
-        alert("No members marked as attended. Please mark at least one member as attended.");
+      if (allRecords.length === 0) {
+        alert("No members marked as attended. Please mark at least one member as attended or add a non-member.");
         setSubmitting(false);
         return;
       }
@@ -430,7 +505,7 @@ export default function AttendancePage() {
         method: "POST",
         body: JSON.stringify({
           serviceId: selectedServiceId,
-          records,
+          records: allRecords,
         }),
       });
 
@@ -455,6 +530,7 @@ export default function AttendancePage() {
         };
       });
       setFormData(resetFormData);
+      setNonMembers([{ name: "", tookCommunion: false }]);
 
       // Reset selected service to show "Create Service" button again
       setSelectedServiceId("");
@@ -744,10 +820,68 @@ export default function AttendancePage() {
                 </div>
               </div>
 
+              {/* Non-Member Section */}
+              <div className="mt-6 border-t pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-sm font-medium">Non-Members</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddNonMember}
+                    disabled={!canEditAttendance}
+                  >
+                    <PlusIcon className="h-4 w-4 mr-1" />
+                    Add Non-Member
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {nonMembers.map((nonMember, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Enter non-member name"
+                        value={nonMember.name}
+                        onChange={(e) => handleNonMemberNameChange(index, e.target.value)}
+                        disabled={!canEditAttendance}
+                        className="flex-1"
+                      />
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`non-member-communion-${index}`}
+                          checked={nonMember.tookCommunion}
+                          onCheckedChange={(checked) =>
+                            handleNonMemberCommunionChange(index, checked === true)
+                          }
+                          disabled={!canEditAttendance || !nonMember.name.trim()}
+                        />
+                        <Label
+                          htmlFor={`non-member-communion-${index}`}
+                          className={`text-sm cursor-pointer ${!nonMember.name.trim() ? "text-muted-foreground" : ""}`}
+                        >
+                          Communion
+                        </Label>
+                      </div>
+                      {nonMembers.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveNonMember(index)}
+                          disabled={!canEditAttendance}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || members.length === 0 || !selectedServiceId}
-                className="w-full"
+                disabled={submitting || (members.length === 0 && nonMembers.every((nm) => !nm.name.trim())) || !selectedServiceId}
+                className="w-full mt-4"
               >
                 {submitting ? (
                   <>
