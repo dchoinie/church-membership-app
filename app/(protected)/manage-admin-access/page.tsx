@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiFetch } from "@/lib/api-client";
 import {
   Table,
   TableBody,
@@ -120,9 +121,8 @@ export default function ManageAdminAccessPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch("/api/admin/invite", {
+      const response = await apiFetch("/api/admin/invite", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, role: inviteRole }),
       });
 
@@ -163,9 +163,8 @@ export default function ManageAdminAccessPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch("/api/admin/users/delete", {
+      const response = await apiFetch("/api/admin/users/delete", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userToDelete.email }),
       });
 
@@ -260,9 +259,8 @@ export default function ManageAdminAccessPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await fetch("/api/admin/users/update-role", {
+      const response = await apiFetch("/api/admin/users/update-role", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: userEmail, role: newRole }),
       });
 
