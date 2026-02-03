@@ -11,8 +11,19 @@ import { sanitizeText } from "@/lib/sanitize";
 export async function GET(request: Request) {
   try {
     console.log("[GET /api/families] Starting request");
-    const { churchId } = await getAuthContext(request);
-    console.log("[GET /api/families] Got churchId:", churchId);
+    let churchId: string;
+    try {
+      const context = await getAuthContext(request);
+      churchId = context.churchId;
+      console.log("[GET /api/families] Got churchId:", churchId);
+    } catch (authError: any) {
+      console.error("[GET /api/families] Auth error:", {
+        error: authError?.message || String(authError),
+        stack: authError?.stack,
+        name: authError?.name,
+      });
+      throw authError;
+    }
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
@@ -48,29 +59,43 @@ export async function GET(request: Request) {
       .offset(offset);
 
     // For each household, get member count and first 3 member names for display
+    console.log("[GET /api/families] Processing", paginatedHouseholds.length, "households");
     const householdsWithMembers = await Promise.all(
       paginatedHouseholds.map(async (h) => {
-        const [memberCountResult] = await db
-          .select({ count: count() })
-          .from(members)
-          .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)));
+        try {
+          const memberCountResult = await db
+            .select({ count: count() })
+            .from(members)
+            .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)));
+          const [countRow] = memberCountResult;
+          const memberCount = countRow?.count || 0;
 
-        const householdMembers = await db
-          .select({
-            firstName: members.firstName,
-            lastName: members.lastName,
-          })
-          .from(members)
-          .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)))
-          .limit(3); // Get first 3 members for display
+          const householdMembers = await db
+            .select({
+              firstName: members.firstName,
+              lastName: members.lastName,
+            })
+            .from(members)
+            .where(and(eq(members.householdId, h.id), eq(members.churchId, churchId)))
+            .limit(3); // Get first 3 members for display
 
-        return {
-          ...h,
-          memberCount: memberCountResult.count,
-          members: householdMembers,
-        };
+          return {
+            ...h,
+            memberCount,
+            members: householdMembers,
+          };
+        } catch (memberError: any) {
+          console.error(`[GET /api/families] Error processing household ${h.id}:`, memberError);
+          // Return household with zero members if query fails
+          return {
+            ...h,
+            memberCount: 0,
+            members: [],
+          };
+        }
       }),
     );
+    console.log("[GET /api/families] Processed", householdsWithMembers.length, "households");
 
     return NextResponse.json({
       households: householdsWithMembers,
