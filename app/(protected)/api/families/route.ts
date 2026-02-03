@@ -6,7 +6,7 @@ import { household, members } from "@/db/schema";
 import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText } from "@/lib/sanitize"; // Now safe - sanitizeText is lightweight and doesn't require jsdom
 
 export async function GET(request: Request) {
   try {
