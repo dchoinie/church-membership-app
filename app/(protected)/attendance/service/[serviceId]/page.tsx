@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
-import { Loader2, ArrowLeft, PencilIcon, PlusIcon, XIcon } from "lucide-react";
+import { Loader2, ArrowLeft, PencilIcon, PlusIcon, XIcon, CheckCircle2, AlertCircle } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { apiFetch } from "@/lib/api-client";
 
@@ -160,6 +160,14 @@ export default function ServiceAttendancePage() {
     } finally {
       setLoadingMembers(false);
     }
+  };
+
+  const showAlert = (type: "success" | "error", message: string) => {
+    setAlertMessage({ type, message });
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      setAlertMessage(null);
+    }, 5000);
   };
 
   const fetchServiceAttendance = async () => {
@@ -420,16 +428,18 @@ export default function ServiceAttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Failed to update attendance: ${error.error || "Unknown error"}`);
+        showAlert("error", `Failed to update attendance: ${error.error || "Unknown error"}`);
+        setEditSubmitting(false);
         return;
       }
 
       setEditDialogOpen(false);
       setEditingRecord(null);
       await fetchServiceAttendance();
+      showAlert("success", "Successfully updated attendance");
     } catch (error) {
       console.error("Error updating attendance:", error);
-      alert("Failed to update attendance");
+      showAlert("error", "Failed to update attendance");
     } finally {
       setEditSubmitting(false);
     }
@@ -476,6 +486,34 @@ export default function ServiceAttendancePage() {
           </p>
         </div>
       </div>
+
+      {/* Alert Messages */}
+      {alertMessage && (
+        <div
+          className={`rounded-md p-4 flex items-start gap-3 border ${
+            alertMessage.type === "success"
+              ? "bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"
+              : "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+          }`}
+        >
+          {alertMessage.type === "success" ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1">
+            <p className="font-medium">{alertMessage.message}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0"
+            onClick={() => setAlertMessage(null)}
+          >
+            <XIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
