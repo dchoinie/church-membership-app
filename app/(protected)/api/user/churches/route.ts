@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { getUserChurches } from "@/lib/tenant-db";
 import { addUserToChurch } from "@/lib/tenant-db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 /**
  * GET /api/user/churches
