@@ -263,13 +263,13 @@ export default function SettingsPage() {
     (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-6">
+    <div className="space-y-4 md:space-y-6">
+      <div>
         <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
           <SettingsIcon className="h-6 w-6" />
           Church Settings
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-muted-foreground mt-2 text-sm md:text-base">
           Manage your church information and subscription
         </p>
       </div>
