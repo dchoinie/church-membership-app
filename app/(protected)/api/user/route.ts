@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { user } from "@/auth-schema";
 import { eq } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/error-handler";
+import { getTenantFromRequest } from "@/lib/tenant-context";
+import { getUserChurchRole } from "@/lib/tenant-db";
 
 export async function GET(request: Request) {
   try {
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
         id: true,
         name: true,
         email: true,
-        role: true,
+        role: true, // Global role (for super admins)
         isSuperAdmin: true,
       },
     });
@@ -39,7 +41,24 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ user: userRecord });
+    // Get active church from subdomain
+    const churchId = await getTenantFromRequest(request);
+    
+    // Get per-church role if churchId is available
+    let role = userRecord.role; // Default to global role
+    if (churchId && !userRecord.isSuperAdmin) {
+      const churchRole = await getUserChurchRole(session.user.id, churchId);
+      if (churchRole) {
+        role = churchRole;
+      }
+    }
+
+    return NextResponse.json({ 
+      user: {
+        ...userRecord,
+        role, // Return per-church role
+      }
+    });
   } catch (error) {
     return createErrorResponse(error);
   }

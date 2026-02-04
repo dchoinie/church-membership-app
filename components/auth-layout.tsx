@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Settings, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
+import { ChurchSwitcher } from "@/components/church-switcher";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import {
@@ -50,8 +51,11 @@ function SidebarContent({
   
   return (
     <>
-      <div className="border-b border-sidebar-border px-6 py-5 text-lg font-semibold shrink-0">
-        {churchName}
+      <div className="border-b border-sidebar-border px-3 py-4 shrink-0 space-y-3">
+        <ChurchSwitcher />
+        <div className="px-3 text-lg font-semibold">
+          {churchName}
+        </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
         {navItems.map((item) => {

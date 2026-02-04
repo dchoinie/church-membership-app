@@ -13,12 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Loader2, Shield, Mail } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Shield, Mail, LogIn } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
+import { useMarketing } from "@/components/marketing-context";
 
 interface SignupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenLogin?: () => void;
 }
 
 export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
@@ -140,7 +142,14 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create church");
+        // Check if it's the EMAIL_EXISTS_NOT_AUTHENTICATED error
+        if (data.error === "EMAIL_EXISTS_NOT_AUTHENTICATED" || data.message?.includes("sign in")) {
+          // Show special message prompting user to sign in
+          setError("EMAIL_EXISTS_NOT_AUTHENTICATED");
+          setIsSubmitting(false);
+          return;
+        }
+        throw new Error(data.error || data.message || "Failed to create church");
       }
 
       // Show success message - user must verify email before signing in
@@ -291,8 +300,30 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
-              {error}
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20 space-y-3">
+              {error === "EMAIL_EXISTS_NOT_AUTHENTICATED" ? (
+                <>
+                  <div>
+                    An account with this email already exists. Please sign in to add this church to your account.
+                  </div>
+                  {openLoginFn && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        onOpenChange(false);
+                        openLoginFn?.();
+                      }}
+                      className="w-full"
+                    >
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Sign In
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <div>{error}</div>
+              )}
             </div>
           )}
 

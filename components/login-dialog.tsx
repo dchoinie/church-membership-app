@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { authClient } from "@/lib/auth-client";
 import { Loader2 } from "lucide-react";
+import { ChurchSelector } from "@/components/church-selector";
 
 interface LoginDialogProps {
   open: boolean;
@@ -204,8 +205,18 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         });
         
         if (churchResponse.ok) {
-          const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId } = await churchResponse.json();
+          const responseData = await churchResponse.json();
+          const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId, multipleChurches, churches } = responseData;
           
+          // If user has multiple churches, show selector instead of auto-redirecting
+          if (multipleChurches && churches && churches.length > 1) {
+            setAvailableChurches(churches);
+            setShowChurchSelector(true);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          // Single church - proceed with redirect as before
           // Check subscription status to determine redirect path
           const hasActiveSubscription = 
             subscriptionStatus === "active" ||
@@ -282,6 +293,51 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     }
   };
 
+  const handleChurchSelect = async (church: {
+    id: string;
+    name: string;
+    subdomain: string;
+    role: string;
+    subscriptionStatus?: string;
+    stripeSubscriptionId?: string | null;
+  }) => {
+    setIsSubmitting(true);
+    try {
+      // Check subscription status to determine redirect path
+      const hasActiveSubscription = 
+        church.subscriptionStatus === "active" ||
+        (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+      
+      // Build subdomain URL - redirect directly to /dashboard or /setup
+      const baseUrl = window.location.origin;
+      const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+      
+      const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+      let subdomainUrl: string;
+      
+      if (isLocalhost) {
+        const port = window.location.port ? `:${window.location.port}` : '';
+        subdomainUrl = `http://${church.subdomain}.localhost${port}${targetPath}`;
+      } else {
+        // Extract root domain (remove any existing subdomain like 'www')
+        const url = new URL(baseUrl);
+        const hostname = url.hostname;
+        const parts = hostname.split('.');
+        // Get root domain (last 2 parts: domain.com)
+        const rootHostname = parts.slice(-2).join('.');
+        subdomainUrl = `https://${church.subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}${targetPath}`;
+      }
+      
+      onOpenChange(false);
+      // Redirect directly to /dashboard or /setup on subdomain
+      window.location.href = subdomainUrl;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to redirect to church. Please try again.";
+      setError(errorMessage);
+      setIsSubmitting(false);
+    }
+  };
+
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -349,71 +405,86 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           </TabsList>
 
           <TabsContent value="signin" className="space-y-4 mt-4">
-            <form onSubmit={handleSignInSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signin-email">Email Address</Label>
-                <Input
-                  id="signin-email"
-                  name="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={signInData.email}
-                  onChange={handleSignInChange}
-                  required
-                  disabled={isSubmitting}
-                  className="h-11"
+            {showChurchSelector ? (
+              <div className="space-y-4">
+                <ChurchSelector
+                  churches={availableChurches}
+                  onSelect={handleChurchSelect}
+                  isLoading={isSubmitting}
                 />
+                {error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm text-primary hover:underline font-medium"
-                    onClick={() => onOpenChange(false)}
-                  >
-                    Forgot Password?
-                  </Link>
+            ) : (
+              <form onSubmit={handleSignInSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email Address</Label>
+                  <Input
+                    id="signin-email"
+                    name="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={signInData.email}
+                    onChange={handleSignInChange}
+                    required
+                    disabled={isSubmitting}
+                    className="h-11"
+                  />
                 </div>
-                <Input
-                  id="signin-password"
-                  name="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={signInData.password}
-                  onChange={handleSignInChange}
-                  required
-                  disabled={isSubmitting}
-                  className="h-11"
-                />
-              </div>
 
-              {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive space-y-2">
-                  <div>{error}</div>
-                  {isRateLimited && (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={clearRateLimit}
-                      className="mt-2 w-full"
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-primary hover:underline font-medium"
+                      onClick={() => onOpenChange(false)}
                     >
-                      Clear Rate Limit (Dev Only)
-                    </Button>
-                  )}
+                      Forgot Password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="signin-password"
+                    name="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={signInData.password}
+                    onChange={handleSignInChange}
+                    required
+                    disabled={isSubmitting}
+                    className="h-11"
+                  />
                 </div>
-              )}
 
-              <Button
-                type="submit"
-                className="w-full h-11 cursor-pointer text-base font-semibold"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Signing In..." : "Sign In"}
-              </Button>
-            </form>
+                {error && (
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive space-y-2">
+                    <div>{error}</div>
+                    {isRateLimited && (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={clearRateLimit}
+                        className="mt-2 w-full"
+                      >
+                        Clear Rate Limit (Dev Only)
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full h-11 cursor-pointer text-base font-semibold"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Signing In..." : "Sign In"}
+                </Button>
+              </form>
+            )}
           </TabsContent>
 
           <TabsContent value="invite" className="space-y-4 mt-4">

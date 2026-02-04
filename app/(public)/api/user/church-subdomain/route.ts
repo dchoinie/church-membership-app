@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { getUserChurches } from "@/lib/tenant-db";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
@@ -29,36 +30,68 @@ export async function GET(request: Request) {
       );
     }
 
-    // For now, return the first church (can be enhanced to return all churches)
-    // Or get church from subdomain if available
+    // Get church from subdomain if available, otherwise use first church
     const { getTenantFromRequest } = await import("@/lib/tenant-context");
     const activeChurchId = await getTenantFromRequest(request) || userChurchesList[0].churchId;
 
-    // Get church with subdomain
-    const { eq } = await import("drizzle-orm");
-    const church = await db.query.churches.findFirst({
-      where: eq(churches.id, activeChurchId),
+    // Fetch all churches the user belongs to
+    const churchIds = userChurchesList.map(m => m.churchId);
+    const churchesList = await db.query.churches.findMany({
+      where: inArray(churches.id, churchIds),
     });
 
-    if (!church) {
+    // Create a map of churchId to role
+    const churchRoleMap = new Map(
+      userChurchesList.map(m => [m.churchId, m.role])
+    );
+
+    // Find active church
+    const activeChurch = churchesList.find(c => c.id === activeChurchId);
+
+    if (!activeChurch) {
       return NextResponse.json(
-        { error: "Church not found" },
+        { error: "Active church not found" },
         { status: 404 }
       );
     }
 
-    if (!church.subdomain) {
+    if (!activeChurch.subdomain) {
       return NextResponse.json(
         { error: "Church subdomain not found" },
         { status: 404 }
       );
     }
 
+    // If user has multiple churches, return all of them
+    if (churchesList.length > 1) {
+      const churchesWithRoles = churchesList.map(church => ({
+        id: church.id,
+        name: church.name,
+        subdomain: church.subdomain,
+        role: churchRoleMap.get(church.id) || "viewer",
+        logoUrl: church.logoUrl,
+        primaryColor: church.primaryColor,
+        subscriptionStatus: church.subscriptionStatus,
+        stripeSubscriptionId: church.stripeSubscriptionId,
+      }));
+
+      return NextResponse.json({
+        subdomain: activeChurch.subdomain,
+        churchId: activeChurch.id,
+        subscriptionStatus: activeChurch.subscriptionStatus,
+        stripeSubscriptionId: activeChurch.stripeSubscriptionId,
+        multipleChurches: true,
+        churches: churchesWithRoles,
+      });
+    }
+
+    // Single church - return as before for backward compatibility
     return NextResponse.json({
-      subdomain: church.subdomain,
-      churchId: church.id,
-      subscriptionStatus: church.subscriptionStatus,
-      stripeSubscriptionId: church.stripeSubscriptionId,
+      subdomain: activeChurch.subdomain,
+      churchId: activeChurch.id,
+      subscriptionStatus: activeChurch.subscriptionStatus,
+      stripeSubscriptionId: activeChurch.stripeSubscriptionId,
+      multipleChurches: false,
     });
   } catch (error) {
     console.error("Error fetching user's church subdomain:", error);

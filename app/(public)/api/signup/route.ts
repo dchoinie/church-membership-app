@@ -46,14 +46,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate password
-    if (adminPassword.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
-    }
-
     // Check if email is already in use - use Supabase service role client to bypass RLS
     const supabase = createServiceClient();
     const { data: existingUser } = await supabase
@@ -92,6 +84,7 @@ export async function POST(request: Request) {
       if (authenticatedUserId && authenticatedUserId === existingUser.id) {
         // User is authenticated and trying to add a church to their existing account
         // Continue with church creation, then link it to their account
+        // Password validation not needed for authenticated users
       } else {
         // User exists but is not authenticated (or different user)
         return NextResponse.json(
@@ -99,6 +92,14 @@ export async function POST(request: Request) {
             error: "EMAIL_EXISTS_NOT_AUTHENTICATED",
             message: "An account with this email already exists. Please sign in to add this church to your account."
           },
+          { status: 400 }
+        );
+      }
+    } else {
+      // New user - validate password
+      if (!adminPassword || adminPassword.length < 8) {
+        return NextResponse.json(
+          { error: "Password must be at least 8 characters" },
           { status: 400 }
         );
       }
@@ -164,6 +165,16 @@ export async function POST(request: Request) {
         );
       }
     } else {
+      // Validate password for new user signup
+      if (!adminPassword || adminPassword.length < 8) {
+        // Rollback: delete church if validation fails
+        await supabase.from("churches").delete().eq("id", church.id);
+        return NextResponse.json(
+          { error: "Password must be at least 8 characters" },
+          { status: 400 }
+        );
+      }
+
       // Create new user
       const signupResponse = await auth.api.signUpEmail({
         body: {

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { invitations } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { user } from "@/auth-schema";
+import { addUserToChurch } from "@/lib/tenant-db";
 
 export async function POST(request: Request) {
   try {
@@ -49,15 +50,9 @@ export async function POST(request: Request) {
       const userId = signupData.user?.id;
 
       if (userId && invite.churchId) {
-        // Update user with churchId and default role (viewer)
+        // Add user to church via junction table with default role (viewer)
         // Role can be updated later by admin via the manage-admin-access page
-        await db
-          .update(user)
-          .set({
-            churchId: invite.churchId,
-            role: "viewer", // Default role, can be changed by admin later
-          })
-          .where(eq(user.id, userId));
+        await addUserToChurch(userId, invite.churchId, "viewer");
       }
 
       // Mark invitation as accepted
