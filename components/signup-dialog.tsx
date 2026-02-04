@@ -193,7 +193,7 @@ export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
                 disabled={isSubmitting}
                 minLength={3}
                 maxLength={30}
-                pattern="[a-z0-9-]+"
+                pattern="[a-z0-9\-]+"
                 className="flex-1 h-11"
               />
               <span className="text-muted-foreground whitespace-nowrap text-sm">

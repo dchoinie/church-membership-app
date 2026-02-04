@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { churches } from "@/db/schema";
-import { user } from "@/auth-schema";
-import { eq } from "drizzle-orm";
+import { userChurches } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 /**
  * Get the maximum allowed admin users for a subscription plan
@@ -52,19 +52,43 @@ export async function checkAdminLimit(
   const plan = church.subscriptionPlan || "basic";
   const limit = getAdminLimit(plan as "basic" | "premium" | "free");
 
-  // Get all users for this church to filter out super admins
-  // Super admins are system-wide and don't count toward church-specific limits
-  const allChurchUsers = await db.query.user.findMany({
-    where: eq(user.churchId, churchId),
+  // Get all user-church memberships for this church
+  const memberships = await db.query.userChurches.findMany({
+    where: eq(userChurches.churchId, churchId),
     columns: {
       role: true,
+      userId: true,
+    },
+  });
+
+  if (memberships.length === 0) {
+    return {
+      allowed: true,
+      currentCount: 0,
+      limit,
+      plan,
+      remaining: limit,
+    };
+  }
+
+  // Get user records to check for super admins
+  // Super admins are system-wide and don't count toward church-specific limits
+  const { user } = await import("@/auth-schema");
+  const userIds = memberships.map(m => m.userId);
+  const users = await db.query.user.findMany({
+    where: inArray(user.id, userIds),
+    columns: {
+      id: true,
       isSuperAdmin: true,
     },
   });
 
+  // Create a map for quick lookup
+  const userSuperAdminMap = new Map(users.map(u => [u.id, u.isSuperAdmin]));
+
   // Count only non-super-admin users with admin role
-  const currentCount = allChurchUsers.filter(
-    (u) => u.role === "admin" && !u.isSuperAdmin
+  const currentCount = memberships.filter(
+    (m) => m.role === "admin" && !userSuperAdminMap.get(m.userId)
   ).length;
 
   const newCount = currentCount + additionalAdmins;

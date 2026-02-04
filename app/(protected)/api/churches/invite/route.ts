@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/api-helpers";
 import { db } from "@/db";
-import { invitations } from "@/db/schema";
+import { invitations, userChurches } from "@/db/schema";
 import { createInvite } from "@/lib/invitations";
 import { sendInvitationEmail } from "@/lib/email";
 import { eq, and } from "drizzle-orm";
@@ -38,20 +38,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user already exists for this church
+    // Check if user already exists
     const { user: userSchema } = await import("@/auth-schema");
     const existingUser = await db.query.user.findFirst({
-      where: and(
-        eq(userSchema.email, sanitizedEmail),
-        eq(userSchema.churchId, churchId)
-      ),
+      where: eq(userSchema.email, sanitizedEmail),
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "User already has access to this church" },
-        { status: 400 }
-      );
+      // Check if user already belongs to this church via junction table
+      const existingMembership = await db.query.userChurches.findFirst({
+        where: and(
+          eq(userChurches.userId, existingUser.id),
+          eq(userChurches.churchId, churchId)
+        ),
+      });
+
+      if (existingMembership) {
+        return NextResponse.json(
+          { error: "User already has access to this church" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check if there's already a pending invitation for this email and church

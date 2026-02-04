@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/api-helpers";
 import { db } from "@/db";
 import { user } from "@/auth-schema";
-import { invitations } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { invitations, userChurches } from "@/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeEmail } from "@/lib/sanitize";
@@ -37,9 +37,9 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Find the user by email and church ID
+    // Find the user by email
     const userToDelete = await db.query.user.findFirst({
-      where: and(eq(user.email, sanitizedEmail), eq(user.churchId, churchId)),
+      where: eq(user.email, sanitizedEmail),
     });
 
     if (!userToDelete) {
@@ -49,21 +49,46 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Check if this is the last admin user for this church
-    const allChurchUsers = await db.query.user.findMany({
-      where: eq(user.churchId, churchId),
+    // Verify user belongs to this church via junction table
+    const membership = await db.query.userChurches.findFirst({
+      where: and(
+        eq(userChurches.userId, userToDelete.id),
+        eq(userChurches.churchId, churchId)
+      ),
     });
 
-    const adminUsers = allChurchUsers.filter(
-      (u) => u.role === "admin" || u.isSuperAdmin
-    );
+    if (!membership) {
+      return NextResponse.json(
+        { error: "User does not belong to this church" },
+        { status: 404 }
+      );
+    }
+
+    // Check if this is the last admin user for this church
+    const adminMemberships = await db.query.userChurches.findMany({
+      where: and(
+        eq(userChurches.churchId, churchId),
+        eq(userChurches.role, "admin")
+      ),
+    });
+
+    const adminUserIds = adminMemberships.map(m => m.userId);
+    const adminUsers = await db.query.user.findMany({
+      where: inArray(user.id, adminUserIds),
+      columns: {
+        isSuperAdmin: true,
+      },
+    });
+
+    const nonSuperAdminAdmins = adminUsers.filter(u => !u.isSuperAdmin);
 
     if (
-      adminUsers.length === 1 &&
-      (userToDelete.role === "admin" || userToDelete.isSuperAdmin)
+      nonSuperAdminAdmins.length === 1 &&
+      membership.role === "admin" &&
+      !userToDelete.isSuperAdmin
     ) {
       return NextResponse.json(
-        { error: "Cannot delete the last admin user for this church" },
+        { error: "Cannot remove the last admin user for this church" },
         { status: 400 }
       );
     }
@@ -73,8 +98,13 @@ export async function DELETE(request: Request) {
       .delete(invitations)
       .where(and(eq(invitations.email, sanitizedEmail), eq(invitations.churchId, churchId)));
 
-    // Delete the user (this will cascade delete sessions and accounts)
-    await db.delete(user).where(eq(user.id, userToDelete.id));
+    // Remove user from this church (don't delete the user entirely - they might belong to other churches)
+    await db
+      .delete(userChurches)
+      .where(and(
+        eq(userChurches.userId, userToDelete.id),
+        eq(userChurches.churchId, churchId)
+      ));
 
     return NextResponse.json({
       success: true,

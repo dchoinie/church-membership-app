@@ -4,6 +4,7 @@ import { createStripeCustomer } from "@/lib/stripe";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSubdomainAvailable } from "@/lib/tenant-context";
 import { createServiceClient } from "@/utils/supabase/service";
+import { addUserToChurch } from "@/lib/tenant-db";
 
 export async function POST(request: Request) {
   try {
@@ -62,11 +63,45 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
 
+    // Check if user is authenticated (has a session)
+    let authenticatedUserId: string | null = null;
+    try {
+      const requestHeaders = new Headers();
+      request.headers.forEach((value, key) => {
+        requestHeaders.set(key, value);
+      });
+      const cookieHeader = request.headers.get("cookie");
+      if (cookieHeader) {
+        requestHeaders.set("cookie", cookieHeader);
+      }
+      
+      const session = await auth.api.getSession({
+        headers: requestHeaders,
+      });
+      
+      if (session?.user) {
+        authenticatedUserId = session.user.id;
+      }
+    } catch (error) {
+      // Session check failed, user is not authenticated
+      console.log("Session check failed (user not authenticated):", error);
+    }
+
     if (existingUser) {
-      return NextResponse.json(
-        { error: "Email is already in use" },
-        { status: 400 }
-      );
+      // If user is authenticated and it's their own email, link church to their account
+      if (authenticatedUserId && authenticatedUserId === existingUser.id) {
+        // User is authenticated and trying to add a church to their existing account
+        // Continue with church creation, then link it to their account
+      } else {
+        // User exists but is not authenticated (or different user)
+        return NextResponse.json(
+          { 
+            error: "EMAIL_EXISTS_NOT_AUTHENTICATED",
+            message: "An account with this email already exists. Please sign in to add this church to your account."
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Get selected plan (default to basic)
@@ -110,58 +145,73 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create admin user
-    const signupResponse = await auth.api.signUpEmail({
-      body: {
-        email: adminEmail,
-        password: adminPassword,
-        name: adminName,
-      },
-      headers: request.headers,
-      asResponse: true,
-    });
+    let userId: string;
 
-    if (!signupResponse.ok) {
-      // Rollback: delete church if user creation fails - use Supabase service role client to bypass RLS
-      await supabase.from("churches").delete().eq("id", church.id);
-      const errorData = await signupResponse.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: errorData.error || "Failed to create admin user" },
-        { status: signupResponse.status }
-      );
-    }
+    if (existingUser && authenticatedUserId && authenticatedUserId === existingUser.id) {
+      // User already exists and is authenticated - link church to existing account
+      userId = existingUser.id;
+      
+      // Add church to user's account via junction table
+      try {
+        await addUserToChurch(userId, church.id, "admin");
+      } catch (error) {
+        // Rollback: delete church if linking fails
+        await supabase.from("churches").delete().eq("id", church.id);
+        console.error("Error linking church to user:", error);
+        return NextResponse.json(
+          { error: "Failed to link church to your account" },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Create new user
+      const signupResponse = await auth.api.signUpEmail({
+        body: {
+          email: adminEmail,
+          password: adminPassword,
+          name: adminName,
+        },
+        headers: request.headers,
+        asResponse: true,
+      });
 
-    // Clone the response to read the body without consuming it
-    const clonedResponse = signupResponse.clone();
-    const signupData = await clonedResponse.json();
-    const userId = signupData.user?.id;
+      if (!signupResponse.ok) {
+        // Rollback: delete church if user creation fails - use Supabase service role client to bypass RLS
+        await supabase.from("churches").delete().eq("id", church.id);
+        const errorData = await signupResponse.json().catch(() => ({}));
+        return NextResponse.json(
+          { error: errorData.error || "Failed to create admin user" },
+          { status: signupResponse.status }
+        );
+      }
 
-    if (!userId) {
-      // Rollback: delete church if user ID not found - use Supabase service role client to bypass RLS
-      await supabase.from("churches").delete().eq("id", church.id);
-      return NextResponse.json(
-        { error: "Failed to get user ID after signup" },
-        { status: 500 }
-      );
-    }
+      // Clone the response to read the body without consuming it
+      const clonedResponse = signupResponse.clone();
+      const signupData = await clonedResponse.json();
+      userId = signupData.user?.id;
 
-    // Update user with churchId and admin role - use Supabase service role client to bypass RLS
-    const { error: updateError } = await supabase
-      .from("user")
-      .update({
-        church_id: church.id,
-        role: "admin",
-      })
-      .eq("id", userId);
+      if (!userId) {
+        // Rollback: delete church if user ID not found - use Supabase service role client to bypass RLS
+        await supabase.from("churches").delete().eq("id", church.id);
+        return NextResponse.json(
+          { error: "Failed to get user ID after signup" },
+          { status: 500 }
+        );
+      }
 
-    if (updateError) {
-      // Rollback: delete church if user update fails
-      await supabase.from("churches").delete().eq("id", church.id);
-      console.error("Error updating user:", updateError);
-      return NextResponse.json(
-        { error: "Failed to update user" },
-        { status: 500 }
-      );
+      // Add church to user's account via junction table
+      try {
+        await addUserToChurch(userId, church.id, "admin");
+      } catch (error) {
+        // Rollback: delete church and user if linking fails
+        await supabase.from("churches").delete().eq("id", church.id);
+        // Note: User was created by better-auth, we can't easily delete it here
+        console.error("Error linking church to user:", error);
+        return NextResponse.json(
+          { error: "Failed to link church to user account" },
+          { status: 500 }
+        );
+      }
     }
 
     // Send verification email

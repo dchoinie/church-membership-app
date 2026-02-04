@@ -79,19 +79,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user already exists for this church
+    // Check if user already exists
     const existingUser = await db.query.user.findFirst({
-      where: and(
-        eq(user.email, sanitizedEmail),
-        eq(user.churchId, churchId)
-      ),
+      where: eq(user.email, sanitizedEmail),
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "User already has access to this church" },
-        { status: 400 },
-      );
+      // Check if user already belongs to this church via junction table
+      const { userChurches } = await import("@/db/schema");
+      const existingMembership = await db.query.userChurches.findFirst({
+        where: and(
+          eq(userChurches.userId, existingUser.id),
+          eq(userChurches.churchId, churchId)
+        ),
+      });
+
+      if (existingMembership) {
+        return NextResponse.json(
+          { error: "User already has access to this church" },
+          { status: 400 },
+        );
+      }
     }
 
     // Check if there's already a pending invitation for this email and church

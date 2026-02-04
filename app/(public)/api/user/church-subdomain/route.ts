@@ -3,8 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
-import { user } from "@/auth-schema";
-import { eq } from "drizzle-orm";
+import { getUserChurches } from "@/lib/tenant-db";
 
 export async function GET(request: Request) {
   try {
@@ -20,28 +19,25 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get user record with churchId
-    const userRecord = await db.query.user.findFirst({
-      where: eq(user.id, session.user.id),
-    });
+    // Get user's churches from junction table
+    const userChurchesList = await getUserChurches(session.user.id);
 
-    if (!userRecord) {
+    if (userChurchesList.length === 0) {
       return NextResponse.json(
-        { error: "User record not found" },
+        { error: "User does not belong to any church" },
         { status: 404 }
       );
     }
 
-    if (!userRecord.churchId) {
-      return NextResponse.json(
-        { error: "User does not belong to a church" },
-        { status: 404 }
-      );
-    }
+    // For now, return the first church (can be enhanced to return all churches)
+    // Or get church from subdomain if available
+    const { getTenantFromRequest } = await import("@/lib/tenant-context");
+    const activeChurchId = await getTenantFromRequest(request) || userChurchesList[0].churchId;
 
     // Get church with subdomain
+    const { eq } = await import("drizzle-orm");
     const church = await db.query.churches.findFirst({
-      where: eq(churches.id, userRecord.churchId),
+      where: eq(churches.id, activeChurchId),
     });
 
     if (!church) {

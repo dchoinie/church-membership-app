@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getTenantFromRequest } from "@/lib/tenant-context";
-import { verifyUserBelongsToChurch } from "@/lib/tenant-db";
+import { verifyUserBelongsToChurch, getUserChurchRole } from "@/lib/tenant-db";
 import { handleAuthError } from "@/lib/error-handler";
 import {
   canEditMembers,
@@ -99,12 +99,24 @@ export async function getAuthContext(request: Request): Promise<{
     }
   }
 
+  // Get user's role for this specific church from junction table
+  // For super admins, use their global role (they can access any church)
+  let role = userRecord.role;
+  if (!userRecord.isSuperAdmin) {
+    const churchRole = await getUserChurchRole(userRecord.id, churchId);
+    if (churchRole) {
+      role = churchRole;
+    } else {
+      // User doesn't belong to this church (shouldn't happen after verifyUserBelongsToChurch check)
+      throw new Error("FORBIDDEN");
+    }
+  }
+
   return {
     user: {
       id: userRecord.id,
       email: userRecord.email,
-      churchId: userRecord.churchId || null,
-      role: userRecord.role,
+      role,
       isSuperAdmin: userRecord.isSuperAdmin,
     },
     churchId,
@@ -143,7 +155,7 @@ export async function requirePermission(
   permission: "members_edit" | "giving_edit" | "attendance_edit" | "reports_view" | "analytics_view",
   request: Request,
 ): Promise<{
-  user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
+  user: { id: string; email: string; role: string; isSuperAdmin: boolean };
   churchId: string;
   subscriptionPlan: SubscriptionPlan;
 }> {

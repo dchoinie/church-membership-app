@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/auth-schema";
+import { userChurches } from "@/db/schema";
 import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -70,14 +71,29 @@ export async function PUT(request: Request) {
     // Sanitize email
     const sanitizedEmail = sanitizeEmail(email);
 
-    // Find the user by email and verify they belong to church
+    // Find the user by email
     const userToUpdate = await db.query.user.findFirst({
-      where: and(eq(user.email, sanitizedEmail), eq(user.churchId, churchId)),
+      where: eq(user.email, sanitizedEmail),
     });
 
     if (!userToUpdate) {
       return NextResponse.json(
         { error: "User not found" },
+        { status: 404 },
+      );
+    }
+
+    // Verify user belongs to this church via junction table
+    const membership = await db.query.userChurches.findFirst({
+      where: and(
+        eq(userChurches.userId, userToUpdate.id),
+        eq(userChurches.churchId, churchId)
+      ),
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "User does not belong to this church" },
         { status: 404 },
       );
     }
@@ -91,16 +107,26 @@ export async function PUT(request: Request) {
     }
 
     // Check if this is the last admin user for this church and we're trying to change them to viewer
-    if (userToUpdate.role === "admin" && validRole === "viewer") {
-      const allChurchUsers = await db.query.user.findMany({
-        where: eq(user.churchId, churchId),
+    if (membership.role === "admin" && validRole === "viewer") {
+      const adminMemberships = await db.query.userChurches.findMany({
+        where: and(
+          eq(userChurches.churchId, churchId),
+          eq(userChurches.role, "admin")
+        ),
       });
 
-      const adminUsers = allChurchUsers.filter(
-        (u) => u.role === "admin" && !u.isSuperAdmin
-      );
+      const adminUserIds = adminMemberships.map(m => m.userId);
+      const { inArray } = await import("drizzle-orm");
+      const adminUsers = await db.query.user.findMany({
+        where: inArray(user.id, adminUserIds),
+        columns: {
+          isSuperAdmin: true,
+        },
+      });
 
-      if (adminUsers.length === 1) {
+      const nonSuperAdminAdmins = adminUsers.filter(u => !u.isSuperAdmin);
+
+      if (nonSuperAdminAdmins.length === 1 && !userToUpdate.isSuperAdmin) {
         return NextResponse.json(
           { error: "Cannot change the last admin user to viewer" },
           { status: 400 },
@@ -109,7 +135,7 @@ export async function PUT(request: Request) {
     }
 
     // Check admin limit if updating role to admin
-    if (userToUpdate.role !== "admin" && validRole === "admin") {
+    if (membership.role !== "admin" && validRole === "admin") {
       const adminLimitCheck = await checkAdminLimit(churchId, 1);
       if (!adminLimitCheck.allowed) {
         const upgradeMessage = adminLimitCheck.plan === "basic"
@@ -124,11 +150,14 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Update the user's role
+    // Update the user's role for this church in the junction table
     await db
-      .update(user)
+      .update(userChurches)
       .set({ role: validRole, updatedAt: new Date() })
-      .where(eq(user.id, userToUpdate.id));
+      .where(and(
+        eq(userChurches.userId, userToUpdate.id),
+        eq(userChurches.churchId, churchId)
+      ));
 
     return NextResponse.json({
       success: true,

@@ -150,14 +150,33 @@ export const auth = betterAuth({
     emailVerification: {
         sendVerificationEmail: async ({ user: authUser, url, token }, request) => {
             try {
-                // Fetch user from database to get churchId (better-auth user object might not include it)
-                const dbUser = await db.query.user.findFirst({
-                    where: eq(user.id, authUser.id),
-                });
+                // Get user's churches from junction table to build callback URL
+                // Use first church or get from subdomain if available
+                const { getUserChurches } = await import("@/lib/tenant-db");
+                const userChurchesList = await getUserChurches(authUser.id);
                 
                 // Get church subdomain to build correct callback URL
                 let callbackUrl: string;
-                const churchId = dbUser?.churchId;
+                let churchId: string | null = null;
+                
+                // Try to get churchId from subdomain first, otherwise use first church
+                const { getTenantFromRequest } = await import("@/lib/tenant-context");
+                const requestHeaders = new Headers();
+                request.headers.forEach((value, key) => {
+                    requestHeaders.set(key, value);
+                });
+                const cookieHeader = request.headers.get("cookie");
+                if (cookieHeader) {
+                    requestHeaders.set("cookie", cookieHeader);
+                }
+                
+                // Create a Request-like object for getTenantFromRequest
+                const urlObj = new URL(request.url || "http://localhost");
+                const mockRequest = new Request(urlObj.toString(), {
+                    headers: requestHeaders,
+                });
+                
+                churchId = await getTenantFromRequest(mockRequest) || (userChurchesList.length > 0 ? userChurchesList[0].churchId : null);
                 
                 if (churchId) {
                     // Fetch church subdomain

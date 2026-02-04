@@ -18,7 +18,6 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
-    churchId: uuid("church_id"),
     role: userRoleEnum("role").notNull().default("viewer"),
     isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -28,7 +27,6 @@ export const user = pgTable(
       .notNull(),
   },
   (table) => [
-    index("user_church_id_idx").on(table.churchId),
     index("user_email_idx").on(table.email),
   ],
 );

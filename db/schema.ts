@@ -11,6 +11,7 @@ import {
   numeric,
   unique,
 } from "drizzle-orm/pg-core";
+import { userRoleEnum, user } from "@/auth-schema";
 
 export const householdTypeEnum = pgEnum("household_type_enum", [
   "family",
@@ -160,6 +161,30 @@ export const invitations = pgTable(
   },
   (table) => [
     index("invitations_church_id_idx").on(table.churchId),
+  ],
+);
+
+export const userChurches = pgTable(
+  "user_churches",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    role: userRoleEnum("role").notNull().default("viewer"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("user_churches_user_id_idx").on(table.userId),
+    index("user_churches_church_id_idx").on(table.churchId),
+    unique("user_churches_user_church_unique").on(table.userId, table.churchId),
   ],
 );
 
