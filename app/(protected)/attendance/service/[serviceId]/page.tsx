@@ -126,6 +126,7 @@ export default function ServiceAttendancePage() {
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const isEditMode = mode === "edit";
 
   useEffect(() => {
