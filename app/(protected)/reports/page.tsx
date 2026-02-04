@@ -392,12 +392,14 @@ export default function ReportsPage() {
                         {loadingHouseholds ? (
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
                         ) : (
-                          households.map((household) => (
-                            <SelectItem key={household.id} value={household.id}>
-                              {household.name}
-                              {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
-                            </SelectItem>
-                          ))
+                          households
+                            .filter((household) => household.name?.toLowerCase() !== "guests")
+                            .map((household) => (
+                              <SelectItem key={household.id} value={household.id}>
+                                {household.name}
+                                {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
+                              </SelectItem>
+                            ))
                         )}
                       </SelectContent>
                     </Select>
@@ -589,12 +591,14 @@ export default function ReportsPage() {
                         {loadingHouseholds ? (
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
                         ) : (
-                          households.map((household) => (
-                            <SelectItem key={household.id} value={household.id}>
-                              {household.name}
-                              {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
-                            </SelectItem>
-                          ))
+                          households
+                            .filter((household) => household.name?.toLowerCase() !== "guests")
+                            .map((household) => (
+                              <SelectItem key={household.id} value={household.id}>
+                                {household.name}
+                                {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
+                              </SelectItem>
+                            ))
                         )}
                       </SelectContent>
                     </Select>

@@ -916,11 +916,13 @@ export default function MemberDetailPage({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {households.map((household) => (
-                                <SelectItem key={household.id} value={household.id}>
-                                  {getHouseholdDisplayName(household)}
-                                </SelectItem>
-                              ))}
+                              {households
+                                .filter((household) => household.name?.toLowerCase() !== "guests")
+                                .map((household) => (
+                                  <SelectItem key={household.id} value={household.id}>
+                                    {getHouseholdDisplayName(household)}
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                           <FormMessage />

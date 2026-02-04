@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft, PencilIcon, PlusIcon, XIcon, CheckCircle2, AlertCircle } from "lucide-react";
@@ -128,6 +128,7 @@ export default function ServiceAttendancePage() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showAlertMessage, setShowAlertMessage] = useState(false);
+  const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isEditMode = mode === "edit";
 
   useEffect(() => {
@@ -366,6 +367,11 @@ export default function ServiceAttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
+        // Clear any existing timeout before showing new message
+        if (alertTimeoutRef.current) {
+          clearTimeout(alertTimeoutRef.current);
+          alertTimeoutRef.current = null;
+        }
         setShowAlertMessage(true);
         setAlertMessage({ type: "error", message: `Failed to save attendance: ${error.error || "Unknown error"}` });
         return;
@@ -388,6 +394,11 @@ export default function ServiceAttendancePage() {
       router.push(`/attendance/service/${serviceId}?mode=view`);
     } catch (error) {
       console.error("Error saving attendance:", error);
+      // Clear any existing timeout before showing new message
+      if (alertTimeoutRef.current) {
+        clearTimeout(alertTimeoutRef.current);
+        alertTimeoutRef.current = null;
+      }
       setShowAlertMessage(true);
       setAlertMessage({ type: "error", message: "Failed to save attendance" });
     } finally {
@@ -503,7 +514,15 @@ export default function ServiceAttendancePage() {
             variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0"
-            onClick={() => setShowAlertMessage(false)}
+            onClick={() => {
+              // Clear timeout when manually closing
+              if (alertTimeoutRef.current) {
+                clearTimeout(alertTimeoutRef.current);
+                alertTimeoutRef.current = null;
+              }
+              setShowAlertMessage(false);
+              setAlertMessage(null);
+            }}
           >
             <XIcon className="h-4 w-4" />
           </Button>

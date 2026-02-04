@@ -9,7 +9,6 @@ import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
   PlusIcon,
-  PencilIcon,
   TrashIcon,
   TriangleAlertIcon,
   EyeIcon,
@@ -96,16 +95,6 @@ interface Household {
   zip: string | null;
 }
 
-interface HouseholdFormData {
-  name: string;
-  type: string;
-  address1: string;
-  address2: string;
-  city: string;
-  state: string;
-  zip: string;
-}
-
 interface MemberFormData {
   firstName: string;
   middleName: string;
@@ -152,25 +141,12 @@ export default function HouseholdViewPage({
   const [household, setHousehold] = useState<Household | null>(null);
   const [loading, setLoading] = useState(true);
   const [householdId, setHouseholdId] = useState<string>("");
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [allHouseholds, setAllHouseholds] = useState<HouseholdOption[]>([]);
-
-  const editForm = useForm<HouseholdFormData>({
-    defaultValues: {
-      name: "",
-      type: "single",
-      address1: "",
-      address2: "",
-      city: "",
-      state: "",
-      zip: "",
-    },
-  });
 
   const memberForm = useForm<MemberFormData>({
     defaultValues: {
@@ -342,49 +318,6 @@ export default function HouseholdViewPage({
       return null;
     } catch {
       return null;
-    }
-  };
-
-  const handleEditClick = () => {
-    if (household) {
-      editForm.reset({
-        name: household.name || "",
-        type: household.type || "single",
-        address1: household.address1 || "",
-        address2: household.address2 || "",
-        city: household.city || "",
-        state: household.state || "",
-        zip: household.zip || "",
-      });
-      setEditDialogOpen(true);
-    }
-  };
-
-  const onEditSubmit = async (data: HouseholdFormData) => {
-    try {
-      const response = await apiFetch(`/api/families/${householdId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: data.name || null,
-          type: data.type || null,
-          address1: data.address1 || null,
-          address2: data.address2 || null,
-          city: data.city || null,
-          state: data.state || null,
-          zip: data.zip || null,
-        }),
-      });
-
-      if (response.ok) {
-        setEditDialogOpen(false);
-        fetchHouseholdData(householdId);
-      } else {
-        const error = await response.json();
-        alert(error.error || "Failed to update household");
-      }
-    } catch (error) {
-      console.error("Error updating household:", error);
-      alert("Failed to update household");
     }
   };
 
@@ -594,10 +527,6 @@ export default function HouseholdViewPage({
         <div className="flex gap-2">
           {canEditMembers && (
             <>
-              <Button variant="outline" onClick={handleEditClick} className="cursor-pointer">
-                <PencilIcon className="mr-2 h-4 w-4" />
-                Edit Household
-              </Button>
               <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="cursor-pointer">
@@ -1126,194 +1055,6 @@ export default function HouseholdViewPage({
         </CardContent>
       </Card>
 
-      {/* Edit Household Dialog */}
-      {canEditMembers && (
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Household</DialogTitle>
-            <DialogDescription>Update household information.</DialogDescription>
-          </DialogHeader>
-          <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-              <FormField
-                control={editForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Household Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g., Smith Family" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Household Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="single">Single</SelectItem>
-                        <SelectItem value="family">Family</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="address1"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Street address" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="address2"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address 2</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Apartment, suite, etc." />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={editForm.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select state" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="AL">AL - Alabama</SelectItem>
-                          <SelectItem value="AK">AK - Alaska</SelectItem>
-                          <SelectItem value="AZ">AZ - Arizona</SelectItem>
-                          <SelectItem value="AR">AR - Arkansas</SelectItem>
-                          <SelectItem value="CA">CA - California</SelectItem>
-                          <SelectItem value="CO">CO - Colorado</SelectItem>
-                          <SelectItem value="CT">CT - Connecticut</SelectItem>
-                          <SelectItem value="DE">DE - Delaware</SelectItem>
-                          <SelectItem value="FL">FL - Florida</SelectItem>
-                          <SelectItem value="GA">GA - Georgia</SelectItem>
-                          <SelectItem value="HI">HI - Hawaii</SelectItem>
-                          <SelectItem value="ID">ID - Idaho</SelectItem>
-                          <SelectItem value="IL">IL - Illinois</SelectItem>
-                          <SelectItem value="IN">IN - Indiana</SelectItem>
-                          <SelectItem value="IA">IA - Iowa</SelectItem>
-                          <SelectItem value="KS">KS - Kansas</SelectItem>
-                          <SelectItem value="KY">KY - Kentucky</SelectItem>
-                          <SelectItem value="LA">LA - Louisiana</SelectItem>
-                          <SelectItem value="ME">ME - Maine</SelectItem>
-                          <SelectItem value="MD">MD - Maryland</SelectItem>
-                          <SelectItem value="MA">MA - Massachusetts</SelectItem>
-                          <SelectItem value="MI">MI - Michigan</SelectItem>
-                          <SelectItem value="MN">MN - Minnesota</SelectItem>
-                          <SelectItem value="MS">MS - Mississippi</SelectItem>
-                          <SelectItem value="MO">MO - Missouri</SelectItem>
-                          <SelectItem value="MT">MT - Montana</SelectItem>
-                          <SelectItem value="NE">NE - Nebraska</SelectItem>
-                          <SelectItem value="NV">NV - Nevada</SelectItem>
-                          <SelectItem value="NH">NH - New Hampshire</SelectItem>
-                          <SelectItem value="NJ">NJ - New Jersey</SelectItem>
-                          <SelectItem value="NM">NM - New Mexico</SelectItem>
-                          <SelectItem value="NY">NY - New York</SelectItem>
-                          <SelectItem value="NC">NC - North Carolina</SelectItem>
-                          <SelectItem value="ND">ND - North Dakota</SelectItem>
-                          <SelectItem value="OH">OH - Ohio</SelectItem>
-                          <SelectItem value="OK">OK - Oklahoma</SelectItem>
-                          <SelectItem value="OR">OR - Oregon</SelectItem>
-                          <SelectItem value="PA">PA - Pennsylvania</SelectItem>
-                          <SelectItem value="RI">RI - Rhode Island</SelectItem>
-                          <SelectItem value="SC">SC - South Carolina</SelectItem>
-                          <SelectItem value="SD">SD - South Dakota</SelectItem>
-                          <SelectItem value="TN">TN - Tennessee</SelectItem>
-                          <SelectItem value="TX">TX - Texas</SelectItem>
-                          <SelectItem value="UT">UT - Utah</SelectItem>
-                          <SelectItem value="VT">VT - Vermont</SelectItem>
-                          <SelectItem value="VA">VA - Virginia</SelectItem>
-                          <SelectItem value="WA">WA - Washington</SelectItem>
-                          <SelectItem value="WV">WV - West Virginia</SelectItem>
-                          <SelectItem value="WI">WI - Wisconsin</SelectItem>
-                          <SelectItem value="WY">WY - Wyoming</SelectItem>
-                          <SelectItem value="DC">DC - District of Columbia</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editForm.control}
-                  name="zip"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditDialogOpen(false)}
-                  className="cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="cursor-pointer">Update Household</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-      )}
-
       {/* Delete Member Dialog */}
       <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
         <AlertDialogContent>
@@ -1385,7 +1126,7 @@ export default function HouseholdViewPage({
                         </FormControl>
                         <SelectContent>
                           {allHouseholds
-                            .filter((h) => h.id !== householdId)
+                            .filter((h) => h.id !== householdId && h.name?.toLowerCase() !== "guests")
                             .map((h) => (
                               <SelectItem key={h.id} value={h.id}>
                                 {getHouseholdOptionDisplayName(h)}

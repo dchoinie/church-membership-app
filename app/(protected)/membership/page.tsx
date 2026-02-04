@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon } from "lucide-react";
+import Link from "next/link";
+import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { apiFetch } from "@/lib/api-client";
 
@@ -859,28 +860,41 @@ export default function MembershipPage() {
                       <TableCell className="text-xs md:text-sm">{getAddressDisplay(household)}</TableCell>
                       <TableCell className="text-xs md:text-sm">{household.memberCount}</TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        {canEditMembers && (
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Edit"
-                              onClick={() => handleEditClick(household)}
-                              className="cursor-pointer"
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Delete"
-                              onClick={() => handleDeleteClick(household)}
-                              className="cursor-pointer"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="icon"
+                            title="View Household"
+                            className="cursor-pointer"
+                          >
+                            <Link href={`/membership/household/${household.id}`}>
+                              <EyeIcon className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          {canEditMembers && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Edit"
+                                onClick={() => handleEditClick(household)}
+                                className="cursor-pointer"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Delete"
+                                onClick={() => handleDeleteClick(household)}
+                                className="cursor-pointer"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
