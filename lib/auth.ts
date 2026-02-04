@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
+import { user } from "@/auth-schema";
 
 const getBaseURL = () => {
     // Check for environment-specific URLs first
@@ -147,11 +148,16 @@ export const auth = betterAuth({
         },
     },
     emailVerification: {
-        sendVerificationEmail: async ({ user, url, token }, request) => {
+        sendVerificationEmail: async ({ user: authUser, url, token }, request) => {
             try {
+                // Fetch user from database to get churchId (better-auth user object might not include it)
+                const dbUser = await db.query.user.findFirst({
+                    where: eq(user.id, authUser.id),
+                });
+                
                 // Get church subdomain to build correct callback URL
                 let callbackUrl: string;
-                const churchId = (user as any).churchId;
+                const churchId = dbUser?.churchId;
                 
                 if (churchId) {
                     // Fetch church subdomain
@@ -188,13 +194,22 @@ export const auth = betterAuth({
                     : `${url}${url.includes("?") ? "&" : "?"}callbackURL=${encodeURIComponent(callbackUrl)}`;
                 
                 await sendVerificationEmail({
-                    email: user.email,
+                    email: authUser.email,
                     verificationUrl: verificationUrl,
-                    userName: user.name || undefined,
+                    userName: authUser.name || undefined,
                     churchId: churchId || null,
                 });
             } catch (error) {
                 console.error("Error sending verification email:", error);
+                // Log more details for debugging
+                if (error instanceof Error) {
+                    console.error("Error details:", {
+                        message: error.message,
+                        stack: error.stack,
+                        userId: authUser.id,
+                        userEmail: authUser.email,
+                    });
+                }
                 throw error;
             }
         },

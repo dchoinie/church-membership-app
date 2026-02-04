@@ -170,9 +170,22 @@ export async function POST(request: Request) {
         body: { email: adminEmail },
         headers: request.headers,
       });
+      console.log("Verification email sent successfully to:", adminEmail);
     } catch (emailError) {
+      // Log detailed error information for debugging
       console.error("Error sending verification email:", emailError);
+      if (emailError instanceof Error) {
+        console.error("Email error details:", {
+          message: emailError.message,
+          stack: emailError.stack,
+          email: adminEmail,
+          churchId: church.id,
+          userId: userId,
+        });
+      }
       // Don't fail the signup if email fails - user can resend from verify-email page
+      // But log it prominently so we can investigate
+      console.error("WARNING: Signup succeeded but verification email failed. User can resend from verify-email page.");
     }
 
     // Return response WITHOUT session cookies - user must verify email first
