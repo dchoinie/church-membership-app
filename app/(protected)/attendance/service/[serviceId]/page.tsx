@@ -28,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 interface Service {
   id: string;
@@ -53,6 +54,7 @@ interface AttendanceRecord {
     id: string;
     firstName: string;
     lastName: string;
+    membershipCode: string | null;
   };
   service: {
     id: string;
@@ -71,6 +73,7 @@ interface AttendanceFormData {
 interface NonMemberFormData {
   name: string;
   tookCommunion: boolean;
+  memberId?: string; // Track existing guest member ID if this is an existing guest
 }
 
 const SERVICE_TYPES = [
@@ -122,6 +125,7 @@ export default function ServiceAttendancePage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [includeInactive, setIncludeInactive] = useState(false);
   const isEditMode = mode === "edit";
 
   useEffect(() => {
@@ -137,13 +141,16 @@ export default function ServiceAttendancePage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId, mode]);
+  }, [serviceId, mode, includeInactive]);
 
 
   const fetchMembers = async () => {
     setLoadingMembers(true);
     try {
-      const response = await apiFetch("/api/attendance/members");
+      const url = includeInactive 
+        ? "/api/attendance/members?includeInactive=true"
+        : "/api/attendance/members";
+      const response = await apiFetch(url);
       if (response.ok) {
         const data = await response.json();
         setMembers(data.members || []);
@@ -177,18 +184,46 @@ export default function ServiceAttendancePage() {
   useEffect(() => {
     if (isEditMode && members.length > 0 && attendanceRecords.length >= 0) {
       const initialFormData: AttendanceFormData = {};
+      // Only include non-guest members in formData
       members.forEach((member) => {
         const existingRecord = attendanceRecords.find(
-          (r) => r.memberId === member.id
+          (r) => r.memberId === member.id && r.member.membershipCode !== "GUEST"
         );
-        initialFormData[member.id] = {
-          attended: existingRecord?.attended || false,
-          tookCommunion: existingRecord?.tookCommunion || false,
-        };
+        if (existingRecord) {
+          initialFormData[member.id] = {
+            attended: existingRecord.attended,
+            tookCommunion: existingRecord.tookCommunion,
+          };
+        } else {
+          // Initialize with false if no record exists
+          initialFormData[member.id] = {
+            attended: false,
+            tookCommunion: false,
+          };
+        }
       });
       setFormData(initialFormData);
+
+      // Populate nonMembers with existing guest records
+      const guestRecords = attendanceRecords.filter(
+        (r) => r.member.membershipCode === "GUEST" && r.attended
+      );
+      if (guestRecords.length > 0) {
+        const guestNonMembers: NonMemberFormData[] = guestRecords.map((record) => ({
+          name: `${record.member.firstName} ${record.member.lastName}`.trim(),
+          tookCommunion: record.tookCommunion,
+          memberId: record.memberId, // Track the member ID for updates
+        }));
+        setNonMembers(guestNonMembers);
+      } else {
+        // If no guests, start with one empty entry
+        setNonMembers([{ name: "", tookCommunion: false }]);
+      }
+    } else if (isEditMode && !loadingMembers) {
+      // Reset nonMembers when switching to edit mode but before members load
+      setNonMembers([{ name: "", tookCommunion: false }]);
     }
-  }, [isEditMode, members, attendanceRecords]);
+  }, [isEditMode, members, attendanceRecords, loadingMembers]);
 
   const handleCheckboxChange = (memberId: string, field: "attended" | "tookCommunion", checked: boolean) => {
     setFormData((prev) => {
@@ -263,38 +298,52 @@ export default function ServiceAttendancePage() {
           tookCommunion: data.tookCommunion,
         }));
 
-      // Create guest member records for non-members and get their IDs
-      const guestMemberIds: string[] = [];
+      // Handle guest member records - use existing memberId if available, otherwise create new
+      const guestMemberRecords: Array<{ memberId: string; attended: boolean; tookCommunion: boolean }> = [];
       if (validNonMembers.length > 0) {
         for (const nonMember of validNonMembers) {
-          try {
-            const nameParts = nonMember.name.trim().split(" ");
-            const firstName = nameParts[0] || "Guest";
-            const lastName = nameParts.slice(1).join(" ") || "Visitor";
-            
-            // Create a guest member record with a new household
-            const guestResponse = await apiFetch("/api/members", {
-              method: "POST",
-              body: JSON.stringify({
-                firstName,
-                lastName,
-                createNewHousehold: true,
-                householdName: "Guests",
-                householdType: "other",
-                participation: "inactive", // Mark as inactive to distinguish from regular members
-                membershipCode: "GUEST", // Mark as guest
-              }),
+          if (nonMember.memberId) {
+            // This is an existing guest, use their memberId
+            guestMemberRecords.push({
+              memberId: nonMember.memberId,
+              attended: true,
+              tookCommunion: nonMember.tookCommunion,
             });
+          } else {
+            // This is a new guest, create a new member record
+            try {
+              const nameParts = nonMember.name.trim().split(" ");
+              const firstName = nameParts[0] || "Guest";
+              const lastName = nameParts.slice(1).join(" ") || "Visitor";
+              
+              // Create a guest member record with a new household
+              const guestResponse = await apiFetch("/api/members", {
+                method: "POST",
+                body: JSON.stringify({
+                  firstName,
+                  lastName,
+                  createNewHousehold: true,
+                  householdName: "Guests",
+                  householdType: "other",
+                  participation: "inactive", // Mark as inactive to distinguish from regular members
+                  membershipCode: "GUEST", // Mark as guest
+                }),
+              });
 
-            if (guestResponse.ok) {
-              const guestData = await guestResponse.json();
-              guestMemberIds.push(guestData.member.id);
-            } else {
-              const errorData = await guestResponse.json().catch(() => ({ error: "Unknown error" }));
-              console.error(`Failed to create guest member for ${nonMember.name}:`, errorData.error);
+              if (guestResponse.ok) {
+                const guestData = await guestResponse.json();
+                guestMemberRecords.push({
+                  memberId: guestData.member.id,
+                  attended: true,
+                  tookCommunion: nonMember.tookCommunion,
+                });
+              } else {
+                const errorData = await guestResponse.json().catch(() => ({ error: "Unknown error" }));
+                console.error(`Failed to create guest member for ${nonMember.name}:`, errorData.error);
+              }
+            } catch (error) {
+              console.error(`Error creating guest member for ${nonMember.name}:`, error);
             }
-          } catch (error) {
-            console.error(`Error creating guest member for ${nonMember.name}:`, error);
           }
         }
       }
@@ -302,11 +351,7 @@ export default function ServiceAttendancePage() {
       // Combine member records with guest member records
       const allRecords = [
         ...memberRecords,
-        ...guestMemberIds.map((memberId, index) => ({
-          memberId,
-          attended: true,
-          tookCommunion: validNonMembers[index].tookCommunion,
-        })),
+        ...guestMemberRecords,
       ];
 
       if (allRecords.length === 0) {
@@ -458,9 +503,27 @@ export default function ServiceAttendancePage() {
         <CardContent>
           {isEditMode ? (
             <>
+              <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="include-inactive"
+                    checked={includeInactive}
+                    onCheckedChange={(checked) => {
+                      setIncludeInactive(checked);
+                    }}
+                    disabled={loadingMembers}
+                  />
+                  <Label
+                    htmlFor="include-inactive"
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Include inactive members
+                  </Label>
+                </div>
+              </div>
               {loadingMembers || members.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {loadingMembers ? "Loading members..." : "No active members found"}
+                  {loadingMembers ? "Loading members..." : `No ${includeInactive ? "active or inactive" : "active"} members found`}
                 </div>
               ) : (
                 <>

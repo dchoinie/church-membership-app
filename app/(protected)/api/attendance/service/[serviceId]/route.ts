@@ -42,6 +42,7 @@ export async function GET(
           id: members.id,
           firstName: members.firstName,
           lastName: members.lastName,
+          membershipCode: members.membershipCode,
         },
         service: {
           id: services.id,
