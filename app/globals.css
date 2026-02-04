@@ -202,11 +202,11 @@
 }
 
 /* Allow scrolling on mobile, restrict only on desktop when using fixed-height layout */
-/* @media (min-width: 768px) {
-  html, body {
+@media (min-width: 768px) {
+  html {
     overflow-y: hidden;
   }
-} */
+}
 
 /* Hero Section Animations */
 /* Refined Animations - More Subtle & Elegant */
