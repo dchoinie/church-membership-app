@@ -127,6 +127,7 @@ export default function ServiceAttendancePage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [showAlertMessage, setShowAlertMessage] = useState(false);
   const isEditMode = mode === "edit";
 
   useEffect(() => {
@@ -161,14 +162,6 @@ export default function ServiceAttendancePage() {
     } finally {
       setLoadingMembers(false);
     }
-  };
-
-  const showAlert = (type: "success" | "error", message: string) => {
-    setAlertMessage({ type, message });
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-      setAlertMessage(null);
-    }, 5000);
   };
 
   const fetchServiceAttendance = async () => {
@@ -363,12 +356,6 @@ export default function ServiceAttendancePage() {
         ...guestMemberRecords,
       ];
 
-      if (allRecords.length === 0) {
-        alert("No attendance records to save. Please mark at least one member as attended or add a non-member.");
-        setSubmitting(false);
-        return;
-      }
-
       const response = await apiFetch("/api/attendance", {
         method: "POST",
         body: JSON.stringify({
@@ -379,26 +366,30 @@ export default function ServiceAttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Failed to save attendance: ${error.error || "Unknown error"}`);
+        setShowAlertMessage(true);
+        setAlertMessage({ type: "error", message: `Failed to save attendance: ${error.error || "Unknown error"}` });
         return;
       }
 
       const result = await response.json();
       
       if (result.failed > 0 && result.errors.length > 0) {
-        alert(`Some records failed to save:\n${result.errors.join("\n")}`);
+        setShowAlertMessage(true);
+        setAlertMessage({ type: "error", message: `Some records failed to save:\n${result.errors.join("\n")}` });
       }
 
       // Refresh attendance records
       await fetchServiceAttendance();
       
-      alert(`Successfully saved ${result.success} attendance record(s)`);
+      setShowAlertMessage(true);
+      setAlertMessage({ type: "success", message: `Successfully saved ${result.success} attendance record(s)` });
       
       // Switch back to view mode
       router.push(`/attendance/service/${serviceId}?mode=view`);
     } catch (error) {
       console.error("Error saving attendance:", error);
-      alert("Failed to save attendance");
+      setShowAlertMessage(true);
+      setAlertMessage({ type: "error", message: "Failed to save attendance" });
     } finally {
       setSubmitting(false);
     }
@@ -429,7 +420,8 @@ export default function ServiceAttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        showAlert("error", `Failed to update attendance: ${error.error || "Unknown error"}`);
+        setShowAlertMessage(true);
+        setAlertMessage({ type: "error", message: `Failed to update attendance: ${error.error || "Unknown error"}` });
         setEditSubmitting(false);
         return;
       }
@@ -437,10 +429,12 @@ export default function ServiceAttendancePage() {
       setEditDialogOpen(false);
       setEditingRecord(null);
       await fetchServiceAttendance();
-      showAlert("success", "Successfully updated attendance");
+      setShowAlertMessage(true);
+      setAlertMessage({ type: "success", message: "Successfully updated attendance" });
     } catch (error) {
       console.error("Error updating attendance:", error);
-      showAlert("error", "Failed to update attendance");
+      setShowAlertMessage(true);
+      setAlertMessage({ type: "error", message: "Failed to update attendance" });
     } finally {
       setEditSubmitting(false);
     }
@@ -489,7 +483,7 @@ export default function ServiceAttendancePage() {
       </div>
 
       {/* Alert Messages */}
-      {alertMessage && (
+      {showAlertMessage && alertMessage && (
         <div
           className={`rounded-md p-4 flex items-start gap-3 border ${
             alertMessage.type === "success"
@@ -509,7 +503,7 @@ export default function ServiceAttendancePage() {
             variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0"
-            onClick={() => setAlertMessage(null)}
+            onClick={() => setShowAlertMessage(false)}
           >
             <XIcon className="h-4 w-4" />
           </Button>
