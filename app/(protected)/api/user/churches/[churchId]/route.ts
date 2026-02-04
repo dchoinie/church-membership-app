@@ -9,7 +9,7 @@ import { removeUserFromChurch, getUserChurches } from "@/lib/tenant-db";
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { churchId: string } }
+  { params }: { params: Promise<{ churchId: string }> }
 ) {
   try {
     // Get authenticated session
@@ -24,7 +24,7 @@ export async function DELETE(
       );
     }
 
-    const { churchId } = params;
+    const { churchId } = await params;
 
     if (!churchId) {
       return NextResponse.json(
