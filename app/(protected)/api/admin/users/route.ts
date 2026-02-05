@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     });
 
     // Create a map of userId to role for this church
-    const userRoleMap = new Map(memberships.map(m => [m.userId, m.role]));
+    const userRoleMap = new Map(memberships.map(m => [m.userId, String(m.role)]));
 
     // Add role from junction table to each user
     const usersWithChurchRole = users.map(u => ({

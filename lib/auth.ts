@@ -160,23 +160,28 @@ export const auth = betterAuth({
                 let churchId: string | null = null;
                 
                 // Try to get churchId from subdomain first, otherwise use first church
-                const { getTenantFromRequest } = await import("@/lib/tenant-context");
-                const requestHeaders = new Headers();
-                request.headers.forEach((value, key) => {
-                    requestHeaders.set(key, value);
-                });
-                const cookieHeader = request.headers.get("cookie");
-                if (cookieHeader) {
-                    requestHeaders.set("cookie", cookieHeader);
+                if (request) {
+                    const { getTenantFromRequest } = await import("@/lib/tenant-context");
+                    const requestHeaders = new Headers();
+                    request.headers.forEach((value, key) => {
+                        requestHeaders.set(key, value);
+                    });
+                    const cookieHeader = request.headers.get("cookie");
+                    if (cookieHeader) {
+                        requestHeaders.set("cookie", cookieHeader);
+                    }
+                    
+                    // Create a Request-like object for getTenantFromRequest
+                    const urlObj = new URL(request.url || "http://localhost");
+                    const mockRequest = new Request(urlObj.toString(), {
+                        headers: requestHeaders,
+                    });
+                    
+                    churchId = await getTenantFromRequest(mockRequest) || (userChurchesList.length > 0 ? userChurchesList[0].churchId : null);
+                } else {
+                    // No request available, use first church
+                    churchId = userChurchesList.length > 0 ? userChurchesList[0].churchId : null;
                 }
-                
-                // Create a Request-like object for getTenantFromRequest
-                const urlObj = new URL(request.url || "http://localhost");
-                const mockRequest = new Request(urlObj.toString(), {
-                    headers: requestHeaders,
-                });
-                
-                churchId = await getTenantFromRequest(mockRequest) || (userChurchesList.length > 0 ? userChurchesList[0].churchId : null);
                 
                 if (churchId) {
                     // Fetch church subdomain

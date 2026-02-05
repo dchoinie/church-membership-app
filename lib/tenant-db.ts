@@ -47,7 +47,7 @@ export async function getUserChurches(userId: string): Promise<Array<{
 
   return memberships.map(m => ({
     churchId: m.churchId,
-    role: m.role,
+    role: String(m.role),
   }));
 }
 
@@ -65,7 +65,7 @@ export async function getUserChurchRole(
     ),
   });
 
-  return membership?.role || null;
+  return membership?.role ? String(membership.role) : null;
 }
 
 /**
@@ -76,6 +76,10 @@ export async function addUserToChurch(
   churchId: string,
   role: string = "viewer"
 ): Promise<void> {
+  // Validate and cast role to enum type
+  const validRoles = ["admin", "viewer", "members_editor", "giving_editor", "attendance_editor", "reports_viewer", "analytics_viewer"] as const;
+  const validRole = validRoles.includes(role as typeof validRoles[number]) ? (role as typeof validRoles[number]) : "viewer";
+
   // Check if membership already exists
   const existing = await db.query.userChurches.findFirst({
     where: and(
@@ -87,7 +91,7 @@ export async function addUserToChurch(
   if (existing) {
     // Update existing membership
     await db.update(userChurches)
-      .set({ role, updatedAt: new Date() })
+      .set({ role: validRole, updatedAt: new Date() })
       .where(and(
         eq(userChurches.userId, userId),
         eq(userChurches.churchId, churchId)
@@ -97,7 +101,7 @@ export async function addUserToChurch(
     await db.insert(userChurches).values({
       userId,
       churchId,
-      role,
+      role: validRole,
     });
   }
 }

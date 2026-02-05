@@ -20,7 +20,7 @@ import {
  * This allows super admins to access any church's data regardless of subdomain
  */
 export async function getAuthContext(request: Request): Promise<{
-  user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
+  user: { id: string; email: string; role: string; isSuperAdmin: boolean };
   churchId: string;
 }> {
   // Get session - in API routes, use request headers directly
@@ -101,11 +101,11 @@ export async function getAuthContext(request: Request): Promise<{
 
   // Get user's role for this specific church from junction table
   // For super admins, use their global role (they can access any church)
-  let role = userRecord.role;
+  let role: string = userRecord.role;
   if (!userRecord.isSuperAdmin) {
     const churchRole = await getUserChurchRole(userRecord.id, churchId);
     if (churchRole) {
-      role = churchRole;
+      role = churchRole as string;
     } else {
       // User doesn't belong to this church (shouldn't happen after verifyUserBelongsToChurch check)
       throw new Error("FORBIDDEN");
@@ -129,7 +129,7 @@ export async function getAuthContext(request: Request): Promise<{
  * Also use for user management operations (admin only)
  */
 export async function requireAdmin(request: Request): Promise<{
-  user: { id: string; email: string; churchId: string | null; role: string; isSuperAdmin: boolean };
+  user: { id: string; email: string; role: string; isSuperAdmin: boolean };
   churchId: string;
 }> {
   const context = await getAuthContext(request);

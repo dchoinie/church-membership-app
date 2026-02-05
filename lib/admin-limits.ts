@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { userChurches } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 /**
  * Get the maximum allowed admin users for a subscription plan
