@@ -3,24 +3,20 @@
  */
 
 interface Church {
-  subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
   stripeSubscriptionId: string | null;
 }
 
 /**
  * Check if church setup is complete
  * Setup is complete when:
- * - Subscription status is "active", OR
- * - Subscription status is "trialing" with a Stripe subscription ID (paid plans)
+ * - Subscription status is "active"
  */
 export function isSetupComplete(church: Church | null): boolean {
   if (!church) {
     return false;
   }
 
-  return (
-    church.subscriptionStatus === "active" ||
-    (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null)
-  );
+  return church.subscriptionStatus === "active";
 }
 

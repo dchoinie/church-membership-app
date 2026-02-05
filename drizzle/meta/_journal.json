@@ -155,6 +155,13 @@
       "when": 1770246466800,
       "tag": "0021_past_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1770309511089,
+      "tag": "0022_nostalgic_jack_flag",
+      "breakpoints": true
     }
   ]
 }

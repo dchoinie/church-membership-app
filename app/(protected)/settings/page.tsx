@@ -26,7 +26,7 @@ interface Church {
   id: string;
   name: string;
   subdomain: string;
-  subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
   subscriptionPlan: "basic" | "premium";
   stripeSubscriptionId: string | null;
   stripeCustomerId: string | null;
@@ -259,9 +259,11 @@ export default function SettingsPage() {
     );
   }
 
-  const hasActiveSubscription = 
-    church.subscriptionStatus === "active" ||
-    (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+  const hasActiveSubscription = church.subscriptionStatus === "active";
+  
+  // Show upgrade button if user has a subscription (regardless of status)
+  // This allows managing subscriptions even if status is "unpaid" (e.g., after promo code application)
+  const canManageSubscription = church.stripeSubscriptionId !== null;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -464,7 +466,6 @@ export default function SettingsPage() {
                       : "bg-yellow-500/10 text-yellow-600 border border-yellow-500/20"
                   }`}>
                     {church.subscriptionStatus === "active" ? "Active" : 
-                     church.subscriptionStatus === "trialing" ? "Trialing" : 
                      church.subscriptionStatus}
                   </span>
                 </div>
@@ -482,14 +483,22 @@ export default function SettingsPage() {
               </ul>
             </div>
 
-            {hasActiveSubscription && (
+            {canManageSubscription && (
               <div className="space-y-2">
-                {church.subscriptionPlan === "premium" && (
+                {hasActiveSubscription && church.subscriptionPlan === "premium" && (
                   <div className="rounded-md bg-blue-500/10 p-3 text-sm text-blue-600 border border-blue-500/20">
                     <p className="font-medium mb-1">Downgrade Notice</p>
                     <p>
                       Your subscription will be downgraded to the Basic plan at the end of your current billing cycle. 
                       You&apos;ll continue to have access to Premium features until then.
+                    </p>
+                  </div>
+                )}
+                {church.subscriptionStatus === "unpaid" && church.stripeSubscriptionId && (
+                  <div className="rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-600 border border-yellow-500/20">
+                    <p className="font-medium mb-1">Subscription Status: Unpaid</p>
+                    <p>
+                      Your subscription is currently unpaid. You can upgrade or manage your subscription below.
                     </p>
                   </div>
                 )}

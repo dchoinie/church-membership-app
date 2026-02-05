@@ -21,7 +21,7 @@ export interface TestUserData {
 export interface TestChurchData {
   name: string;
   subdomain: string;
-  subscriptionStatus?: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  subscriptionStatus?: "active" | "past_due" | "canceled" | "unpaid";
   subscriptionPlan?: "basic" | "premium";
   stripeSubscriptionId?: string | null;
 }
@@ -73,7 +73,7 @@ export async function createTestChurch(data: TestChurchData): Promise<{ churchId
   const {
     name,
     subdomain,
-    subscriptionStatus = "trialing",
+    subscriptionStatus = "unpaid",
     subscriptionPlan = "basic",
     stripeSubscriptionId = null,
   } = data;

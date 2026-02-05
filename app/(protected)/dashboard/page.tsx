@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { isSetupComplete } from "@/lib/setup-helpers";
 
 interface Church {
-  subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
   stripeSubscriptionId: string | null;
 }
 

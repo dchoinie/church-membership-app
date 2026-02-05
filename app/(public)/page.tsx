@@ -200,9 +200,7 @@ export default function LandingPage() {
               const { church } = await response.json();
               
               // Check if subscription is active
-              const hasActiveSubscription = 
-                church.subscriptionStatus === "active" ||
-                (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+              const hasActiveSubscription = church.subscriptionStatus === "active";
               
               // Redirect to appropriate page
               const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";

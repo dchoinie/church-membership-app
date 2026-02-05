@@ -44,12 +44,12 @@ const webhookSecret = getWebhookSecret();
  */
 function mapSubscriptionStatus(
   stripeStatus: Stripe.Subscription.Status
-): "active" | "trialing" | "past_due" | "canceled" | "unpaid" {
+): "active" | "past_due" | "canceled" | "unpaid" {
   switch (stripeStatus) {
     case "active":
-      return "active";
     case "trialing":
-      return "trialing";
+      // Map trialing to active since we don't have a trial status
+      return "active";
     case "past_due":
       return "past_due";
     case "canceled":

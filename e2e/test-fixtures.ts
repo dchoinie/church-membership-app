@@ -59,7 +59,7 @@ export const test = base.extend<TestFixtures>({
     const churchData: TestChurchData = {
       name: identifiers.name + " Church",
       subdomain: identifiers.subdomain,
-      subscriptionStatus: "trialing",
+      subscriptionStatus: "unpaid",
       subscriptionPlan: "basic",
     };
 
@@ -103,7 +103,7 @@ export const test = base.extend<TestFixtures>({
       {
         name: identifiers.name + " Church",
         subdomain: identifiers.subdomain,
-        subscriptionStatus: "trialing",
+        subscriptionStatus: "unpaid",
         subscriptionPlan: "basic",
       }
     );

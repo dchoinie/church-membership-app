@@ -245,9 +245,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           
           // Single church - proceed with redirect as before
           // Check subscription status to determine redirect path
-          const hasActiveSubscription = 
-            subscriptionStatus === "active" ||
-            (subscriptionStatus === "trialing" && stripeSubscriptionId !== null);
+          const hasActiveSubscription = subscriptionStatus === "active";
           
           // Build subdomain URL - redirect directly to /dashboard or /setup
           const baseUrl = window.location.origin;
@@ -350,9 +348,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     setIsSubmitting(true);
     try {
       // Check subscription status to determine redirect path
-      const hasActiveSubscription = 
-        church.subscriptionStatus === "active" ||
-        (church.subscriptionStatus === "trialing" && church.stripeSubscriptionId !== null);
+      const hasActiveSubscription = church.subscriptionStatus === "active";
       
       // Build subdomain URL - redirect directly to /dashboard or /setup
       const baseUrl = window.location.origin;

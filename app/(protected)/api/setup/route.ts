@@ -38,9 +38,8 @@ export async function PUT(request: Request) {
     }
 
     // Only allow subscription plan update if subscription is not active
-    // (i.e., still in setup/trialing phase)
+    // (i.e., still in setup/unpaid phase)
     const canUpdatePlan = 
-      currentChurch.subscriptionStatus === "trialing" || 
       currentChurch.subscriptionStatus === "unpaid" ||
       !currentChurch.stripeSubscriptionId;
 

@@ -247,7 +247,6 @@ export default function ChurchDetailPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="active">Active</option>
-                  <option value="trialing">Trialing</option>
                   <option value="past_due">Past Due</option>
                   <option value="canceled">Canceled</option>
                   <option value="unpaid">Unpaid</option>

@@ -29,7 +29,7 @@ interface Church {
   id: string;
   name: string;
   subdomain: string;
-  subscriptionStatus: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
+  subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
   subscriptionPlan: "basic" | "premium";
   stripeSubscriptionId: string | null;
   stripeCustomerId: string | null;

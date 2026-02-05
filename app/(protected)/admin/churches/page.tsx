@@ -47,7 +47,6 @@ export default function AdminChurchesPage() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       active: "default",
-      trialing: "secondary",
       canceled: "destructive",
       past_due: "destructive",
       unpaid: "destructive",

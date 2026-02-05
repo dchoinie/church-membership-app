@@ -73,7 +73,6 @@ export const serviceTypeEnum = pgEnum("service_type_enum", [
 
 export const subscriptionStatusEnum = pgEnum("subscription_status_enum", [
   "active",
-  "trialing",
   "past_due",
   "canceled",
   "unpaid",
@@ -102,7 +101,7 @@ export const churches = pgTable(
     primaryColor: text("primary_color"),
     subscriptionStatus: subscriptionStatusEnum("subscription_status")
       .notNull()
-      .default("trialing"),
+      .default("unpaid"),
     subscriptionPlan: subscriptionPlanEnum("subscription_plan")
       .notNull()
       .default("basic"),
