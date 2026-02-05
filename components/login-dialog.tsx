@@ -163,6 +163,11 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       return;
     }
 
+    // Check if we're in production (not localhost)
+    const isProduction = typeof window !== "undefined" && 
+      !window.location.hostname.includes('localhost') && 
+      !window.location.hostname.includes('127.0.0.1');
+
     try {
       // Don't use callbackURL - it causes better-auth to redirect immediately, cancelling our fetch
       const { error: signInError, data: signInResponse } = await authClient.signIn.email({
@@ -174,7 +179,13 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       if (signInError) {
         // Check if it's a rate limit error
         if (signInError.message?.includes("Too many requests") || (signInError as any).status === 429) {
-          // Try to extract retryAfter from the error if available
+          // In production, show generic error message
+          if (isProduction) {
+            setIsRateLimited(true);
+            throw new Error("Error signing in. Please try again.");
+          }
+          
+          // In development, show detailed error
           let retryAfter: number | undefined;
           try {
             // The error might contain the retryAfter in the response
@@ -185,7 +196,12 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           } catch {}
           
           const minutes = retryAfter ? Math.ceil(retryAfter / 60) : 15;
+          setIsRateLimited(true);
           throw new Error(`Too many login attempts. Please try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`);
+        }
+        // For other errors, show generic message in production
+        if (isProduction) {
+          throw new Error("Error signing in. Please check your credentials and try again.");
         }
         throw new Error(signInError.message || "Failed to sign in");
       }
@@ -274,6 +290,10 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       // Handle rate limit errors specifically
       // When rate limited, the middleware returns 429 before better-auth processes it
       // better-auth then throws a generic fetch error
+      const isProduction = typeof window !== "undefined" && 
+        !window.location.hostname.includes('localhost') && 
+        !window.location.hostname.includes('127.0.0.1');
+      
       if (err instanceof Error) {
         const errorMessage = err.message;
         
@@ -287,17 +307,32 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           errorMessage.includes("Failed to sign in");
         
         if (isLikelyRateLimit) {
-          // Assume it's rate limited if we see fetch/network errors
-          // Show rate limit error with option to clear in dev
-          setIsRateLimited(true);
-          setError("Too many login attempts. Please wait 15 minutes before trying again, or use the button below to clear the rate limit (development only).");
+          // In production, show generic error message
+          if (isProduction) {
+            setIsRateLimited(true);
+            setError("Error signing in. Please try again.");
+          } else {
+            // In development, show detailed error with option to clear
+            setIsRateLimited(true);
+            setError("Too many login attempts. Please wait 15 minutes before trying again, or use the button below to clear the rate limit (development only).");
+          }
         } else {
-          setError(errorMessage || "Failed to sign in");
+          // For other errors, show generic message in production
+          if (isProduction && (errorMessage.includes("Failed to sign in") || errorMessage.includes("sign in"))) {
+            setError("Error signing in. Please check your credentials and try again.");
+          } else {
+            setError(errorMessage || "Failed to sign in");
+          }
         }
       } else {
         // Non-Error objects - likely a fetch response or other error
-        setError("Failed to sign in. If you see 'Too many requests' in the console, you've been rate limited.");
-        setIsRateLimited(true);
+        if (isProduction) {
+          setError("Error signing in. Please try again.");
+          setIsRateLimited(true);
+        } else {
+          setError("Failed to sign in. If you see 'Too many requests' in the console, you've been rate limited.");
+          setIsRateLimited(true);
+        }
       }
     } finally {
       setIsSubmitting(false);

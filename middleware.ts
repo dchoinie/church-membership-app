@@ -43,14 +43,17 @@ export async function middleware(request: NextRequest) {
        pathname.includes("/get-session") || 
        pathname.includes("/session"));
     
-    // Authentication actions (sign-in, sign-up, etc.) should use strict AUTH rate limit
+    // Signup endpoints should use SIGNUP rate limit (separate from sign-in)
+    // This prevents signup attempts from consuming sign-in rate limit
+    if (pathname.includes("/signup") && request.method !== "GET") {
+      rateLimitConfig = RATE_LIMITS.SIGNUP;
+    }
+    // Authentication actions (sign-in, etc.) should use strict AUTH rate limit
     // Only apply strict limits to POST/PUT/DELETE requests to auth endpoints
-    const isAuthAction = 
+    else if (
       (pathname.includes("/auth") && !isReadOnlyAuthRequest && request.method !== "GET") ||
-      (pathname.includes("/signup") && request.method !== "GET") || 
-      (pathname.includes("/invite") && request.method !== "GET");
-    
-    if (isAuthAction) {
+      (pathname.includes("/invite") && request.method !== "GET")
+    ) {
       rateLimitConfig = RATE_LIMITS.AUTH;
     } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password")) {
       rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
