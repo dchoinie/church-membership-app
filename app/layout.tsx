@@ -3,7 +3,6 @@ import { Playfair_Display, Inter, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import AuthLayout from "@/components/auth-layout";
-import { DynamicFavicon } from "@/components/dynamic-favicon";
 
 const playfairDisplay = Playfair_Display({
   variable: "--font-heading",
@@ -26,6 +25,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Simple Church Tools",
   description: "Church management system for membership, giving, and attendance.",
+  icons: {
+    icon: "/church.svg",
+  },
 };
 
 export default function RootLayout({
@@ -36,7 +38,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${playfairDisplay.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
-        <DynamicFavicon />
         <AuthLayout>{children}</AuthLayout>
       </body>
     </html>
