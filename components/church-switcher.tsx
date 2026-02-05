@@ -139,13 +139,9 @@ export function ChurchSwitcher() {
     return null;
   }
 
+  // Only show switcher if user has 2+ churches
   if (churches.length === 1) {
-    // Only one church, show it but don't make it a dropdown
-    return (
-      <div className="px-3 py-2 text-sm text-muted-foreground">
-        {currentChurch?.name || "Church"}
-      </div>
-    );
+    return null;
   }
 
   return (
