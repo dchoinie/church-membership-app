@@ -9,8 +9,16 @@ export async function POST(request: Request) {
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    const { customerId, plan, priceId, churchId, successUrl, cancelUrl } =
-      await request.json();
+    const { 
+      customerId, 
+      plan, 
+      priceId, 
+      churchId, 
+      successUrl, 
+      cancelUrl,
+      allowPromotionCodes,
+      couponCode 
+    } = await request.json();
 
     // Support both plan type (preferred) and priceId (for backward compatibility)
     let resolvedPriceId: string;
@@ -32,12 +40,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // Prepare checkout options
+    const checkoutOptions: {
+      allowPromotionCodes?: boolean;
+      discounts?: Array<{ coupon: string }>;
+    } = {};
+
+    // Enable promotion code field if requested
+    if (allowPromotionCodes === true) {
+      checkoutOptions.allowPromotionCodes = true;
+    }
+
+    // Apply specific coupon code if provided
+    if (couponCode && typeof couponCode === "string") {
+      checkoutOptions.discounts = [{ coupon: couponCode }];
+    }
+
     const session = await createCheckoutSession(
       customerId,
       resolvedPriceId,
       successUrl,
       cancelUrl,
-      { churchId }
+      { churchId },
+      Object.keys(checkoutOptions).length > 0 ? checkoutOptions : undefined
     );
 
     return NextResponse.json({ url: session.url });

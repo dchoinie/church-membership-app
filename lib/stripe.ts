@@ -110,9 +110,13 @@ export async function createCheckoutSession(
   priceId: string,
   successUrl: string,
   cancelUrl: string,
-  metadata?: Record<string, string>
+  metadata?: Record<string, string>,
+  options?: {
+    allowPromotionCodes?: boolean;
+    discounts?: Array<{ coupon: string }>;
+  }
 ): Promise<Stripe.Checkout.Session> {
-  return await stripe.checkout.sessions.create({
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     payment_method_types: ["card"],
     line_items: [
@@ -128,7 +132,19 @@ export async function createCheckoutSession(
     subscription_data: {
       metadata,
     },
-  });
+  };
+
+  // Enable promotion code field in checkout UI
+  if (options?.allowPromotionCodes) {
+    sessionParams.allow_promotion_codes = true;
+  }
+
+  // Apply specific discounts/coupons
+  if (options?.discounts && options.discounts.length > 0) {
+    sessionParams.discounts = options.discounts;
+  }
+
+  return await stripe.checkout.sessions.create(sessionParams);
 }
 
 /**

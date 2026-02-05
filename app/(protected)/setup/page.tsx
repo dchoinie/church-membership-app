@@ -193,6 +193,7 @@ export default function SetupPage() {
           churchId: church.id,
           successUrl,
           cancelUrl,
+          allowPromotionCodes: true, // Enable promotion code field in checkout
         }),
       });
 
