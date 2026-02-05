@@ -7,6 +7,9 @@ import { churches, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 
+// Ensure this route runs on Node.js runtime (not Edge) for proper webhook handling
+export const runtime = "nodejs";
+
 /**
  * Get the appropriate Stripe webhook secret based on environment
  * Priority: Environment-specific secret > Fallback to STRIPE_WEBHOOK_SECRET

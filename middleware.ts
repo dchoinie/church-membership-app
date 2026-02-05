@@ -30,6 +30,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
 
+  // Bypass middleware entirely for Stripe webhook - it needs raw request body
+  // Handle both with and without trailing slash
+  if (pathname === "/api/stripe/webhook" || pathname === "/api/stripe/webhook/") {
+    return NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+  }
+
   // Apply rate limiting to API routes
   if (pathname.startsWith("/api/")) {
     // Determine rate limit based on route type
