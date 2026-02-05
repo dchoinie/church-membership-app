@@ -1,8 +1,9 @@
 "use client";
 
-import { LogOut, CheckCircle2, XCircle, Building2, Plus } from "lucide-react";
+import { LogOut, CheckCircle2, XCircle, Building2, Plus, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { apiFetch } from "@/lib/api-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,6 +53,40 @@ export function UserMenu() {
 
   const handleAddChurch = () => {
     router.push("/add-church");
+  };
+
+  const handleManageSubscription = async () => {
+    try {
+      // Get current page URL for return URL
+      const returnUrl = window.location.href;
+
+      // Call the Stripe portal API endpoint
+      const response = await apiFetch("/api/stripe/portal", {
+        method: "POST",
+        body: JSON.stringify({ returnUrl }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to create portal session");
+      }
+
+      const data = await response.json();
+      
+      if (!data.url) {
+        throw new Error("No portal URL returned");
+      }
+
+      // Redirect to Stripe Customer Portal
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("Failed to open subscription portal:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to open subscription portal. Please try again later."
+      );
+    }
   };
 
   const handleSignOut = async () => {
@@ -129,6 +164,13 @@ export function UserMenu() {
         >
           <Plus className="size-4" />
           <span>Add Church</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={handleManageSubscription}
+          className="cursor-pointer"
+        >
+          <CreditCard className="size-4" />
+          <span>Manage My Subscription</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
