@@ -75,6 +75,7 @@ export default function LandingPage() {
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
+  const [isGatheringChurchInfo, setIsGatheringChurchInfo] = useState(false);
 
   // Compute subdomain during render (client-side only)
   const isSubdomain = useMemo(() => {
@@ -226,7 +227,9 @@ export default function LandingPage() {
     if (session?.user?.emailVerified) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-muted-foreground">Redirecting...</div>
+          <div className="text-muted-foreground">
+            {isGatheringChurchInfo ? "Gathering church info..." : "Redirecting..."}
+          </div>
         </div>
       );
     }

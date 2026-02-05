@@ -38,6 +38,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     password: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<"signing-in" | "gathering-church-info" | null>(null);
   const [isValidatingInvite, setIsValidatingInvite] = useState(false);
   const [inviteValidationError, setInviteValidationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +81,11 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       setInviteValidationError(null);
       setIsRateLimited(false);
       setRetryAfter(null);
+      setLoadingPhase(null);
+      // Clear sessionStorage flag when dialog closes
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("gatheringChurchInfo");
+      }
     }
   }, [open]);
 
@@ -156,10 +162,12 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    setLoadingPhase("signing-in");
 
     if (!signInData.email || !signInData.password) {
       setError("Email and password are required");
       setIsSubmitting(false);
+      setLoadingPhase(null);
       return;
     }
 
@@ -214,6 +222,10 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       // Check email verification status using signInResponse directly
       if (signInResponse?.user && !signInResponse.user.emailVerified) {
         // User is not verified, redirect to verification page
+        setLoadingPhase(null);
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("gatheringChurchInfo");
+        }
         onOpenChange(false);
         router.push("/verify-email");
         router.refresh();
@@ -222,6 +234,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
       // User is verified - fetch church subdomain and redirect to appropriate subdomain
       // Login always happens from root domain, so we always need to fetch the subdomain
+      setLoadingPhase("gathering-church-info");
       try {
         const churchResponse = await fetch("/api/user/church-subdomain", {
           credentials: "include",
@@ -275,12 +288,20 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           const errorData = await churchResponse.json().catch(() => ({ error: "Unknown error" }));
           const errorMessage = errorData.error || `Failed to fetch church subdomain: ${churchResponse.statusText}`;
           setError(errorMessage);
+          setLoadingPhase(null);
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("gatheringChurchInfo");
+          }
           setIsSubmitting(false);
           return;
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : "Failed to fetch church subdomain. Please try again.";
         setError(errorMessage);
+        setLoadingPhase(null);
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("gatheringChurchInfo");
+        }
         setIsSubmitting(false);
         return;
       }
@@ -346,6 +367,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     stripeSubscriptionId?: string | null;
   }) => {
     setIsSubmitting(true);
+    setLoadingPhase("gathering-church-info");
     try {
       // Check subscription status to determine redirect path
       const hasActiveSubscription = church.subscriptionStatus === "active";
@@ -370,12 +392,20 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         subdomainUrl = `https://${church.subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}${targetPath}`;
       }
       
+      // Set sessionStorage flag before closing dialog so landing page can show "Gathering church info"
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("gatheringChurchInfo", "true");
+      }
       onOpenChange(false);
       // Redirect directly to /dashboard or /setup on subdomain
       window.location.href = subdomainUrl;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to redirect to church. Please try again.";
       setError(errorMessage);
+      setLoadingPhase(null);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("gatheringChurchInfo");
+      }
       setIsSubmitting(false);
     }
   };
@@ -523,7 +553,11 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   className="w-full h-11 cursor-pointer text-base font-semibold"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Signing In..." : "Sign In"}
+                  {isSubmitting 
+                    ? (loadingPhase === "gathering-church-info" 
+                        ? "Gathering church info..." 
+                        : "Signing you in...")
+                    : "Sign In"}
                 </Button>
               </form>
             )}
