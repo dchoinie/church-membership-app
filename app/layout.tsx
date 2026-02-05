@@ -3,6 +3,7 @@ import { Playfair_Display, Inter, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import AuthLayout from "@/components/auth-layout";
+import { DynamicFavicon } from "@/components/dynamic-favicon";
 
 const playfairDisplay = Playfair_Display({
   variable: "--font-heading",
@@ -35,6 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${playfairDisplay.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
+        <DynamicFavicon />
         <AuthLayout>{children}</AuthLayout>
       </body>
     </html>
