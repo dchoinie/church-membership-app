@@ -45,11 +45,11 @@ export async function GET(request: Request) {
     const churchId = await getTenantFromRequest(request);
     
     // Get per-church role if churchId is available
-    let role = userRecord.role; // Default to global role
+    let role: string = userRecord.role; // Default to global role
     if (churchId && !userRecord.isSuperAdmin) {
       const churchRole = await getUserChurchRole(session.user.id, churchId);
       if (churchRole) {
-        role = churchRole;
+        role = churchRole as string;
       }
     }
 

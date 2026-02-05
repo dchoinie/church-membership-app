@@ -23,9 +23,19 @@ interface SignupDialogProps {
   onOpenLogin?: () => void;
 }
 
-export function SignupDialog({ open, onOpenChange }: SignupDialogProps) {
+export function SignupDialog({ open, onOpenChange, onOpenLogin }: SignupDialogProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Get openLogin function from marketing context or prop
+  let openLoginFn: (() => void) | undefined;
+  try {
+    const marketing = useMarketing();
+    openLoginFn = marketing.openLogin;
+  } catch {
+    // Not in marketing context, use prop if provided
+    openLoginFn = onOpenLogin;
+  }
   const [formData, setFormData] = useState({
     churchName: "",
     subdomain: "",

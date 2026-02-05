@@ -43,6 +43,17 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
+  const [showChurchSelector, setShowChurchSelector] = useState(false);
+  const [availableChurches, setAvailableChurches] = useState<Array<{
+    id: string;
+    name: string;
+    subdomain: string;
+    role: string;
+    logoUrl?: string | null;
+    primaryColor?: string | null;
+    subscriptionStatus?: string;
+    stripeSubscriptionId?: string | null;
+  }>>([]);
 
   // Check for invite query parameter when dialog opens
   useEffect(() => {

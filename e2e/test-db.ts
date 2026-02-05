@@ -101,13 +101,8 @@ export async function createTestChurch(data: TestChurchData): Promise<{ churchId
  * Link a user to a church
  */
 export async function linkUserToChurch(userId: string, churchId: string, role: "admin" | "viewer" = "admin"): Promise<void> {
-  await db
-    .update(user)
-    .set({
-      churchId,
-      role,
-    })
-    .where(eq(user.id, userId));
+  const { addUserToChurch } = await import("@/lib/tenant-db");
+  await addUserToChurch(userId, churchId, role);
 }
 
 /**
