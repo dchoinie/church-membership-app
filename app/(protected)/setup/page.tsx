@@ -23,6 +23,7 @@ import { Loader2, CheckCircle2, CreditCard } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { authClient } from "@/lib/auth-client";
+import { apiFetch } from "@/lib/api-client";
 
 interface Church {
   id: string;
@@ -184,9 +185,8 @@ export default function SetupPage() {
       
       const cancelUrl = `${baseUrl}/setup`;
 
-      const response = await fetch("/api/stripe/create-checkout", {
+      const response = await apiFetch("/api/stripe/create-checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: church.stripeCustomerId,
           plan: formData.subscriptionPlan, // Send plan type instead of price ID
@@ -225,9 +225,8 @@ export default function SetupPage() {
         ? formData.otherDenomination 
         : formData.denomination;
 
-      const response = await fetch("/api/setup", {
+      const response = await apiFetch("/api/setup", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subscriptionPlan: formData.subscriptionPlan,
           address: formData.address || null,
