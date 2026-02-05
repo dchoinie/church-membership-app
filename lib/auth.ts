@@ -51,7 +51,7 @@ const getBaseURL = () => {
     }
 }
 
-const getCookieDomain = () => {
+export const getCookieDomain = () => {
     if (process.env.NODE_ENV === "development") {
         // For localhost subdomains, use .localhost with dot prefix
         // This allows cookies to be shared across *.localhost subdomains

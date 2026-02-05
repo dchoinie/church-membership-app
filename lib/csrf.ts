@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import Tokens from "csrf";
+import { getCookieDomain } from "@/lib/auth";
 
 const tokens = new Tokens();
 
@@ -18,11 +19,19 @@ export async function generateCsrfToken(): Promise<string> {
   // Generate new secret if one doesn't exist
   if (!secret) {
     secret = await tokens.secret();
+    
+    // Get cookie domain for subdomain support (same as auth cookies)
+    const cookieDomain = getCookieDomain();
+    
     cookieStore.set(CSRF_SECRET_COOKIE, secret, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      // Set domain for subdomain cookie sharing (same as auth cookies)
+      // In development, browsers handle *.localhost automatically, so we can omit domain
+      // In production, use root domain (e.g., ".example.com") to share across subdomains
+      ...(process.env.NODE_ENV === "production" && cookieDomain ? { domain: cookieDomain } : {}),
     });
   }
 
