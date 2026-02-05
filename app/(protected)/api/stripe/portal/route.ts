@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { createCustomerPortalSession } from "@/lib/stripe";
 import { checkCsrfToken } from "@/lib/csrf";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getTenantFromRequest } from "@/lib/tenant-context";
+import { requireAdmin } from "@/lib/api-helpers";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function POST(request: Request) {
   try {
@@ -14,21 +13,8 @@ export async function POST(request: Request) {
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const churchId = await getTenantFromRequest(request);
-    if (!churchId) {
-      return NextResponse.json(
-        { error: "Tenant context not found" },
-        { status: 400 }
-      );
-    }
+    // Require admin role - only admins can manage subscriptions
+    const { churchId } = await requireAdmin(request);
 
     // Get church to find Stripe customer ID
     const church = await db.query.churches.findFirst({
@@ -58,11 +44,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: portalSession.url });
   } catch (error) {
-    console.error("Error creating portal session:", error);
-    return NextResponse.json(
-      { error: "Failed to create portal session" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }
 

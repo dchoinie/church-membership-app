@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 /**
  * Get root domain from current origin
@@ -46,6 +47,7 @@ export function UserMenu() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user;
+  const { canManageUsers } = usePermissions();
 
   if (!user) {
     return null;
@@ -165,13 +167,15 @@ export function UserMenu() {
           <Plus className="size-4" />
           <span>Add Church</span>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={handleManageSubscription}
-          className="cursor-pointer"
-        >
-          <CreditCard className="size-4" />
-          <span>Manage My Subscription</span>
-        </DropdownMenuItem>
+        {canManageUsers && (
+          <DropdownMenuItem
+            onClick={handleManageSubscription}
+            className="cursor-pointer"
+          >
+            <CreditCard className="size-4" />
+            <span>Manage My Subscription</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

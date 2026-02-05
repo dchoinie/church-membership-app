@@ -49,6 +49,15 @@ function SidebarContent({
   const { canManageUsers } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
+  // Filter nav items based on permissions - hide Settings for viewers
+  const visibleNavItems = navItems.filter((item) => {
+    // Only show Settings for admins
+    if (item.href === "/settings") {
+      return canManageUsers;
+    }
+    return true;
+  });
+  
   return (
     <>
       <div className="border-b border-sidebar-border px-3 py-4 shrink-0 space-y-3">
@@ -58,7 +67,7 @@ function SidebarContent({
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link

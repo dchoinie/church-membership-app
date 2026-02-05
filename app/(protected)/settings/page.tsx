@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, CheckCircle2, CreditCard, Settings as SettingsIcon } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 interface Church {
   id: string;
@@ -57,6 +59,8 @@ const DENOMINATIONS = [
 ] as const;
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
   const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +79,13 @@ export default function SettingsPage() {
     denomination: "",
     otherDenomination: "",
   });
+
+  // Redirect viewers away from settings page
+  useEffect(() => {
+    if (!permissionsLoading && !canManageUsers) {
+      router.push("/dashboard");
+    }
+  }, [canManageUsers, permissionsLoading, router]);
 
   useEffect(() => {
     const fetchChurch = async () => {
@@ -229,12 +240,18 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  // Show loading while checking permissions
+  if (permissionsLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  // Don't render page content for viewers (they'll be redirected)
+  if (!canManageUsers) {
+    return null;
   }
 
   if (error && !church) {

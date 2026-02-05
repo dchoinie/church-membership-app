@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthContext } from "@/lib/api-helpers";
+import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { db } from "@/db";
@@ -12,7 +12,8 @@ export async function PUT(request: Request) {
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
 
-    const { churchId, user } = await getAuthContext(request);
+    // Require admin role - only admins can update church settings
+    const { churchId } = await requireAdmin(request);
     
     if (!churchId) {
       return NextResponse.json(
