@@ -61,19 +61,17 @@ export async function POST(request: Request) {
         .set({ acceptedAt: new Date() })
         .where(eq(invitations.id, invite.id));
 
-      // Send verification email
-      try {
-        await auth.api.sendVerificationEmail({
-          body: { email },
-          headers: request.headers,
-        });
-      } catch (emailError) {
-        console.error("Error sending verification email:", emailError);
-        // Don't fail the signup if email fails - user can resend from verify-email page
+      // For invited users, automatically mark email as verified
+      // They've already been invited via email, so no need for separate verification
+      if (userId) {
+        await db
+          .update(user)
+          .set({ emailVerified: true })
+          .where(eq(user.id, userId));
       }
 
       // Return the original auth response which includes the session cookie
-      // The user will be signed in but redirected to verify-email page by auth-layout
+      // The user will be signed in and can proceed directly to dashboard
       return response;
     }
 

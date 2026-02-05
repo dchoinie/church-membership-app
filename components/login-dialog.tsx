@@ -451,9 +451,74 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       }
 
       // Success - user is signed in via the API response
-      onOpenChange(false);
-      router.push("/verify-email");
-      router.refresh();
+      // Refresh session to get updated emailVerified status
+      await authClient.getSession();
+      
+      // For invited users, email is automatically verified, so redirect to church subdomain
+      // Follow the same flow as normal sign-in
+      setLoadingPhase("gathering-church-info");
+      try {
+        const churchResponse = await fetch("/api/user/church-subdomain", {
+          credentials: "include",
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+        
+        if (churchResponse.ok) {
+          const responseData = await churchResponse.json();
+          const { subdomain, subscriptionStatus, multipleChurches, churches } = responseData;
+          
+          // If user has multiple churches, show selector instead of auto-redirecting
+          if (multipleChurches && churches && churches.length > 1) {
+            setAvailableChurches(churches);
+            setShowChurchSelector(true);
+            setIsSubmitting(false);
+            onOpenChange(false);
+            return;
+          }
+          
+          // Single church - proceed with redirect
+          const hasActiveSubscription = subscriptionStatus === "active";
+          
+          // Build subdomain URL - redirect directly to /dashboard or /setup
+          const baseUrl = window.location.origin;
+          const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+          
+          const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
+          let subdomainUrl: string;
+          
+          if (isLocalhost) {
+            const port = window.location.port ? `:${window.location.port}` : '';
+            subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
+          } else {
+            // Extract root domain (remove any existing subdomain like 'www')
+            const url = new URL(baseUrl);
+            const hostname = url.hostname;
+            const parts = hostname.split('.');
+            // Get root domain (last 2 parts: domain.com)
+            const rootHostname = parts.slice(-2).join('.');
+            subdomainUrl = `https://${subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}${targetPath}`;
+          }
+          
+          onOpenChange(false);
+          // Redirect directly to /dashboard or /setup on subdomain
+          window.location.href = subdomainUrl;
+          return;
+        } else {
+          // If we can't fetch church info, redirect to root domain dashboard as fallback
+          onOpenChange(false);
+          router.push("/dashboard");
+          router.refresh();
+        }
+      } catch (err) {
+        // On error, redirect to root domain dashboard as fallback
+        console.error("Error fetching church subdomain after invite signup:", err);
+        onOpenChange(false);
+        router.push("/dashboard");
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
