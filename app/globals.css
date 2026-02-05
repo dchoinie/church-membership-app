@@ -202,8 +202,9 @@
 }
 
 /* Allow scrolling on mobile, restrict only on desktop when using fixed-height layout */
+/* Only apply overflow-y: hidden to protected routes (when body has 'protected-route' class) */
 @media (min-width: 768px) {
-  html {
+  html:has(body.protected-route) {
     overflow-y: hidden;
   }
 }

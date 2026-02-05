@@ -145,6 +145,19 @@ export default function AuthLayout({
   const isSetupRoute = setupRoutes.includes(pathname);
   const isAuthenticated = !!session?.user;
 
+  // Add/remove class on body for protected routes to control overflow
+  useEffect(() => {
+    if (!isPublicRoute && isAuthenticated) {
+      document.body.classList.add('protected-route');
+    } else {
+      document.body.classList.remove('protected-route');
+    }
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('protected-route');
+    };
+  }, [isPublicRoute, isAuthenticated]);
+
   // Redirect to login if not authenticated and not on public route
   // Only redirect after session has finished loading (isPending === false)
   // This prevents redirect loops when session cookie is still propagating after login
