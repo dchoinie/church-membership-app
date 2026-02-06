@@ -5,6 +5,8 @@ import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSubdomainAvailable } from "@/lib/tenant-context";
 import { createServiceClient } from "@/utils/supabase/service";
 import { addUserToChurch } from "@/lib/tenant-db";
+import { db } from "@/db";
+import { givingCategories } from "@/db/schema";
 
 export async function POST(request: Request) {
   try {
@@ -144,6 +146,30 @@ export async function POST(request: Request) {
         { error: "Failed to create church" },
         { status: 500 }
       );
+    }
+
+    // Create default giving categories for the new church
+    try {
+      const defaultCategories = [
+        { name: "Current", displayOrder: 1 },
+        { name: "Mission", displayOrder: 2 },
+        { name: "Memorials", displayOrder: 3 },
+        { name: "Debt", displayOrder: 4 },
+        { name: "School", displayOrder: 5 },
+        { name: "Miscellaneous", displayOrder: 6 },
+      ];
+
+      await db.insert(givingCategories).values(
+        defaultCategories.map((cat) => ({
+          churchId: church.id,
+          name: cat.name,
+          displayOrder: cat.displayOrder,
+          isActive: true,
+        }))
+      );
+    } catch (categoryError) {
+      // Log error but don't fail signup - categories can be added manually
+      console.error("Error creating default categories:", categoryError);
     }
 
     let userId: string;
