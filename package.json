@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:test": "tsx scripts/test-db-connection.ts",
     "create-super-admin": "tsx scripts/create-super-admin.ts",
+    "setup-default-categories": "tsx scripts/setup-default-giving-categories.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
