@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon, SettingsIcon } from "lucide-react";
+import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon, SettingsIcon, ArrowRight, File } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { GivingCategoryManager } from "@/components/giving-category-manager";
@@ -717,6 +717,15 @@ export default function GivingPage() {
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             Track weekly giving amounts for members
           </p>
+          <p className="text-muted-foreground mt-2 text-sm md:text-base flex items-center gap-1.5">
+            File exports for giving records (individual families or all records) can ge generated from the reports page
+            <Link href="/reports" className="inline-flex items-center text-primary hover:underline">
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </p>
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
+            If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
           {canManageUsers && (
@@ -919,13 +928,13 @@ export default function GivingPage() {
           >
             <DialogTrigger asChild>
               <Button variant="outline" className="cursor-pointer">
-                <UploadIcon className="mr-2 h-4 w-4" />
-                Bulk Import
+                <File className="mr-2 h-4 w-4" />
+                File Import
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-lg md:text-xl">Bulk Import Giving Records</DialogTitle>
+                <DialogTitle className="text-lg md:text-xl">File Import Giving Records</DialogTitle>
                 <DialogDescription className="text-sm md:text-base">
                   Upload a CSV file to import multiple giving records at once. The CSV should include envelope numbers (or member IDs), amounts, dates, and optional notes.
                 </DialogDescription>

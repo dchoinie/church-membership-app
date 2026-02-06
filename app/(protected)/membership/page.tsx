@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon } from "lucide-react";
+import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon, File } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { apiFetch } from "@/lib/api-client";
 
@@ -454,6 +454,9 @@ export default function MembershipPage() {
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             Manage households and their members
           </p>
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
+            If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.
+          </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
             {canEditMembers && (
@@ -657,13 +660,13 @@ export default function MembershipPage() {
               <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="cursor-pointer">
-                  <UploadIcon className="mr-2 h-4 w-4" />
-                  Bulk Import
+                  <File className="mr-2 h-4 w-4" />
+                  File Import
                 </Button>
               </DialogTrigger>
             <DialogContent className="max-w-[95vw] md:max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Bulk Import Members</DialogTitle>
+                <DialogTitle>File Import Members</DialogTitle>
                 <DialogDescription>
                   Upload a CSV file to import multiple members at once. Each member must be assigned to a household.
                 </DialogDescription>
