@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const format = searchParams.get("format") || "csv";
+    const responseFormat = searchParams.get("format") || "csv";
 
     // Validate date parameters
     if (!startDate || !endDate) {
@@ -279,7 +279,7 @@ export async function GET(request: Request) {
     });
     totals.total = grandTotal.toFixed(2);
 
-    if (format === "json") {
+    if (responseFormat === "json") {
       return NextResponse.json({ 
         services: serviceBreakdown.map(service => ({
           serviceId: service.serviceId,
