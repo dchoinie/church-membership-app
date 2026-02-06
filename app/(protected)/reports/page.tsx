@@ -65,7 +65,6 @@ interface Household {
 }
 
 interface GivingReportFormData {
-  householdId: string;
   dateRange: string;
   startDate: string;
   endDate: string;
@@ -136,7 +135,6 @@ export default function ReportsPage() {
 
   const givingForm = useForm<GivingReportFormData>({
     defaultValues: {
-      householdId: "all",
       dateRange: "year-to-date",
       startDate: "",
       endDate: "",
@@ -534,12 +532,8 @@ export default function ReportsPage() {
         format: "csv",
       });
 
-      if (data.householdId && data.householdId !== "all") {
-        params.append("householdId", data.householdId);
-      }
-
       const url = `/api/reports/giving?${params.toString()}`;
-      const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
+      const filename = `giving-report-by-service-${new Date().toISOString().split("T")[0]}.csv`;
 
       await downloadCsv(url, filename);
       setSuccess("Giving report generated successfully!");
@@ -695,45 +689,12 @@ export default function ReportsPage() {
             Giving Reports
           </CardTitle>
           <CardDescription className="text-xs md:text-sm">
-            Generate reports of giving records by household and date range
+            Generate reports of total giving broken down by service and giving category for the selected time period
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...givingForm}>
             <form onSubmit={givingForm.handleSubmit(onGivingReportSubmit)} className="space-y-4">
-              <FormField
-                control={givingForm.control}
-                name="householdId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Household (Optional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || "all"}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All households" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="all">All households</SelectItem>
-                        {loadingHouseholds ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading...</div>
-                        ) : (
-                          households
-                            .filter((household) => household.name?.toLowerCase() !== "guests")
-                            .map((household) => (
-                              <SelectItem key={household.id} value={household.id}>
-                                {household.name}
-                                {household.envelopeNumber !== null && ` - Envelope #${household.envelopeNumber}`}
-                              </SelectItem>
-                            ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={givingForm.control}
                 name="dateRange"

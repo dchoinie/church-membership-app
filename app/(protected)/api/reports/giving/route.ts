@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { eq, and, gte, lte, inArray, asc } from "drizzle-orm";
+import { eq, and, gte, lte, asc, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, household, givingItems, givingCategories } from "@/db/schema";
+import { giving, members, services, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 
@@ -43,7 +43,6 @@ export async function GET(request: Request) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const householdId = searchParams.get("householdId");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const format = searchParams.get("format") || "csv";
@@ -64,86 +63,49 @@ export async function GET(request: Request) {
       );
     }
 
-    // Build where conditions (always filter by churchId via member relationship)
-    const conditions = [
-      gte(giving.dateGiven, startDate),
-      lte(giving.dateGiven, endDate),
-      eq(members.churchId, churchId),
-    ];
+    // Get all services in the date range
+    const allServices = await db
+      .select({
+        id: services.id,
+        serviceDate: services.serviceDate,
+        serviceType: services.serviceType,
+        serviceTime: services.serviceTime,
+      })
+      .from(services)
+      .where(
+        and(
+          eq(services.churchId, churchId),
+          gte(services.serviceDate, startDate),
+          lte(services.serviceDate, endDate),
+        )
+      )
+      .orderBy(asc(services.serviceDate), asc(services.serviceTime));
 
-    // If householdId is provided, filter by household (and verify it belongs to church)
-    let memberIds: string[] | undefined;
-    if (householdId) {
-      const householdMembers = await db
-        .select({ id: members.id })
-        .from(members)
-        .where(and(eq(members.householdId, householdId), eq(members.churchId, churchId)));
-      
-      memberIds = householdMembers.map((m) => m.id);
-      
-      if (memberIds.length === 0) {
-        // No members in household, return empty result
-        if (format === "csv") {
-          // Get categories for CSV headers
-          const categoriesForHeaders = await db
-            .select()
-            .from(givingCategories)
-            .where(and(
-              eq(givingCategories.churchId, churchId),
-              eq(givingCategories.isActive, true),
-            ))
-            .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
-          
-          const csvHeaders = [
-            "Household Name",
-            "Envelope Number",
-            "Member Name",
-            "Date Given",
-            ...categoriesForHeaders.map(cat => cat.name),
-            "Total",
-            "Notes"
-          ];
-          const csvContent = generateCsv([], csvHeaders);
-          const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
-          return new NextResponse(csvContent, {
-            headers: {
-              "Content-Type": "text/csv",
-              "Content-Disposition": `attachment; filename="${filename}"`,
-            },
-          });
-        }
-        return NextResponse.json({ giving: [] });
-      }
-      
-      conditions.push(inArray(giving.memberId, memberIds));
-    }
+    // Get active categories for this church
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.isActive, true),
+      ))
+      .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
 
-    // Get giving records with member and household info
-    const queryBuilder = db
+    // Get all giving records in the date range
+    const givingRecordsRaw = await db
       .select({
         id: giving.id,
-        memberId: giving.memberId,
         dateGiven: giving.dateGiven,
-        notes: giving.notes,
-        member: {
-          id: members.id,
-          firstName: members.firstName,
-          lastName: members.lastName,
-          envelopeNumber: members.envelopeNumber,
-          householdId: members.householdId,
-        },
-        household: {
-          id: household.id,
-          name: household.name,
-        },
       })
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
-      .leftJoin(household, eq(members.householdId, household.id))
-      .where(and(...conditions))
-      .orderBy(giving.dateGiven);
-
-    const givingRecordsRaw = await queryBuilder;
+      .where(
+        and(
+          eq(members.churchId, churchId),
+          gte(giving.dateGiven, startDate),
+          lte(giving.dateGiven, endDate),
+        )
+      );
 
     // Get all giving items for these records
     const givingIds = givingRecordsRaw.map(g => g.id);
@@ -172,211 +134,151 @@ export async function GET(request: Request) {
       });
     });
 
-    // Get active categories for CSV headers
-    const categories = await db
-      .select()
-      .from(givingCategories)
-      .where(and(
-        eq(givingCategories.churchId, churchId),
-        eq(givingCategories.isActive, true),
-      ))
-      .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
-
-    // Add items to giving records
-    const givingRecords = givingRecordsRaw.map(record => ({
-      ...record,
-      items: itemsByGivingId[record.id] || [],
-    }));
-
-    // For each giving record, find the head of household using sequence column
-    const recordsWithHeadOfHousehold = await Promise.all(
-      givingRecords.map(async (record) => {
-        // Get household ID from the record's member
-        const [recordMember] = await db
-          .select({ householdId: members.householdId })
-          .from(members)
-          .where(eq(members.id, record.member.id))
-          .limit(1);
-
-        if (recordMember?.householdId) {
-          const [headOfHousehold] = await db
-            .select({
-              id: members.id,
-              firstName: members.firstName,
-              lastName: members.lastName,
-            })
-            .from(members)
-            .where(
-              and(
-                eq(members.householdId, recordMember.householdId),
-                eq(members.sequence, "head_of_house"),
-                eq(members.churchId, churchId)
-              )
-            )
-            .limit(1);
-
-          if (headOfHousehold) {
-            return {
-              ...record,
-              member: {
-                ...record.member,
-                id: headOfHousehold.id,
-                firstName: headOfHousehold.firstName,
-                lastName: headOfHousehold.lastName,
-              },
-            };
-          }
-        }
-
-        // Fallback: use the record's member if no household ID or head of household not found
-        return record;
-      })
-    );
-
-    // Get unique household IDs that need name generation
-    const householdIdsNeedingNames = Array.from(
-      new Set(
-        recordsWithHeadOfHousehold
-          .filter((r) => !r.household?.name && r.member.householdId)
-          .map((r) => r.member.householdId!)
-      )
-    );
-
-    // Fetch all household members for households needing names
-    const householdMembersMap = new Map<string, Array<{ firstName: string; lastName: string }>>();
-    if (householdIdsNeedingNames.length > 0) {
-      const allHouseholdMembers = await db
-        .select({
-          householdId: members.householdId,
-          firstName: members.firstName,
-          lastName: members.lastName,
-        })
-        .from(members)
-        .where(inArray(members.householdId, householdIdsNeedingNames));
-
-      // Group by household ID
-      for (const member of allHouseholdMembers) {
-        if (member.householdId) {
-          if (!householdMembersMap.has(member.householdId)) {
-            householdMembersMap.set(member.householdId, []);
-          }
-          householdMembersMap.get(member.householdId)!.push({
-            firstName: member.firstName,
-            lastName: member.lastName,
-          });
-        }
+    // Create a map of giving records by date
+    const givingByDate: Record<string, Array<{ id: string; items: Array<{ categoryId: string; categoryName: string; amount: string }> }>> = {};
+    givingRecordsRaw.forEach(record => {
+      const dateKey = record.dateGiven;
+      if (!givingByDate[dateKey]) {
+        givingByDate[dateKey] = [];
       }
-    }
+      givingByDate[dateKey].push({
+        id: record.id,
+        items: itemsByGivingId[record.id] || [],
+      });
+    });
 
-    // Generate household display names
-    const recordsWithHouseholdNames = recordsWithHeadOfHousehold.map((record) => {
-      let householdName = record.household?.name || null;
-      
-      // If no household name, generate one from members
-      if (!householdName && record.member.householdId) {
-        const householdMembers = householdMembersMap.get(record.member.householdId) || [];
-        
-        if (householdMembers.length === 1) {
-          householdName = `${householdMembers[0].firstName} ${householdMembers[0].lastName}`;
-        } else if (householdMembers.length === 2) {
-          householdName = `${householdMembers[0].firstName} & ${householdMembers[1].firstName} ${householdMembers[1].lastName}`;
-        } else if (householdMembers.length > 2) {
-          householdName = `${householdMembers[0].firstName} ${householdMembers[0].lastName} (+${householdMembers.length - 1})`;
-        }
-      }
+    // Helper function to format service type
+    const formatServiceType = (serviceType: string): string => {
+      const typeMap: Record<string, string> = {
+        divine_service: "Divine Service",
+        midweek_lent: "Midweek Lent",
+        midweek_advent: "Midweek Advent",
+        festival: "Festival",
+      };
+      return typeMap[serviceType] || serviceType;
+    };
+
+    // Helper function to format service date and time
+    const formatServiceDisplay = (service: typeof allServices[0]): string => {
+      const dateStr = new Date(service.serviceDate).toLocaleDateString();
+      const timeStr = service.serviceTime ? ` ${service.serviceTime}` : "";
+      return `${dateStr}${timeStr} - ${formatServiceType(service.serviceType)}`;
+    };
+
+    // Calculate totals for each service by category
+    const serviceBreakdown = allServices.map(service => {
+      const serviceDateKey = service.serviceDate;
+      const givingForService = givingByDate[serviceDateKey] || [];
+
+      // Initialize category totals for this service
+      const serviceCategoryTotals: Record<string, number> = {};
+      categories.forEach(cat => {
+        serviceCategoryTotals[cat.id] = 0;
+      });
+      let serviceTotal = 0;
+
+      // Aggregate giving for this service
+      givingForService.forEach(givingRecord => {
+        givingRecord.items.forEach(item => {
+          const amount = parseFloat(item.amount || "0");
+          if (!serviceCategoryTotals[item.categoryId]) {
+            serviceCategoryTotals[item.categoryId] = 0;
+          }
+          serviceCategoryTotals[item.categoryId] += amount;
+          serviceTotal += amount;
+        });
+      });
 
       return {
-        ...record,
-        householdName,
+        serviceId: service.id,
+        serviceDate: service.serviceDate,
+        serviceType: service.serviceType,
+        serviceTime: service.serviceTime,
+        displayName: formatServiceDisplay(service),
+        categoryTotals: serviceCategoryTotals,
+        total: serviceTotal,
       };
     });
 
-    // Calculate totals for each category and overall
-    const categoryTotals: Record<string, number> = {};
+    // Calculate grand totals for each category and overall
+    const grandCategoryTotals: Record<string, number> = {};
     categories.forEach(cat => {
-      categoryTotals[cat.id] = 0;
+      grandCategoryTotals[cat.id] = 0;
     });
     let grandTotal = 0;
 
-    recordsWithHouseholdNames.forEach(record => {
-      record.items.forEach(item => {
-        const amount = parseFloat(item.amount || "0");
-        if (!categoryTotals[item.categoryId]) {
-          categoryTotals[item.categoryId] = 0;
-        }
-        categoryTotals[item.categoryId] += amount;
-        grandTotal += amount;
+    serviceBreakdown.forEach(service => {
+      Object.entries(service.categoryTotals).forEach(([categoryId, amount]) => {
+        grandCategoryTotals[categoryId] = (grandCategoryTotals[categoryId] || 0) + amount;
       });
+      grandTotal += service.total;
     });
 
     // Build totals object with category names
     const totals: Record<string, string> = {};
     categories.forEach(cat => {
-      totals[cat.name] = (categoryTotals[cat.id] || 0).toFixed(2);
+      totals[cat.name] = (grandCategoryTotals[cat.id] || 0).toFixed(2);
     });
     totals.total = grandTotal.toFixed(2);
 
     if (format === "json") {
       return NextResponse.json({ 
-        giving: recordsWithHouseholdNames,
+        services: serviceBreakdown.map(service => ({
+          serviceId: service.serviceId,
+          serviceDate: service.serviceDate,
+          serviceType: service.serviceType,
+          serviceTime: service.serviceTime,
+          displayName: service.displayName,
+          categoryTotals: Object.fromEntries(
+            categories.map(cat => [cat.name, (service.categoryTotals[cat.id] || 0).toFixed(2)])
+          ),
+          total: service.total.toFixed(2),
+        })),
         totals,
       });
     }
 
-    // Generate CSV with dynamic category columns
-    const csvRows = recordsWithHouseholdNames.map((record) => {
+    // Generate CSV with service breakdown
+    const csvRows = serviceBreakdown.map(service => {
       const row: Record<string, string> = {
-        "Household Name": record.householdName || "N/A",
-        "Envelope Number": record.member.envelopeNumber?.toString() || "N/A",
-        "Member Name": `${record.member.firstName} ${record.member.lastName}`,
-        "Date Given": record.dateGiven || "",
+        "Service Date": service.serviceDate,
+        "Service Type": formatServiceType(service.serviceType),
+        "Service Time": service.serviceTime || "",
       };
 
       // Add category columns dynamically
-      const categoryAmounts: Record<string, number> = {};
-      let recordTotal = 0;
-      record.items.forEach(item => {
-        categoryAmounts[item.categoryName] = parseFloat(item.amount || "0");
-        recordTotal += categoryAmounts[item.categoryName];
-      });
-
       categories.forEach(cat => {
-        row[cat.name] = (categoryAmounts[cat.name] || 0).toFixed(2);
+        row[cat.name] = (service.categoryTotals[cat.id] || 0).toFixed(2);
       });
 
-      row["Total"] = recordTotal.toFixed(2);
-      row["Notes"] = record.notes || "";
+      row["Total"] = service.total.toFixed(2);
 
       return row;
     });
 
-    // Add total row at the bottom
+    // Add grand total row at the bottom
     const totalRow: Record<string, string> = {
-      "Household Name": "",
-      "Envelope Number": "",
-      "Member Name": "",
-      "Date Given": "",
+      "Service Date": "",
+      "Service Type": "",
+      "Service Time": "GRAND TOTAL",
     };
     categories.forEach(cat => {
       totalRow[cat.name] = totals[cat.name] || "0.00";
     });
     totalRow["Total"] = totals.total;
-    totalRow["Notes"] = "TOTAL";
     csvRows.push(totalRow);
 
     // Build CSV headers dynamically
     const csvHeaders = [
-      "Household Name",
-      "Envelope Number",
-      "Member Name",
-      "Date Given",
+      "Service Date",
+      "Service Type",
+      "Service Time",
       ...categories.map(cat => cat.name),
-      "Total",
-      "Notes"
+      "Total"
     ];
 
     const csvContent = generateCsv(csvRows, csvHeaders);
-    const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
+    const filename = `giving-report-by-service-${new Date().toISOString().split("T")[0]}.csv`;
 
     return new NextResponse(csvContent, {
       headers: {
