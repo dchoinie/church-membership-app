@@ -30,7 +30,6 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
-  { label: "Giving Statements", href: "/giving-statements", requiresGivingPermission: true },
   { label: "Church Settings", href: "/settings" },
 ];
 
@@ -55,10 +54,6 @@ function SidebarContent({
     // Only show Settings for admins
     if (item.href === "/settings") {
       return canManageUsers;
-    }
-    // Only show Giving Statements for users who can edit giving (admins and giving_editor)
-    if ((item as any).requiresGivingPermission) {
-      return canEditGiving;
     }
     return true;
   });
