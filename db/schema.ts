@@ -99,6 +99,12 @@ export const churches = pgTable(
     email: text("email"),
     logoUrl: text("logo_url"),
     primaryColor: text("primary_color"),
+    // Tax and legal information for giving statements
+    taxId: text("tax_id"), // EIN format: XX-XXXXXXX
+    is501c3: boolean("is_501c3").default(true),
+    taxStatementDisclaimer: text("tax_statement_disclaimer"),
+    goodsServicesProvided: boolean("goods_services_provided").default(false),
+    goodsServicesStatement: text("goods_services_statement"),
     subscriptionStatus: subscriptionStatusEnum("subscription_status")
       .notNull()
       .default("unpaid"),
@@ -397,5 +403,37 @@ export const attendance = pgTable(
     index("attendance_member_id_idx").on(table.memberId),
     index("attendance_service_id_idx").on(table.serviceId),
     unique("attendance_member_service_unique").on(table.memberId, table.serviceId),
+  ],
+);
+
+export const givingStatements = pgTable(
+  "giving_statements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => household.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
+    statementNumber: text("statement_number"),
+    generatedAt: timestamp("generated_at").notNull(),
+    generatedBy: text("generated_by").notNull(),
+    sentAt: timestamp("sent_at"),
+    sentBy: text("sent_by"),
+    emailStatus: text("email_status"), // 'pending', 'sent', 'failed', 'bounced'
+    pdfUrl: text("pdf_url"),
+    previewOnly: boolean("preview_only").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("giving_statements_church_id_idx").on(table.churchId),
+    index("giving_statements_household_id_idx").on(table.householdId),
+    index("giving_statements_year_idx").on(table.year),
+    unique("giving_statements_household_year_unique").on(table.householdId, table.year),
   ],
 );

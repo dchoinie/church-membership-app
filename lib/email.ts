@@ -407,3 +407,151 @@ This verification link will expire in 24 hours. If you didn't create an account,
   return data;
 }
 
+export async function sendGivingStatementEmail({
+  to,
+  recipientName,
+  churchName,
+  year,
+  totalAmount,
+  pdfUrl,
+  statementNumber,
+}: {
+  to: string;
+  recipientName: string;
+  churchName: string;
+  year: number;
+  totalAmount: number;
+  pdfUrl: string;
+  statementNumber?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      return {
+        success: false,
+        error: "RESEND_API_KEY is not set in environment variables",
+      };
+    }
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+    // Extract PDF buffer from data URL
+    let pdfBuffer: Buffer;
+    if (pdfUrl.startsWith("data:application/pdf;base64,")) {
+      const base64Data = pdfUrl.replace("data:application/pdf;base64,", "");
+      pdfBuffer = Buffer.from(base64Data, "base64");
+    } else {
+      return {
+        success: false,
+        error: "Invalid PDF URL format",
+      };
+    }
+
+    const formattedAmount = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(totalAmount);
+
+    const { data, error } = await resend.emails.send({
+      from: fromEmail,
+      to,
+      subject: `${year} Giving Statement - ${churchName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${year} Giving Statement</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">${churchName}</h1>
+            </div>
+            
+            <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+              <h2 style="color: #1f2937; margin-top: 0;">${year} Giving Statement</h2>
+              
+              <p style="color: #4b5563; font-size: 16px;">
+                Dear ${recipientName},
+              </p>
+              
+              <p style="color: #4b5563; font-size: 16px;">
+                Thank you for your generous support of ${churchName} during ${year}. Attached is your annual giving statement for tax purposes.
+              </p>
+              
+              <div style="background: #f3f4f6; border-left: 4px solid #667eea; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                <p style="margin: 0; color: #1f2937; font-weight: 600;">
+                  Total Contributions for ${year}:
+                </p>
+                <p style="margin: 8px 0 0 0; color: #667eea; font-size: 24px; font-weight: bold;">
+                  ${formattedAmount}
+                </p>
+                ${statementNumber ? `<p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">Statement #${statementNumber}</p>` : ""}
+              </div>
+              
+              <p style="color: #4b5563; font-size: 16px;">
+                This statement is for your records and may be used for tax filing purposes. Please retain this document with your tax records.
+              </p>
+              
+              <p style="color: #4b5563; font-size: 16px;">
+                If you have any questions about this statement or believe there is an error, please contact us as soon as possible.
+              </p>
+              
+              <p style="color: #4b5563; font-size: 16px; margin-top: 30px;">
+                God bless you,<br />
+                <strong>${churchName}</strong>
+              </p>
+              
+              <p style="color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                <strong>Important:</strong> This statement meets IRS requirements for donor acknowledgment. No goods or services were provided in exchange for your contributions, except for intangible religious benefits. Please consult your tax advisor for specific guidance on deducting charitable contributions.
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+      text: `
+${year} Giving Statement - ${churchName}
+
+Dear ${recipientName},
+
+Thank you for your generous support of ${churchName} during ${year}. Attached is your annual giving statement for tax purposes.
+
+Total Contributions for ${year}: ${formattedAmount}
+${statementNumber ? `Statement #${statementNumber}` : ""}
+
+This statement is for your records and may be used for tax filing purposes. Please retain this document with your tax records.
+
+If you have any questions about this statement or believe there is an error, please contact us as soon as possible.
+
+God bless you,
+${churchName}
+
+---
+Important: This statement meets IRS requirements for donor acknowledgment. No goods or services were provided in exchange for your contributions, except for intangible religious benefits. Please consult your tax advisor for specific guidance on deducting charitable contributions.
+      `.trim(),
+      attachments: [
+        {
+          filename: `giving-statement-${year}${statementNumber ? `-${statementNumber}` : ""}.pdf`,
+          content: pdfBuffer,
+        },
+      ],
+    });
+
+    if (error) {
+      console.error("Error sending giving statement email:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to send email",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending giving statement email:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+

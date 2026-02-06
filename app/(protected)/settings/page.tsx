@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -20,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, CheckCircle2, CreditCard, Settings as SettingsIcon } from "lucide-react";
+import { Loader2, CheckCircle2, CreditCard, Settings as SettingsIcon, AlertCircle } from "lucide-react";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 
@@ -39,6 +41,11 @@ interface Church {
   denomination?: string | null;
   phone?: string | null;
   email?: string | null;
+  taxId?: string | null;
+  is501c3?: boolean | null;
+  taxStatementDisclaimer?: string | null;
+  goodsServicesProvided?: boolean | null;
+  goodsServicesStatement?: string | null;
 }
 
 const DENOMINATIONS = [
@@ -78,6 +85,11 @@ export default function SettingsPage() {
     zip: "",
     denomination: "",
     otherDenomination: "",
+    taxId: "",
+    is501c3: true,
+    taxStatementDisclaimer: "",
+    goodsServicesProvided: false,
+    goodsServicesStatement: "",
   });
 
   // Redirect viewers away from settings page
@@ -111,6 +123,11 @@ export default function SettingsPage() {
           otherDenomination: data.church.denomination && !DENOMINATIONS.includes(data.church.denomination as typeof DENOMINATIONS[number]) 
             ? data.church.denomination 
             : "",
+          taxId: data.church.taxId || "",
+          is501c3: data.church.is501c3 ?? true,
+          taxStatementDisclaimer: data.church.taxStatementDisclaimer || "",
+          goodsServicesProvided: data.church.goodsServicesProvided ?? false,
+          goodsServicesStatement: data.church.goodsServicesStatement || "",
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load church data");
@@ -145,6 +162,11 @@ export default function SettingsPage() {
           state: formData.state || null,
           zip: formData.zip || null,
           denomination: denominationValue || null,
+          taxId: formData.taxId || null,
+          is501c3: formData.is501c3,
+          taxStatementDisclaimer: formData.taxStatementDisclaimer || null,
+          goodsServicesProvided: formData.goodsServicesProvided,
+          goodsServicesStatement: formData.goodsServicesStatement || null,
         }),
       });
 
@@ -163,6 +185,11 @@ export default function SettingsPage() {
         otherDenomination: data.church.denomination && !DENOMINATIONS.includes(data.church.denomination as typeof DENOMINATIONS[number]) 
           ? data.church.denomination 
           : "",
+        taxId: data.church.taxId || "",
+        is501c3: data.church.is501c3 ?? true,
+        taxStatementDisclaimer: data.church.taxStatementDisclaimer || "",
+        goodsServicesProvided: data.church.goodsServicesProvided ?? false,
+        goodsServicesStatement: data.church.goodsServicesStatement || "",
       });
       
       setSuccess("Settings saved successfully!");
@@ -428,6 +455,114 @@ export default function SettingsPage() {
                         onChange={(e) => setFormData({ ...formData, otherDenomination: e.target.value })}
                         placeholder="Enter denomination name"
                       />
+                    </div>
+                  )}
+                </div>
+
+                {/* Tax Information Section */}
+                <div className="pt-6 border-t space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-1">Tax Information</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Required for generating IRS-compliant year-end giving statements
+                    </p>
+                  </div>
+
+                  {/* Tax ID / EIN */}
+                  <div className="space-y-2">
+                    <Label htmlFor="taxId">Tax ID / EIN</Label>
+                    <Input
+                      id="taxId"
+                      value={formData.taxId}
+                      onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                      placeholder="XX-XXXXXXX"
+                      maxLength={10}
+                    />
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Required by IRS for year-end tax statements. Format: XX-XXXXXXX
+                    </p>
+                  </div>
+
+                  {/* 501(c)(3) Status */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="is501c3">501(c)(3) Tax-Exempt Status</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Indicates if your church is recognized as tax-exempt
+                        </p>
+                      </div>
+                      <Switch
+                        id="is501c3"
+                        checked={formData.is501c3}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is501c3: checked })}
+                      />
+                    </div>
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Required by IRS for donors to claim tax deductions
+                    </p>
+                  </div>
+
+                  {/* Tax Statement Disclaimer */}
+                  <div className="space-y-2">
+                    <Label htmlFor="taxStatementDisclaimer">Tax Statement Disclaimer</Label>
+                    <Textarea
+                      id="taxStatementDisclaimer"
+                      value={formData.taxStatementDisclaimer}
+                      onChange={(e) => setFormData({ ...formData, taxStatementDisclaimer: e.target.value })}
+                      placeholder="This letter acknowledges that [Church Name] is a tax-exempt organization under Section 501(c)(3) of the Internal Revenue Code. No goods or services were provided in exchange for your contributions, except for intangible religious benefits."
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Legal statement that appears on giving statements
+                    </p>
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Required by IRS to confirm tax-exempt status and goods/services disclosure
+                    </p>
+                  </div>
+
+                  {/* Goods/Services Provided */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="goodsServicesProvided">Goods or Services Provided</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Did donors receive anything of value in exchange for contributions?
+                        </p>
+                      </div>
+                      <Switch
+                        id="goodsServicesProvided"
+                        checked={formData.goodsServicesProvided}
+                        onCheckedChange={(checked) => setFormData({ ...formData, goodsServicesProvided: checked })}
+                      />
+                    </div>
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Required disclosure by IRS (typically "No" for most churches)
+                    </p>
+                  </div>
+
+                  {/* Goods/Services Statement (conditional) */}
+                  {formData.goodsServicesProvided && (
+                    <div className="space-y-2">
+                      <Label htmlFor="goodsServicesStatement">Goods/Services Statement</Label>
+                      <Textarea
+                        id="goodsServicesStatement"
+                        value={formData.goodsServicesStatement}
+                        onChange={(e) => setFormData({ ...formData, goodsServicesStatement: e.target.value })}
+                        placeholder="Describe the goods or services provided and their estimated fair market value..."
+                        rows={3}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Describe what donors received and the estimated value
+                      </p>
+                      <p className="text-xs text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Required by IRS if goods/services were provided
+                      </p>
                     </div>
                   )}
                 </div>

@@ -30,6 +30,7 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
+  { label: "Giving Statements", href: "/giving-statements", requiresGivingPermission: true },
   { label: "Church Settings", href: "/settings" },
 ];
 
@@ -46,14 +47,18 @@ function SidebarContent({
   onNavigate: () => void;
   church: Church | null;
 }) {
-  const { canManageUsers } = usePermissions();
+  const { canManageUsers, canEditGiving } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
-  // Filter nav items based on permissions - hide Settings for viewers
+  // Filter nav items based on permissions
   const visibleNavItems = navItems.filter((item) => {
     // Only show Settings for admins
     if (item.href === "/settings") {
       return canManageUsers;
+    }
+    // Only show Giving Statements for users who can edit giving (admins and giving_editor)
+    if ((item as any).requiresGivingPermission) {
+      return canEditGiving;
     }
     return true;
   });

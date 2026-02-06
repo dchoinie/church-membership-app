@@ -44,6 +44,11 @@ export async function PUT(request: Request) {
       state?: string | null;
       zip?: string | null;
       denomination?: string | null;
+      taxId?: string | null;
+      is501c3?: boolean;
+      taxStatementDisclaimer?: string | null;
+      goodsServicesProvided?: boolean;
+      goodsServicesStatement?: string | null;
       updatedAt: Date;
     } = {
       updatedAt: new Date(),
@@ -70,6 +75,21 @@ export async function PUT(request: Request) {
     }
     if (body.denomination !== undefined) {
       updateData.denomination = body.denomination || null;
+    }
+    if (body.taxId !== undefined) {
+      updateData.taxId = body.taxId || null;
+    }
+    if (body.is501c3 !== undefined) {
+      updateData.is501c3 = body.is501c3;
+    }
+    if (body.taxStatementDisclaimer !== undefined) {
+      updateData.taxStatementDisclaimer = body.taxStatementDisclaimer || null;
+    }
+    if (body.goodsServicesProvided !== undefined) {
+      updateData.goodsServicesProvided = body.goodsServicesProvided;
+    }
+    if (body.goodsServicesStatement !== undefined) {
+      updateData.goodsServicesStatement = body.goodsServicesStatement || null;
     }
 
     const [updatedChurch] = await db

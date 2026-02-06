@@ -145,6 +145,25 @@ export function isRoleAvailableForPlan(
 }
 
 /**
+ * Check if user can manage giving statements (generate, send)
+ * This is a sensitive operation that should be restricted to admins and giving_editor roles
+ */
+export function canManageGivingStatementsRole(
+  role: string,
+  subscriptionPlan: SubscriptionPlan,
+): boolean {
+  // Admin always has access
+  if (role === "admin") return true;
+
+  // Premium plan allows giving_editor role
+  if (subscriptionPlan === "premium" && role === "giving_editor") {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Get human-readable role name
  */
 export function getRoleDisplayName(role: string): string {
@@ -159,4 +178,47 @@ export function getRoleDisplayName(role: string): string {
   };
 
   return roleNames[role] || role;
+}
+
+/**
+ * Check if user can manage giving statements with DB lookup
+ * Used in API routes to verify permissions
+ */
+export async function canManageGivingStatements(
+  userId: string,
+  churchId: string
+): Promise<boolean> {
+  try {
+    const { db } = await import("@/db");
+    const { churchUser, churches } = await import("@/db/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    // Get user's role and church subscription
+    const result = await db
+      .select({
+        role: churchUser.role,
+        subscriptionStatus: churches.subscriptionStatus,
+      })
+      .from(churchUser)
+      .innerJoin(churches, eq(churchUser.churchId, churches.id))
+      .where(and(eq(churchUser.userId, userId), eq(churchUser.churchId, churchId)))
+      .limit(1);
+
+    if (!result || result.length === 0) {
+      return false;
+    }
+
+    const { role, subscriptionStatus } = result[0];
+    
+    // Determine subscription plan from status
+    const subscriptionPlan: SubscriptionPlan =
+      subscriptionStatus === "active" || subscriptionStatus === "trialing"
+        ? "premium"
+        : "basic";
+
+    return canManageGivingStatementsRole(role, subscriptionPlan);
+  } catch (error) {
+    console.error("Error checking giving statements permission:", error);
+    return false;
+  }
 }
