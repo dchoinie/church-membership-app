@@ -448,18 +448,17 @@ export default function MembershipPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="space-y-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Membership</h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             Manage households and their members
           </p>
-        </div>
-        <div className="flex flex-col gap-2 w-full md:w-auto">
-          <p className="text-muted-foreground text-sm md:text-base text-right">
+          <p className="text-muted-foreground mt-2 text-sm md:text-base">
             If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
             {canEditMembers && (
               <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
@@ -767,7 +766,6 @@ export default function MembershipPage() {
               <DownloadIcon className="mr-2 h-4 w-4" />
               {exporting ? "Exporting..." : "Export Members"}
             </Button>
-          </div>
         </div>
       </div>
 
