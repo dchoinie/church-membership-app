@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq, and, gte, lte, asc, inArray } from "drizzle-orm";
+import { format } from "date-fns";
 
 import { db } from "@/db";
 import { giving, members, services, givingItems, givingCategories } from "@/db/schema";
@@ -161,10 +162,25 @@ export async function GET(request: Request) {
       return typeMap[serviceType] || serviceType;
     };
 
+    // Helper function to format time
+    const formatTime = (timeString: string | null | undefined): string => {
+      if (!timeString) return "";
+      try {
+        const [hours, minutes] = timeString.split(":");
+        const hour = parseInt(hours, 10);
+        const minute = parseInt(minutes, 10);
+        const today = new Date();
+        const serviceDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
+        return format(serviceDateTime, "h:mm a");
+      } catch {
+        return timeString;
+      }
+    };
+
     // Helper function to format service date and time
     const formatServiceDisplay = (service: typeof allServices[0]): string => {
-      const dateStr = new Date(service.serviceDate).toLocaleDateString();
-      const timeStr = service.serviceTime ? ` ${service.serviceTime}` : "";
+      const dateStr = format(new Date(service.serviceDate), "MMM d, yyyy");
+      const timeStr = service.serviceTime ? ` ${formatTime(service.serviceTime)}` : "";
       return `${dateStr}${timeStr} - ${formatServiceType(service.serviceType)}`;
     };
 
@@ -283,9 +299,9 @@ export async function GET(request: Request) {
     // Generate CSV with service breakdown
     const csvRows = serviceBreakdown.map(service => {
       const row: Record<string, string> = {
-        "Service Date": service.serviceDate || "",
+        "Service Date": service.serviceDate ? format(new Date(service.serviceDate), "MMM d, yyyy") : "",
         "Service Type": service.serviceType ? formatServiceType(service.serviceType) : "Other",
-        "Service Time": service.serviceTime || "",
+        "Service Time": service.serviceTime ? formatTime(service.serviceTime) : "",
       };
 
       // Add category columns dynamically
