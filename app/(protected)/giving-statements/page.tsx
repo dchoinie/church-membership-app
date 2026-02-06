@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,14 @@ import {
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   FileText, 
   Send, 
@@ -29,7 +38,8 @@ import {
   Loader2, 
   CheckCircle2,
   AlertTriangle,
-  Eye
+  Eye,
+  Settings
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +56,7 @@ interface Statement {
 }
 
 export default function GivingStatementsPage() {
+  const router = useRouter();
   const [year, setYear] = useState(new Date().getFullYear() - 1);
   const [statements, setStatements] = useState<Statement[]>([]);
   const [selectedStatements, setSelectedStatements] = useState<Set<string>>(new Set());
@@ -53,6 +64,9 @@ export default function GivingStatementsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"all" | "sent" | "unsent">("all");
+  const [showMissingTaxDialog, setShowMissingTaxDialog] = useState(false);
+  const [missingTaxFields, setMissingTaxFields] = useState<string[]>([]);
+  const [pendingGeneration, setPendingGeneration] = useState<{ preview: boolean } | null>(null);
 
   // Generate list of years (current year and past 10 years)
   const currentYear = new Date().getFullYear();
@@ -79,13 +93,13 @@ export default function GivingStatementsPage() {
     }
   };
 
-  const generateStatements = async (previewOnly: boolean = false) => {
+  const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false) => {
     setIsGenerating(true);
     try {
       const response = await fetch("/api/giving-statements/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, preview: previewOnly }),
+        body: JSON.stringify({ year, preview: previewOnly, skipValidation }),
       });
 
       if (!response.ok) {
@@ -93,14 +107,35 @@ export default function GivingStatementsPage() {
         throw new Error(error.details || error.error || "Failed to generate statements");
       }
 
-      if (previewOnly) {
-        // Open preview in new tab
+      // Check content type to determine if it's JSON or PDF blob
+      const contentType = response.headers.get("content-type");
+      
+      if (contentType?.includes("application/pdf")) {
+        // Preview PDF response
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
         toast.success("Preview generated");
+        setIsGenerating(false);
+        return;
+      }
+
+      // Parse as JSON for other responses
+      const data = await response.json();
+
+      // Check if confirmation is required for missing tax info
+      if (data.requiresConfirmation && !skipValidation) {
+        setMissingTaxFields(data.missing || []);
+        setPendingGeneration({ preview: previewOnly });
+        setShowMissingTaxDialog(true);
+        setIsGenerating(false);
+        return;
+      }
+
+      if (previewOnly) {
+        // This shouldn't happen if we got here, but handle it just in case
+        toast.success("Preview generated");
       } else {
-        const data = await response.json();
         toast.success(`Generated ${data.generated} statement(s)`);
         if (data.errors && data.errors.length > 0) {
           toast.warning(`${data.errors.length} statement(s) had errors`);
@@ -113,6 +148,20 @@ export default function GivingStatementsPage() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleContinueWithoutTaxInfo = () => {
+    setShowMissingTaxDialog(false);
+    if (pendingGeneration) {
+      generateStatements(pendingGeneration.preview, true);
+      setPendingGeneration(null);
+    }
+  };
+
+  const handleGoToSettings = () => {
+    setShowMissingTaxDialog(false);
+    setPendingGeneration(null);
+    router.push("/settings");
   };
 
   const sendStatements = async () => {
@@ -396,6 +445,62 @@ export default function GivingStatementsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Missing Tax Info Dialog */}
+      <Dialog 
+        open={showMissingTaxDialog} 
+        onOpenChange={(open) => {
+          setShowMissingTaxDialog(open);
+          if (!open) {
+            // Clear pending generation if dialog is closed without choosing an option
+            setPendingGeneration(null);
+            setMissingTaxFields([]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Missing Tax Information
+            </DialogTitle>
+            <DialogDescription>
+              Some recommended tax information is missing from your church settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              The following fields are recommended for IRS-compliant giving statements:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-sm">
+              {missingTaxFields.map((field) => (
+                <li key={field} className="text-muted-foreground">
+                  {field}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              You can continue to generate statements without this information, or update your settings first.
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleGoToSettings}
+              className="w-full sm:w-auto"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Go to Settings
+            </Button>
+            <Button
+              onClick={handleContinueWithoutTaxInfo}
+              className="w-full sm:w-auto"
+            >
+              Continue Without Info
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

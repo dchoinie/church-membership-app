@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { year, householdId, preview = false } = body;
+    const { year, householdId, preview = false, skipValidation = false } = body;
 
     if (!year || typeof year !== "number") {
       return NextResponse.json(
@@ -74,14 +74,15 @@ export async function POST(request: Request) {
 
     // Validate church tax information (required for IRS compliance)
     const validation = validateChurchTaxInfo(church);
-    if (!validation.valid) {
+    if (!validation.valid && !skipValidation) {
+      // Return a special response that requires user confirmation
       return NextResponse.json(
         {
-          error: "Missing required tax information",
-          details: `The following fields are required for IRS-compliant statements: ${validation.missing.join(", ")}. Please complete them in Settings.`,
+          requiresConfirmation: true,
           missing: validation.missing,
+          message: `The following fields are recommended for IRS-compliant statements: ${validation.missing.join(", ")}.`,
         },
-        { status: 400 }
+        { status: 200 }
       );
     }
 
