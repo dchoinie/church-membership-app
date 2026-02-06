@@ -723,11 +723,12 @@ export default function GivingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </p>
-          <p className="text-muted-foreground mt-2 text-sm md:text-base">
+        </div>
+        <div className="flex flex-col gap-2 w-full md:w-auto">
+          <p className="text-muted-foreground text-sm md:text-base text-right">
             If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.
           </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
           {canManageUsers && (
             <GivingCategoryManager
               open={categoryManagerOpen}
@@ -1200,6 +1201,7 @@ export default function GivingPage() {
             </DialogContent>
           </Dialog>
           )}
+          </div>
         </div>
       </div>
 
