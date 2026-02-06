@@ -58,8 +58,20 @@ const formatTime = (timeString: string | null | undefined): string => {
   }
 }
 
+// Helper function to parse date string without timezone conversion
+const parseLocalDate = (dateString: string): Date => {
+  const parts = dateString.split("-")
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10) - 1
+    const day = parseInt(parts[2], 10)
+    return new Date(year, month, day)
+  }
+  return new Date(dateString)
+}
+
 const formatServiceDisplay = (service: Service): string => {
-  const dateStr = format(new Date(service.serviceDate), "MMM d, yyyy")
+  const dateStr = format(parseLocalDate(service.serviceDate), "MMM d, yyyy")
   const timeStr = service.serviceTime ? ` ${formatTime(service.serviceTime)}` : ""
   return `${dateStr}${timeStr} - ${formatServiceType(service.serviceType)}`
 }
@@ -83,7 +95,7 @@ export function ServiceSelector({
 
     const query = searchQuery.toLowerCase()
     return services.filter((service) => {
-      const dateStr = format(new Date(service.serviceDate), "MMM d, yyyy").toLowerCase()
+      const dateStr = format(parseLocalDate(service.serviceDate), "MMM d, yyyy").toLowerCase()
       const timeStr = service.serviceTime ? formatTime(service.serviceTime).toLowerCase() : ""
       const typeStr = formatServiceType(service.serviceType).toLowerCase()
       const displayStr = formatServiceDisplay(service).toLowerCase()
@@ -102,7 +114,7 @@ export function ServiceSelector({
     const groups: Record<string, Service[]> = {}
     
     filteredServices.forEach((service) => {
-      const date = new Date(service.serviceDate)
+      const date = parseLocalDate(service.serviceDate)
       const monthKey = format(date, "MMMM yyyy")
       
       if (!groups[monthKey]) {
@@ -113,16 +125,16 @@ export function ServiceSelector({
 
     // Sort groups by date (newest first)
     const sortedGroups = Object.entries(groups).sort((a, b) => {
-      const dateA = new Date(a[1][0].serviceDate)
-      const dateB = new Date(b[1][0].serviceDate)
+      const dateA = parseLocalDate(a[1][0].serviceDate)
+      const dateB = parseLocalDate(b[1][0].serviceDate)
       return dateB.getTime() - dateA.getTime()
     })
 
     // Sort services within each group by date and time (newest first)
     sortedGroups.forEach(([_, services]) => {
       services.sort((a, b) => {
-        const dateA = new Date(a.serviceDate)
-        const dateB = new Date(b.serviceDate)
+        const dateA = parseLocalDate(a.serviceDate)
+        const dateB = parseLocalDate(b.serviceDate)
         if (dateA.getTime() !== dateB.getTime()) {
           return dateB.getTime() - dateA.getTime()
         }
@@ -151,7 +163,7 @@ export function ServiceSelector({
     }
     // Show only last 6 months by default
     return groupedServices.filter(([_, services]) => {
-      const serviceDate = new Date(services[0].serviceDate)
+      const serviceDate = parseLocalDate(services[0].serviceDate)
       return serviceDate >= sixMonthsAgo
     })
   }, [groupedServices, searchQuery, sixMonthsAgo])

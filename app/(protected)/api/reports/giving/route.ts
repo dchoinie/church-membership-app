@@ -177,9 +177,21 @@ export async function GET(request: Request) {
       }
     };
 
+    // Helper function to parse date string without timezone conversion
+    const parseLocalDate = (dateString: string): Date => {
+      const parts = dateString.split("-");
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+      return new Date(dateString);
+    };
+
     // Helper function to format service date and time
     const formatServiceDisplay = (service: typeof allServices[0]): string => {
-      const dateStr = format(new Date(service.serviceDate), "MMM d, yyyy");
+      const dateStr = format(parseLocalDate(service.serviceDate), "MMM d, yyyy");
       const timeStr = service.serviceTime ? ` ${formatTime(service.serviceTime)}` : "";
       return `${dateStr}${timeStr} - ${formatServiceType(service.serviceType)}`;
     };
@@ -299,7 +311,7 @@ export async function GET(request: Request) {
     // Generate CSV with service breakdown
     const csvRows = serviceBreakdown.map(service => {
       const row: Record<string, string> = {
-        "Service Date": service.serviceDate ? format(new Date(service.serviceDate), "MMM d, yyyy") : "",
+        "Service Date": service.serviceDate ? format(parseLocalDate(service.serviceDate), "MMM d, yyyy") : "",
         "Service Type": service.serviceType ? formatServiceType(service.serviceType) : "Other",
         "Service Time": service.serviceTime ? formatTime(service.serviceTime) : "",
       };
