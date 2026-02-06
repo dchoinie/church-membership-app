@@ -121,6 +121,18 @@ export default function ReportsPage() {
   const [generatingAttendanceReport, setGeneratingAttendanceReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Giving statements state
+  const [year, setYear] = useState(new Date().getFullYear() - 1);
+  const [statements, setStatements] = useState<Statement[]>([]);
+  const [selectedStatements, setSelectedStatements] = useState<Set<string>>(new Set());
+  const [isLoadingStatements, setIsLoadingStatements] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [filter, setFilter] = useState<"all" | "sent" | "unsent">("all");
+  const [showMissingTaxDialog, setShowMissingTaxDialog] = useState(false);
+  const [missingTaxFields, setMissingTaxFields] = useState<string[]>([]);
+  const [pendingGeneration, setPendingGeneration] = useState<{ preview: boolean } | null>(null);
 
   const givingForm = useForm<GivingReportFormData>({
     defaultValues: {
@@ -193,11 +205,7 @@ export default function ReportsPage() {
     fetchHouseholds();
   }, []);
 
-  // Load giving statements when year changes
-  useEffect(() => {
-    loadStatements();
-  }, [year]);
-
+  // Load giving statements function
   const loadStatements = async () => {
     setIsLoadingStatements(true);
     try {
@@ -214,6 +222,11 @@ export default function ReportsPage() {
       setIsLoadingStatements(false);
     }
   };
+
+  // Load giving statements when year changes
+  useEffect(() => {
+    loadStatements();
+  }, [year]);
 
   const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false) => {
     setIsGenerating(true);
