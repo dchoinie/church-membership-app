@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/app/(auth)/auth";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
 import { givingStatements } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { canManageGivingStatements } from "@/lib/permissions";
+import { canManageGivingStatements } from "@/lib/permissions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +15,19 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    const churchId = session?.user?.churchId;
-    const userId = session?.user?.id;
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    const churchId = await getTenantFromRequest(request);
 
     if (!churchId || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,7 +42,7 @@ export async function GET(
       );
     }
 
-    const statementId = params.id;
+    const { id: statementId } = await params;
 
     // Get statement
     const statements = await db
@@ -71,7 +80,7 @@ export async function GET(
       );
       const pdfBuffer = Buffer.from(base64Data, "base64");
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(pdfBuffer as unknown as BodyInit, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="giving-statement-${statement.year}-${statement.statementNumber || statement.id}.pdf"`,

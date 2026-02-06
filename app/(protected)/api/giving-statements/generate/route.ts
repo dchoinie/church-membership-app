@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/app/(auth)/auth";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
-import { giving, givingCategory, household, givingStatements, churches } from "@/db/schema";
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { giving, givingCategories, household, givingStatements, churches, members, givingItems } from "@/db/schema";
+import { eq, and, gte, lte, inArray, asc } from "drizzle-orm";
 import {
   generateGivingStatementPDF,
   generateStatementNumber,
   validateChurchTaxInfo,
 } from "@/lib/pdf-generator";
-import { canManageGivingStatements } from "@/lib/permissions";
+import { canManageGivingStatements } from "@/lib/permissions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +25,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    const churchId = session?.user?.churchId;
-    const userId = session?.user?.id;
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    const churchId = await getTenantFromRequest(request);
 
     if (!churchId || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -87,12 +96,13 @@ export async function POST(request: Request) {
       : await db
           .selectDistinct({ id: household.id })
           .from(giving)
-          .innerJoin(household, eq(giving.householdId, household.id))
+          .innerJoin(members, eq(giving.memberId, members.id))
+          .innerJoin(household, eq(members.householdId, household.id))
           .where(
             and(
               eq(household.churchId, churchId),
-              gte(giving.dateGiven, new Date(startDate)),
-              lte(giving.dateGiven, new Date(endDate))
+              gte(giving.dateGiven, startDate),
+              lte(giving.dateGiven, endDate)
             )
           )
           .then((rows) => rows.map((r) => r.id));
@@ -130,25 +140,40 @@ export async function POST(request: Request) {
 
         const householdInfo = householdData[0];
 
-        // Get giving records with category names
-        const givingRecords = await db
+        // Get all giving records for members in this household
+        const householdMembers = await db
+          .select({ id: members.id })
+          .from(members)
+          .where(and(eq(members.householdId, hId), eq(members.churchId, churchId)));
+
+        if (householdMembers.length === 0) {
+          errors.push({
+            householdId: hId,
+            householdName: householdInfo.name,
+            error: "No members found in household",
+          });
+          continue;
+        }
+
+        const memberIds = householdMembers.map((m) => m.id);
+
+        // Get giving records for these members in the date range
+        const givingRecordsRaw = await db
           .select({
+            id: giving.id,
             dateGiven: giving.dateGiven,
-            amount: giving.amount,
-            categoryName: givingCategory.name,
           })
           .from(giving)
-          .leftJoin(givingCategory, eq(giving.categoryId, givingCategory.id))
           .where(
             and(
-              eq(giving.householdId, hId),
-              gte(giving.dateGiven, new Date(startDate)),
-              lte(giving.dateGiven, new Date(endDate))
+              inArray(giving.memberId, memberIds),
+              gte(giving.dateGiven, startDate),
+              lte(giving.dateGiven, endDate)
             )
           )
           .orderBy(giving.dateGiven);
 
-        if (givingRecords.length === 0) {
+        if (givingRecordsRaw.length === 0) {
           errors.push({
             householdId: hId,
             householdName: householdInfo.name,
@@ -157,20 +182,44 @@ export async function POST(request: Request) {
           continue;
         }
 
+        // Get all giving items for these records
+        const givingIds = givingRecordsRaw.map((g) => g.id);
+        const allItems = await db
+          .select({
+            givingId: givingItems.givingId,
+            dateGiven: giving.dateGiven,
+            categoryName: givingCategories.name,
+            amount: givingItems.amount,
+          })
+          .from(givingItems)
+          .innerJoin(giving, eq(givingItems.givingId, giving.id))
+          .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+          .where(inArray(givingItems.givingId, givingIds))
+          .orderBy(asc(giving.dateGiven), asc(givingCategories.displayOrder), asc(givingCategories.name));
+
+        if (allItems.length === 0) {
+          errors.push({
+            householdId: hId,
+            householdName: householdInfo.name,
+            error: "No giving items found for this period",
+          });
+          continue;
+        }
+
         // Calculate total
-        const totalAmount = givingRecords.reduce(
-          (sum, record) => sum + parseFloat(record.amount || "0"),
+        const totalAmount = allItems.reduce(
+          (sum, item) => sum + parseFloat(item.amount || "0"),
           0
         );
 
         // Generate statement number
         const statementNumber = generateStatementNumber(year, hId);
 
-        // Format items for PDF
-        const items = givingRecords.map((record) => ({
-          dateGiven: record.dateGiven.toISOString(),
-          categoryName: record.categoryName || "General",
-          amount: parseFloat(record.amount || "0"),
+        // Format items for PDF (dateGiven is already a string in YYYY-MM-DD format)
+        const items = allItems.map((item) => ({
+          dateGiven: item.dateGiven,
+          categoryName: item.categoryName || "General",
+          amount: parseFloat(item.amount || "0"),
         }));
 
         // Generate PDF
@@ -190,12 +239,12 @@ export async function POST(request: Request) {
             goodsServicesStatement: church.goodsServicesStatement,
           },
           household: {
-            name: householdInfo.name,
-            address1: householdInfo.address1,
-            address2: householdInfo.address2,
-            city: householdInfo.city,
-            state: householdInfo.state,
-            zip: householdInfo.zip,
+            name: householdInfo.name || "",
+            address1: householdInfo.address1 || null,
+            address2: householdInfo.address2 || null,
+            city: householdInfo.city || null,
+            state: householdInfo.state || null,
+            zip: householdInfo.zip || null,
           },
           year,
           startDate,
@@ -206,7 +255,7 @@ export async function POST(request: Request) {
 
         // If preview mode, just return the PDF
         if (preview && householdIds.length === 1) {
-          return new NextResponse(pdfBuffer, {
+          return new NextResponse(pdfBuffer as unknown as BodyInit, {
             headers: {
               "Content-Type": "application/pdf",
               "Content-Disposition": `inline; filename="giving-statement-${year}-preview.pdf"`,

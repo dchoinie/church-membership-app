@@ -263,7 +263,7 @@ export default function GivingStatementsPage() {
           <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <p>
-              Make sure your church's tax information is complete in Settings before generating statements.
+              Make sure your church&apos;s tax information is complete in Settings before generating statements.
             </p>
           </div>
         </CardContent>
@@ -319,7 +319,7 @@ export default function GivingStatementsPage() {
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>No statements generated yet</p>
               <p className="text-sm mt-1">
-                Click "Generate All" above to create statements for {year}
+                Click &quot;Generate All&quot; above to create statements for {year}
               </p>
             </div>
           ) : (

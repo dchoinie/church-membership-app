@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/app/(auth)/auth";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
 import { givingStatements, household } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { canManageGivingStatements } from "@/lib/permissions";
+import { canManageGivingStatements } from "@/lib/permissions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +19,16 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    const churchId = session?.user?.churchId;
-    const userId = session?.user?.id;
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    const churchId = await getTenantFromRequest(request);
 
     if (!churchId || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

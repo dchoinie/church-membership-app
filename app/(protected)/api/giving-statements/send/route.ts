@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/app/(auth)/auth";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getTenantFromRequest } from "@/lib/tenant-context";
 import { db } from "@/db";
-import { givingStatements, household, member, churches } from "@/db/schema";
+import { givingStatements, household, members, churches } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { canManageGivingStatements } from "@/lib/permissions";
+import { canManageGivingStatements } from "@/lib/permissions-server";
 import { sendGivingStatementEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +19,16 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    const churchId = session?.user?.churchId;
-    const userId = session?.user?.id;
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const userId = session.user.id;
+    const churchId = await getTenantFromRequest(request);
 
     if (!churchId || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -90,27 +99,49 @@ export async function POST(request: Request) {
 
     for (const statement of statements) {
       try {
-        // Get primary contact email for household
+        // Get head of household email (primary contact)
         const contacts = await db
           .select({
-            email: member.email,
-            firstName: member.firstName,
-            lastName: member.lastName,
+            email1: members.email1,
+            firstName: members.firstName,
+            lastName: members.lastName,
           })
-          .from(member)
+          .from(members)
           .where(
             and(
-              eq(member.householdId, statement.householdId),
-              eq(member.isPrimary, true)
+              eq(members.householdId, statement.householdId),
+              eq(members.churchId, churchId),
+              eq(members.sequence, "head_of_house")
             )
           )
           .limit(1);
 
-        if (!contacts || contacts.length === 0 || !contacts[0].email) {
+        // If no head of household found, try to get any member with email1
+        let contact = contacts[0];
+        if (!contact || !contact.email1) {
+          const fallbackContacts = await db
+            .select({
+              email1: members.email1,
+              firstName: members.firstName,
+              lastName: members.lastName,
+            })
+            .from(members)
+            .where(
+              and(
+                eq(members.householdId, statement.householdId),
+                eq(members.churchId, churchId)
+              )
+            )
+            .limit(1);
+          
+          contact = fallbackContacts.find(c => c.email1) || fallbackContacts[0];
+        }
+
+        if (!contact || !contact.email1) {
           errors.push({
             statementId: statement.id,
             householdName: statement.householdName,
-            error: "No primary contact email found for household",
+            error: "No contact email found for household",
           });
           
           // Update status to failed
@@ -124,8 +155,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const contact = contacts[0];
-        const recipientEmail = contact.email;
+        const recipientEmail = contact.email1;
         const recipientName = `${contact.firstName} ${contact.lastName}`.trim();
 
         // Extract PDF buffer from data URL

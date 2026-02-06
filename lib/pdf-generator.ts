@@ -1,6 +1,6 @@
-import { renderToBuffer } from "@react-pdf/renderer";
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { GivingStatementPDF } from "@/components/giving-statement-pdf";
-import { createElement } from "react";
+import React from "react";
 
 interface GivingItem {
   dateGiven: string;
@@ -69,8 +69,8 @@ export async function generateGivingStatementPDF(
   // Calculate total amount
   const totalAmount = options.items.reduce((sum, item) => sum + item.amount, 0);
 
-  // Create the PDF document
-  const pdfDocument = createElement(GivingStatementPDF, {
+  // Create the PDF document using React.createElement with proper typing
+  const pdfDocument = React.createElement(GivingStatementPDF, {
     church: options.church,
     household: options.household,
     year: options.year,
@@ -81,7 +81,7 @@ export async function generateGivingStatementPDF(
     totalAmount,
     statementNumber: options.statementNumber,
     generatedDate: new Date().toISOString(),
-  });
+  }) as React.ReactElement<DocumentProps>;
 
   // Render to buffer
   const buffer = await renderToBuffer(pdfDocument);

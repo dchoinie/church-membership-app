@@ -541,7 +541,7 @@ export default function SettingsPage() {
                     </div>
                     <p className="text-xs text-destructive flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      Required disclosure by IRS (typically "No" for most churches)
+                      Required disclosure by IRS (typically &quot;No&quot; for most churches)
                     </p>
                   </div>
 
