@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, desc, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members } from "@/db/schema";
+import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -44,12 +44,6 @@ export async function GET(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -69,10 +63,27 @@ export async function GET(request: Request) {
       .limit(validPageSize)
       .offset(offset);
 
-    // For each giving record, find the head of household using sequence column
+    // For each giving record, find the head of household and fetch items
     const givingRecords = await Promise.all(
       givingRecordsRaw.map(async (record) => {
+        // Get giving items for this record
+        const items = await db
+          .select({
+            categoryId: givingItems.categoryId,
+            categoryName: givingCategories.name,
+            amount: givingItems.amount,
+          })
+          .from(givingItems)
+          .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+          .where(eq(givingItems.givingId, record.id));
+
         // If the member has an envelope number, find head of household with sequence = "head_of_house"
+        let finalMember = {
+          id: record.member.id,
+          firstName: record.member.firstName,
+          lastName: record.member.lastName,
+        };
+
         if (record.member.envelopeNumber) {
           // First get the household ID from the record's member
           const [recordMember] = await db
@@ -98,26 +109,19 @@ export async function GET(request: Request) {
               .limit(1);
 
             if (headOfHousehold) {
-              return {
-                ...record,
-                member: {
-                  id: headOfHousehold.id,
-                  firstName: headOfHousehold.firstName,
-                  lastName: headOfHousehold.lastName,
-                },
+              finalMember = {
+                id: headOfHousehold.id,
+                firstName: headOfHousehold.firstName,
+                lastName: headOfHousehold.lastName,
               };
             }
           }
         }
 
-        // Fallback: use the record's member if no envelope number or head of household not found
         return {
           ...record,
-          member: {
-            id: record.member.id,
-            firstName: record.member.firstName,
-            lastName: record.member.lastName,
-          },
+          member: finalMember,
+          items,
         };
       })
     );
@@ -155,57 +159,62 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate at least one amount is provided
-    const currentAmount = body.currentAmount ? parseFloat(body.currentAmount) : null;
-    const missionAmount = body.missionAmount ? parseFloat(body.missionAmount) : null;
-    const memorialsAmount = body.memorialsAmount ? parseFloat(body.memorialsAmount) : null;
-    const debtAmount = body.debtAmount ? parseFloat(body.debtAmount) : null;
-    const schoolAmount = body.schoolAmount ? parseFloat(body.schoolAmount) : null;
-    const miscellaneousAmount = body.miscellaneousAmount ? parseFloat(body.miscellaneousAmount) : null;
-
-    if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
+    // Validate items array
+    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
       return NextResponse.json(
-        { error: "At least one amount is required" },
+        { error: "At least one giving item is required" },
         { status: 400 },
       );
     }
 
-    // Validate amounts are non-negative numbers
-    if (currentAmount !== null && (isNaN(currentAmount) || currentAmount < 0)) {
+    // Validate items and filter out zero/null amounts
+    const validItems = body.items
+      .map((item: { categoryId: string; amount: number | string }) => {
+        const amount = typeof item.amount === "string" ? parseFloat(item.amount) : item.amount;
+        if (!item.categoryId || isNaN(amount) || amount <= 0) {
+          return null;
+        }
+        return {
+          categoryId: item.categoryId,
+          amount: amount.toString(),
+        };
+      })
+      .filter((item: { categoryId: string; amount: string } | null) => item !== null) as Array<{ categoryId: string; amount: string }>;
+
+    if (validItems.length === 0) {
       return NextResponse.json(
-        { error: "Current amount must be a non-negative number" },
+        { error: "At least one item with a positive amount is required" },
         { status: 400 },
       );
     }
-    if (missionAmount !== null && (isNaN(missionAmount) || missionAmount < 0)) {
-      return NextResponse.json(
-        { error: "Mission amount must be a non-negative number" },
-        { status: 400 },
-      );
-    }
-    if (memorialsAmount !== null && (isNaN(memorialsAmount) || memorialsAmount < 0)) {
-      return NextResponse.json(
-        { error: "Memorials amount must be a non-negative number" },
-        { status: 400 },
-      );
-    }
-    if (debtAmount !== null && (isNaN(debtAmount) || debtAmount < 0)) {
-      return NextResponse.json(
-        { error: "Debt amount must be a non-negative number" },
-        { status: 400 },
-      );
-    }
-    if (schoolAmount !== null && (isNaN(schoolAmount) || schoolAmount < 0)) {
-      return NextResponse.json(
-        { error: "School amount must be a non-negative number" },
-        { status: 400 },
-      );
-    }
-    if (miscellaneousAmount !== null && (isNaN(miscellaneousAmount) || miscellaneousAmount < 0)) {
-      return NextResponse.json(
-        { error: "Miscellaneous amount must be a non-negative number" },
-        { status: 400 },
-      );
+
+    // Verify all category IDs belong to this church
+    const categoryIds = validItems.map(item => item.categoryId);
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.id, categoryIds[0]), // This needs to be fixed - check all IDs
+      ));
+
+    // Better validation: check each category
+    for (const item of validItems) {
+      const [category] = await db
+        .select()
+        .from(givingCategories)
+        .where(and(
+          eq(givingCategories.id, item.categoryId),
+          eq(givingCategories.churchId, churchId),
+        ))
+        .limit(1);
+
+      if (!category) {
+        return NextResponse.json(
+          { error: `Category ${item.categoryId} not found or does not belong to this church` },
+          { status: 400 },
+        );
+      }
     }
 
     // Determine target member ID
@@ -308,28 +317,27 @@ export async function POST(request: Request) {
       .insert(giving)
       .values({
         memberId: targetMemberId,
-        currentAmount: currentAmount !== null ? currentAmount.toString() : null,
-        missionAmount: missionAmount !== null ? missionAmount.toString() : null,
-        memorialsAmount: memorialsAmount !== null ? memorialsAmount.toString() : null,
-        debtAmount: debtAmount !== null ? debtAmount.toString() : null,
-        schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
-        miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
         dateGiven: body.dateGiven,
         notes: body.notes ? sanitizeText(body.notes) : null,
       })
       .returning();
 
-    // Fetch with member info (including envelope number for head of household lookup)
+    // Insert giving items
+    await db
+      .insert(givingItems)
+      .values(
+        validItems.map(item => ({
+          givingId: newGiving.id,
+          categoryId: item.categoryId,
+          amount: item.amount,
+        }))
+      );
+
+    // Fetch with member info and items
     const [givingWithMemberRaw] = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -345,6 +353,17 @@ export async function POST(request: Request) {
       .innerJoin(members, eq(giving.memberId, members.id))
       .where(eq(giving.id, newGiving.id))
       .limit(1);
+
+    // Get items for this giving record
+    const items = await db
+      .select({
+        categoryId: givingItems.categoryId,
+        categoryName: givingCategories.name,
+        amount: givingItems.amount,
+      })
+      .from(givingItems)
+      .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+      .where(eq(givingItems.givingId, newGiving.id));
 
     // Find head of household using sequence column
     let headOfHouseholdMember = {
@@ -388,6 +407,7 @@ export async function POST(request: Request) {
     const givingWithMember = {
       ...givingWithMemberRaw,
       member: headOfHouseholdMember,
+      items,
     };
 
     return NextResponse.json({ giving: givingWithMember }, { status: 201 });

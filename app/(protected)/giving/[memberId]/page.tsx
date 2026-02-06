@@ -45,19 +45,20 @@ interface Member {
   familyId: string | null;
 }
 
+interface GivingItem {
+  categoryId: string;
+  categoryName: string;
+  amount: string;
+}
+
 interface GivingRecord {
   id: string;
   memberId: string;
-  currentAmount: string | null;
-  missionAmount: string | null;
-  memorialsAmount: string | null;
-  debtAmount: string | null;
-  schoolAmount: string | null;
-  miscellaneousAmount: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  items: GivingItem[];
   member: {
     id: string;
     firstName: string;
@@ -65,15 +66,17 @@ interface GivingRecord {
   };
 }
 
+interface GivingCategory {
+  id: string;
+  name: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
 interface GivingFormData {
-  currentAmount: string;
-  missionAmount: string;
-  memorialsAmount: string;
-  debtAmount: string;
-  schoolAmount: string;
-  miscellaneousAmount: string;
   dateGiven: string;
   notes: string;
+  items: Record<string, string>; // categoryId -> amount
 }
 
 export default function MemberGivingPage({
@@ -84,6 +87,7 @@ export default function MemberGivingPage({
   const { canEditGiving } = usePermissions();
   const [member, setMember] = useState<Member | null>(null);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
+  const [categories, setCategories] = useState<GivingCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -91,37 +95,60 @@ export default function MemberGivingPage({
   const [editingRecord, setEditingRecord] = useState<GivingRecord | null>(null);
   const [memberId, setMemberId] = useState<string>("");
 
-  const editForm = useForm<GivingFormData>({
-    defaultValues: {
-      currentAmount: "",
-      missionAmount: "",
-      memorialsAmount: "",
-      debtAmount: "",
-      schoolAmount: "",
-      miscellaneousAmount: "",
-      dateGiven: "",
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await apiFetch("/api/giving-categories");
+      if (response.ok) {
+        const data = await response.json();
+        const activeCategories = (data.categories || []).filter((cat: GivingCategory) => cat.isActive);
+        setCategories(activeCategories.sort((a: GivingCategory, b: GivingCategory) => {
+          if (a.displayOrder !== b.displayOrder) {
+            return a.displayOrder - b.displayOrder;
+          }
+          return a.name.localeCompare(b.name);
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
+  // Initialize form defaults based on categories
+  const getFormDefaults = () => {
+    const items: Record<string, string> = {};
+    categories.forEach(cat => {
+      items[cat.id] = "";
+    });
+    return {
+      dateGiven: new Date().toISOString().split("T")[0],
       notes: "",
-    },
+      items,
+    };
+  };
+
+  const editForm = useForm<GivingFormData>({
+    defaultValues: getFormDefaults(),
   });
 
   const addForm = useForm<GivingFormData>({
-    defaultValues: {
-      currentAmount: "",
-      missionAmount: "",
-      memorialsAmount: "",
-      debtAmount: "",
-      schoolAmount: "",
-      miscellaneousAmount: "",
-      dateGiven: new Date().toISOString().split("T")[0],
-      notes: "",
-    },
+    defaultValues: getFormDefaults(),
   });
+
+  // Update form defaults when categories change
+  useEffect(() => {
+    if (categories.length > 0) {
+      editForm.reset(getFormDefaults());
+      addForm.reset(getFormDefaults());
+    }
+  }, [categories]);
 
   useEffect(() => {
     async function loadData() {
       const resolvedParams = await params;
       const id = resolvedParams.memberId;
       setMemberId(id);
+      await fetchCategories();
       await fetchMember(id);
       await fetchGivingRecords(id);
     }
@@ -159,15 +186,15 @@ export default function MemberGivingPage({
 
   const handleEdit = (record: GivingRecord) => {
     setEditingRecord(record);
+    const items: Record<string, string> = {};
+    categories.forEach(cat => {
+      const item = record.items?.find(i => i.categoryId === cat.id);
+      items[cat.id] = item?.amount || "";
+    });
     editForm.reset({
-      currentAmount: record.currentAmount || "",
-      missionAmount: record.missionAmount || "",
-      memorialsAmount: record.memorialsAmount || "",
-      debtAmount: record.debtAmount || "",
-      schoolAmount: record.schoolAmount || "",
-      miscellaneousAmount: record.miscellaneousAmount || "",
       dateGiven: record.dateGiven,
       notes: record.notes || "",
+      items,
     });
     setEditDialogOpen(true);
   };
@@ -175,15 +202,21 @@ export default function MemberGivingPage({
   const handleEditSubmit = async (data: GivingFormData) => {
     if (!editingRecord) return;
 
-    // Validate at least one amount is provided
-    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
-    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
-    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
-    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
-    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
-    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
+    // Build items array from form data
+    const items = Object.entries(data.items || {})
+      .map(([categoryId, amount]) => {
+        const parsedAmount = amount ? parseFloat(amount) : null;
+        if (!categoryId || !parsedAmount || parsedAmount <= 0) {
+          return null;
+        }
+        return {
+          categoryId,
+          amount: parsedAmount,
+        };
+      })
+      .filter((item): item is { categoryId: string; amount: number } => item !== null);
 
-    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+    if (items.length === 0) {
       alert("At least one amount is required");
       return;
     }
@@ -193,14 +226,9 @@ export default function MemberGivingPage({
       const response = await apiFetch(`/api/giving/${editingRecord.id}`, {
         method: "PUT",
         body: JSON.stringify({
-          currentAmount: current,
-          missionAmount: mission,
-          memorialsAmount: memorials,
-          debtAmount: debt,
-          schoolAmount: school,
-          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
+          items,
         }),
       });
 
@@ -223,15 +251,21 @@ export default function MemberGivingPage({
   const handleAddSubmit = async (data: GivingFormData) => {
     if (!memberId) return;
 
-    // Validate at least one amount is provided
-    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
-    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
-    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
-    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
-    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
-    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
+    // Build items array from form data
+    const items = Object.entries(data.items || {})
+      .map(([categoryId, amount]) => {
+        const parsedAmount = amount ? parseFloat(amount) : null;
+        if (!categoryId || !parsedAmount || parsedAmount <= 0) {
+          return null;
+        }
+        return {
+          categoryId,
+          amount: parsedAmount,
+        };
+      })
+      .filter((item): item is { categoryId: string; amount: number } => item !== null);
 
-    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+    if (items.length === 0) {
       alert("At least one amount is required");
       return;
     }
@@ -242,29 +276,15 @@ export default function MemberGivingPage({
         method: "POST",
         body: JSON.stringify({
           memberId: memberId,
-          currentAmount: current,
-          missionAmount: mission,
-          memorialsAmount: memorials,
-          debtAmount: debt,
-          schoolAmount: school,
-          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
+          items,
         }),
       });
 
       if (response.ok) {
         setAddDialogOpen(false);
-        addForm.reset({
-          currentAmount: "",
-          missionAmount: "",
-          memorialsAmount: "",
-          debtAmount: "",
-          schoolAmount: "",
-          miscellaneousAmount: "",
-          dateGiven: new Date().toISOString().split("T")[0],
-          notes: "",
-        });
+        addForm.reset(getFormDefaults());
         await fetchGivingRecords(memberId);
       } else {
         const error = await response.json();
@@ -303,32 +323,12 @@ export default function MemberGivingPage({
     }).format(num);
   };
 
-  const calculateTotal = (
-    current: string | null,
-    mission: string | null,
-    memorials: string | null,
-    debt: string | null,
-    school: string | null,
-    miscellaneous: string | null
-  ): number => {
-    const curr = parseFloat(current || "0") || 0;
-    const miss = parseFloat(mission || "0") || 0;
-    const mem = parseFloat(memorials || "0") || 0;
-    const deb = parseFloat(debt || "0") || 0;
-    const sch = parseFloat(school || "0") || 0;
-    const misc = parseFloat(miscellaneous || "0") || 0;
-    return curr + miss + mem + deb + sch + misc;
+  const calculateTotal = (items: GivingItem[]): number => {
+    return items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
   };
 
   const totalAmount = givingRecords.reduce((sum, record) => {
-    return sum + calculateTotal(
-      record.currentAmount,
-      record.missionAmount,
-      record.memorialsAmount,
-      record.debtAmount,
-      record.schoolAmount,
-      record.miscellaneousAmount
-    );
+    return sum + calculateTotal(record.items || []);
   }, 0);
 
   return (
@@ -411,12 +411,9 @@ export default function MemberGivingPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
-                  <TableHead>Current</TableHead>
-                  <TableHead>Mission</TableHead>
-                  <TableHead>Memorials</TableHead>
-                  <TableHead>Debt</TableHead>
-                  <TableHead>School</TableHead>
-                  <TableHead>Miscellaneous</TableHead>
+                  {categories.map((cat) => (
+                    <TableHead key={cat.id}>{cat.name}</TableHead>
+                  ))}
                   <TableHead>Total</TableHead>
                   <TableHead>Notes</TableHead>
                   {canEditGiving && <TableHead className="text-right">Actions</TableHead>}
@@ -424,23 +421,16 @@ export default function MemberGivingPage({
               </TableHeader>
               <TableBody>
                 {givingRecords.map((record) => {
-                  const total = calculateTotal(
-                    record.currentAmount,
-                    record.missionAmount,
-                    record.memorialsAmount,
-                    record.debtAmount,
-                    record.schoolAmount,
-                    record.miscellaneousAmount
-                  );
+                  const total = calculateTotal(record.items || []);
                   return (
                     <TableRow key={record.id}>
                       <TableCell>{formatDate(record.dateGiven)}</TableCell>
-                      <TableCell>{formatCurrency(record.currentAmount)}</TableCell>
-                      <TableCell>{formatCurrency(record.missionAmount)}</TableCell>
-                      <TableCell>{formatCurrency(record.memorialsAmount)}</TableCell>
-                      <TableCell>{formatCurrency(record.debtAmount)}</TableCell>
-                      <TableCell>{formatCurrency(record.schoolAmount)}</TableCell>
-                      <TableCell>{formatCurrency(record.miscellaneousAmount)}</TableCell>
+                      {categories.map((cat) => {
+                        const item = record.items?.find(i => i.categoryId === cat.id);
+                        return (
+                          <TableCell key={cat.id}>{formatCurrency(item?.amount || "0")}</TableCell>
+                        );
+                      })}
                       <TableCell className="font-medium">
                         {formatCurrency(total.toString())}
                       </TableCell>
@@ -481,120 +471,28 @@ export default function MemberGivingPage({
               onSubmit={editForm.handleSubmit(handleEditSubmit)}
               className="space-y-4"
             >
-              <FormField
-                control={editForm.control}
-                name="currentAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="missionAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mission Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="memorialsAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Memorials Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="debtAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Debt Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="schoolAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>School Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={editForm.control}
-                name="miscellaneousAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Miscellaneous Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {categories.map((category) => (
+                <FormField
+                  key={category.id}
+                  control={editForm.control}
+                  name={`items.${category.id}`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{category.name} Amount</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
               <p className="text-xs text-muted-foreground">
                 * At least one amount is required
               </p>
@@ -661,120 +559,28 @@ export default function MemberGivingPage({
               onSubmit={addForm.handleSubmit(handleAddSubmit)}
               className="space-y-4"
             >
-              <FormField
-                control={addForm.control}
-                name="currentAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={addForm.control}
-                name="missionAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mission Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={addForm.control}
-                name="memorialsAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Memorials Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={addForm.control}
-                name="debtAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Debt Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={addForm.control}
-                name="schoolAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>School Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={addForm.control}
-                name="miscellaneousAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Miscellaneous Amount</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {categories.map((category) => (
+                <FormField
+                  key={category.id}
+                  control={addForm.control}
+                  name={`items.${category.id}`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{category.name} Amount</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
               <p className="text-xs text-muted-foreground">
                 * At least one amount is required
               </p>

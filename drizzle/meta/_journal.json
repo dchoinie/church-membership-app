@@ -162,6 +162,13 @@
       "when": 1770309511089,
       "tag": "0022_nostalgic_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1770390955723,
+      "tag": "0023_hot_jigsaw",
+      "breakpoints": true
     }
   ]
 }

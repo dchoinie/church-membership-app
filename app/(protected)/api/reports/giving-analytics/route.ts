@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, asc, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, services } from "@/db/schema";
+import { giving, members, services, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 
@@ -22,16 +22,10 @@ export async function GET(request: Request) {
     const yearEnd = endDateParam || `${currentYear}-12-31`;
 
     // Get all giving records for the current year with member info (filtered by churchId)
-    const allGiving = await db
+    const allGivingRaw = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         memberDateOfBirth: members.dateOfBirth,
         memberSex: members.sex,
@@ -46,6 +40,41 @@ export async function GET(request: Request) {
         ),
       );
 
+    // Get all giving items for these records
+    const givingIds = allGivingRaw.map(g => g.id);
+    
+    // Fetch all items in the date range
+    const allItemsProper = givingIds.length > 0 ? await db
+      .select({
+        givingId: givingItems.givingId,
+        categoryId: givingItems.categoryId,
+        categoryName: givingCategories.name,
+        amount: givingItems.amount,
+      })
+      .from(givingItems)
+      .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+      .where(inArray(givingItems.givingId, givingIds))
+      : [];
+
+    // Group items by giving record
+    const itemsByGivingId: Record<string, Array<{ categoryId: string; categoryName: string; amount: string }>> = {};
+    allItemsProper.forEach(item => {
+      if (!itemsByGivingId[item.givingId]) {
+        itemsByGivingId[item.givingId] = [];
+      }
+      itemsByGivingId[item.givingId].push({
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        amount: item.amount,
+      });
+    });
+
+    // Create giving records with items
+    const allGiving = allGivingRaw.map(g => ({
+      ...g,
+      items: itemsByGivingId[g.id] || [],
+    }));
+
     // Get all services for matching dates (filtered by churchId)
     const allServices = await db
       .select()
@@ -59,15 +88,19 @@ export async function GET(request: Request) {
       )
       .orderBy(services.serviceDate);
 
+    // Get active categories for this church
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.isActive, true),
+      ))
+      .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
+
     // Helper function to calculate total amount from a giving record
     const getTotalAmount = (record: typeof allGiving[0]): number => {
-      const current = parseFloat(record.currentAmount || "0");
-      const mission = parseFloat(record.missionAmount || "0");
-      const memorials = parseFloat(record.memorialsAmount || "0");
-      const debt = parseFloat(record.debtAmount || "0");
-      const school = parseFloat(record.schoolAmount || "0");
-      const miscellaneous = parseFloat(record.miscellaneousAmount || "0");
-      return current + mission + memorials + debt + school + miscellaneous;
+      return record.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
     };
 
     // Helper function to calculate age from date of birth
@@ -80,17 +113,12 @@ export async function GET(request: Request) {
       return monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
     };
 
-    // Monthly giving trends
+    // Monthly giving trends - now dynamic by category
     const monthlyTrend: Array<{
       month: string;
       totalAmount: number;
       recordCount: number;
-      currentAmount: number;
-      missionAmount: number;
-      memorialsAmount: number;
-      debtAmount: number;
-      schoolAmount: number;
-      miscellaneousAmount: number;
+      categoryAmounts: Record<string, number>;
     }> = [];
 
     // Get date range
@@ -121,34 +149,33 @@ export async function GET(request: Request) {
         );
 
         let totalAmount = 0;
-        let currentAmount = 0;
-        let missionAmount = 0;
-        let memorialsAmount = 0;
-        let debtAmount = 0;
-        let schoolAmount = 0;
-        let miscellaneousAmount = 0;
+        const categoryAmounts: Record<string, number> = {};
+
+        // Initialize category amounts
+        categories.forEach(cat => {
+          categoryAmounts[cat.id] = 0;
+        });
 
         monthGiving.forEach((g) => {
           const total = getTotalAmount(g);
           totalAmount += total;
-          currentAmount += parseFloat(g.currentAmount || "0");
-          missionAmount += parseFloat(g.missionAmount || "0");
-          memorialsAmount += parseFloat(g.memorialsAmount || "0");
-          debtAmount += parseFloat(g.debtAmount || "0");
-          schoolAmount += parseFloat(g.schoolAmount || "0");
-          miscellaneousAmount += parseFloat(g.miscellaneousAmount || "0");
+          
+          // Aggregate by category
+          g.items.forEach(item => {
+            if (!categoryAmounts[item.categoryId]) {
+              categoryAmounts[item.categoryId] = 0;
+            }
+            categoryAmounts[item.categoryId] += parseFloat(item.amount || "0");
+          });
         });
 
         monthlyTrend.push({
           month: monthStartDate.toLocaleString("default", { month: "long", year: "numeric" }),
           totalAmount: Math.round(totalAmount * 100) / 100,
           recordCount: monthGiving.length,
-          currentAmount: Math.round(currentAmount * 100) / 100,
-          missionAmount: Math.round(missionAmount * 100) / 100,
-          memorialsAmount: Math.round(memorialsAmount * 100) / 100,
-          debtAmount: Math.round(debtAmount * 100) / 100,
-          schoolAmount: Math.round(schoolAmount * 100) / 100,
-          miscellaneousAmount: Math.round(miscellaneousAmount * 100) / 100,
+          categoryAmounts: Object.fromEntries(
+            Object.entries(categoryAmounts).map(([id, amount]) => [id, Math.round(amount * 100) / 100])
+          ),
         });
       }
     }
@@ -311,31 +338,28 @@ export async function GET(request: Request) {
         : 0;
     });
 
-    // Category breakdown (current, mission, memorials, etc.)
-    let totalCurrent = 0;
-    let totalMission = 0;
-    let totalMemorials = 0;
-    let totalDebt = 0;
-    let totalSchool = 0;
-    let totalMiscellaneous = 0;
-
-    allGiving.forEach((g) => {
-      totalCurrent += parseFloat(g.currentAmount || "0");
-      totalMission += parseFloat(g.missionAmount || "0");
-      totalMemorials += parseFloat(g.memorialsAmount || "0");
-      totalDebt += parseFloat(g.debtAmount || "0");
-      totalSchool += parseFloat(g.schoolAmount || "0");
-      totalMiscellaneous += parseFloat(g.miscellaneousAmount || "0");
+    // Category breakdown - dynamic based on active categories
+    const categoryTotals: Record<string, number> = {};
+    categories.forEach(cat => {
+      categoryTotals[cat.id] = 0;
     });
 
-    const categoryBreakdown = [
-      { name: "Current", value: Math.round(totalCurrent * 100) / 100 },
-      { name: "Mission", value: Math.round(totalMission * 100) / 100 },
-      { name: "Memorials", value: Math.round(totalMemorials * 100) / 100 },
-      { name: "Debt", value: Math.round(totalDebt * 100) / 100 },
-      { name: "School", value: Math.round(totalSchool * 100) / 100 },
-      { name: "Miscellaneous", value: Math.round(totalMiscellaneous * 100) / 100 },
-    ].filter((item) => item.value > 0);
+    allGiving.forEach((g) => {
+      g.items.forEach(item => {
+        if (!categoryTotals[item.categoryId]) {
+          categoryTotals[item.categoryId] = 0;
+        }
+        categoryTotals[item.categoryId] += parseFloat(item.amount || "0");
+      });
+    });
+
+    // Create category breakdown array with category names
+    const categoryBreakdown = categories
+      .map(cat => ({
+        name: cat.name,
+        value: Math.round((categoryTotals[cat.id] || 0) * 100) / 100,
+      }))
+      .filter((item) => item.value > 0);
 
     // Format service type data
     const serviceTypeLabels: Record<string, string> = {
@@ -380,4 +404,3 @@ export async function GET(request: Request) {
     return createErrorResponse(error);
   }
 }
-

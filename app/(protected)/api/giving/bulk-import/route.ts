@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members } from "@/db/schema";
+import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -45,26 +45,56 @@ export async function POST(request: Request) {
       headerMap[header.trim().toLowerCase()] = index;
     });
 
-    // Validate required columns - need either envelopeNumber or memberId, plus dateGiven
-    // Check for new format (six amount columns) or old formats (single amount or three amounts)
+    // Get active categories for this church
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.isActive, true),
+      ));
+
+    // Map CSV headers to category names
+    // Support both old hardcoded names and new dynamic category names
+    const categoryNameMap: Record<string, string> = {
+      "current": "Current",
+      "mission": "Mission",
+      "memorials": "Memorials",
+      "debt": "Debt",
+      "school": "School",
+      "miscellaneous": "Miscellaneous",
+      "general fund": "Current",
+      "generalfund": "Current",
+      "district synod": "Mission",
+      "districtsynod": "Mission",
+    };
+
+    // Build map of CSV header -> category ID
+    const headerToCategoryId: Record<string, string> = {};
+    categories.forEach(cat => {
+      // Check if any CSV header matches this category name (case-insensitive)
+      Object.keys(headerMap).forEach(header => {
+        const normalizedHeader = header.toLowerCase().trim();
+        if (normalizedHeader === cat.name.toLowerCase() || 
+            categoryNameMap[normalizedHeader] === cat.name) {
+          headerToCategoryId[header] = cat.id;
+        }
+      });
+    });
+
+    // Validate required columns
     const hasEnvelopeNumber = headerMap.hasOwnProperty("envelope number") || headerMap.hasOwnProperty("envelopenumber");
     const hasMemberId = headerMap.hasOwnProperty("member id") || headerMap.hasOwnProperty("memberid");
-    const hasAmount = headerMap.hasOwnProperty("amount");
-    const hasGeneralFund = headerMap.hasOwnProperty("general fund") || headerMap.hasOwnProperty("generalfund");
-    const hasCurrent = headerMap.hasOwnProperty("current");
-    const hasMemorials = headerMap.hasOwnProperty("memorials");
-    const hasDistrictSynod = headerMap.hasOwnProperty("district synod") || headerMap.hasOwnProperty("districtsynod");
-    const hasMission = headerMap.hasOwnProperty("mission");
-    const hasDebt = headerMap.hasOwnProperty("debt");
-    const hasSchool = headerMap.hasOwnProperty("school");
-    const hasMiscellaneous = headerMap.hasOwnProperty("miscellaneous");
     const hasDateGiven = headerMap.hasOwnProperty("date given") || headerMap.hasOwnProperty("dategiven") || headerMap.hasOwnProperty("date");
 
-    // Must have at least one amount column (support old and new formats)
-    const hasAnyAmount = hasAmount || hasGeneralFund || hasCurrent || hasMemorials || hasDistrictSynod || hasMission || hasDebt || hasSchool || hasMiscellaneous;
-    if (!hasAnyAmount) {
+    // Must have at least one category column mapped
+    const hasAnyCategory = Object.keys(headerToCategoryId).length > 0 || 
+                           headerMap.hasOwnProperty("amount") || 
+                           headerMap.hasOwnProperty("general fund") || 
+                           headerMap.hasOwnProperty("generalfund");
+    if (!hasAnyCategory) {
       return NextResponse.json(
-        { error: "Missing required column: at least one amount column is required" },
+        { error: "Missing required column: at least one category amount column is required. Available categories: " + categories.map(c => c.name).join(", ") },
         { status: 400 },
       );
     }
@@ -125,14 +155,9 @@ export async function POST(request: Request) {
 
     const recordsToInsert: Array<{
       memberId: string;
-      currentAmount: string | null;
-      missionAmount: string | null;
-      memorialsAmount: string | null;
-      debtAmount: string | null;
-      schoolAmount: string | null;
-      miscellaneousAmount: string | null;
       dateGiven: string;
       notes: string | null;
+      items: Array<{ categoryId: string; amount: string }>;
     }> = [];
 
     for (let i = 1; i < lines.length; i++) {
@@ -162,17 +187,6 @@ export async function POST(request: Request) {
         const dateGivenStr = getValue("date given", ["dategiven", "date", "dategiven"]);
         const notesStr = getValue("notes", ["note"]);
 
-        // Get amount fields - support old formats (single amount or three amounts) and new format (six amounts)
-        const amountStr = getValue("amount");
-        const generalFundStr = getValue("general fund", ["generalfund"]);
-        const currentStr = getValue("current");
-        const memorialsStr = getValue("memorials");
-        const districtSynodStr = getValue("district synod", ["districtsynod"]);
-        const missionStr = getValue("mission");
-        const debtStr = getValue("debt");
-        const schoolStr = getValue("school");
-        const miscellaneousStr = getValue("miscellaneous");
-
         // Validate required fields
         if (!dateGivenStr) {
           results.failed++;
@@ -182,71 +196,49 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Parse amounts - support backward compatibility
-        let currentAmount: number | null = null;
-        let missionAmount: number | null = null;
-        let memorialsAmount: number | null = null;
-        let debtAmount: number | null = null;
-        let schoolAmount: number | null = null;
-        let miscellaneousAmount: number | null = null;
+        // Build items array from CSV columns
+        // Support both old format (single "amount" or hardcoded category names) and new format (dynamic category names)
+        const items: Array<{ categoryId: string; amount: string }> = [];
 
-        const parseAmountField = (value: string | null, fieldName: string): number | null => {
-          if (!value) return null;
-          const amount = parseFloat(value);
-          if (isNaN(amount) || amount < 0) {
-            results.failed++;
-            results.errors.push(
-              `Row ${i + 1}: Invalid ${fieldName} amount (must be a non-negative number)`,
-            );
-            throw new Error("Invalid amount");
+        // Old format: single "amount" column -> map to "Current" category
+        const amountStr = getValue("amount");
+        const generalFundStr = getValue("general fund", ["generalfund"]);
+        if (amountStr || generalFundStr) {
+          const amountValue = amountStr || generalFundStr;
+          const amount = parseFloat(amountValue!);
+          if (!isNaN(amount) && amount > 0) {
+            // Find "Current" category
+            const currentCategory = categories.find(c => c.name === "Current");
+            if (currentCategory) {
+              items.push({
+                categoryId: currentCategory.id,
+                amount: amount.toString(),
+              });
+            }
           }
-          return amount > 0 ? amount : null;
-        };
-
-        try {
-          // Old format 1: single "amount" column -> map to currentAmount
-          if (amountStr) {
-            currentAmount = parseAmountField(amountStr, "amount");
-          }
-          // Old format 2: "general fund" -> map to currentAmount
-          else if (generalFundStr) {
-            currentAmount = parseAmountField(generalFundStr, "general fund");
-          }
-          // New format: use current field directly
-          else if (currentStr) {
-            currentAmount = parseAmountField(currentStr, "current");
-          }
-
-          // Old format: "district synod" -> map to missionAmount
-          if (districtSynodStr) {
-            missionAmount = parseAmountField(districtSynodStr, "district synod");
-          }
-          // New format: use mission field directly
-          else if (missionStr) {
-            missionAmount = parseAmountField(missionStr, "mission");
-          }
-
-          // Memorials (same in both formats)
-          if (memorialsStr) {
-            memorialsAmount = parseAmountField(memorialsStr, "memorials");
-          }
-
-          // New fields
-          if (debtStr) {
-            debtAmount = parseAmountField(debtStr, "debt");
-          }
-          if (schoolStr) {
-            schoolAmount = parseAmountField(schoolStr, "school");
-          }
-          if (miscellaneousStr) {
-            miscellaneousAmount = parseAmountField(miscellaneousStr, "miscellaneous");
-          }
-        } catch {
-          continue; // Error already added to results.errors
         }
 
+        // Map CSV headers to category amounts
+        Object.entries(headerToCategoryId).forEach(([header, categoryId]) => {
+          const value = getValue(header);
+          if (value) {
+            const amount = parseFloat(value);
+            if (!isNaN(amount) && amount > 0) {
+              items.push({
+                categoryId,
+                amount: amount.toString(),
+              });
+            } else if (!isNaN(amount) && amount < 0) {
+              results.failed++;
+              results.errors.push(
+                `Row ${i + 1}: Invalid amount for ${header} (must be non-negative)`,
+              );
+            }
+          }
+        });
+
         // Validate at least one amount is provided
-        if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
+        if (items.length === 0) {
           results.failed++;
           results.errors.push(
             `Row ${i + 1}: At least one amount is required`,
@@ -342,14 +334,9 @@ export async function POST(request: Request) {
         // Create one record per envelope number (household level)
         recordsToInsert.push({
           memberId: targetMemberId,
-          currentAmount: currentAmount !== null ? currentAmount.toString() : null,
-          missionAmount: missionAmount !== null ? missionAmount.toString() : null,
-          memorialsAmount: memorialsAmount !== null ? memorialsAmount.toString() : null,
-          debtAmount: debtAmount !== null ? debtAmount.toString() : null,
-          schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
-          miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
           dateGiven,
           notes: notesStr ? sanitizeText(notesStr) : null,
+          items,
         });
       } catch (error) {
         results.failed++;
@@ -363,7 +350,25 @@ export async function POST(request: Request) {
     if (recordsToInsert.length > 0) {
       try {
         await db.transaction(async (tx) => {
-          await tx.insert(giving).values(recordsToInsert);
+          for (const record of recordsToInsert) {
+            // Insert giving record
+            const [newGiving] = await tx.insert(giving).values({
+              memberId: record.memberId,
+              dateGiven: record.dateGiven,
+              notes: record.notes,
+            }).returning();
+
+            // Insert giving items
+            if (record.items.length > 0) {
+              await tx.insert(givingItems).values(
+                record.items.map(item => ({
+                  givingId: newGiving.id,
+                  categoryId: item.categoryId,
+                  amount: item.amount,
+                }))
+              );
+            }
+          }
         });
         results.success = recordsToInsert.length;
       } catch (error) {

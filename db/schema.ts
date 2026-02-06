@@ -289,6 +289,28 @@ export const membershipHistory = pgTable(
   ],
 );
 
+export const givingCategories = pgTable(
+  "giving_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    churchId: uuid("church_id")
+      .notNull()
+      .references(() => churches.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    displayOrder: integer("display_order").notNull().default(0),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("giving_categories_church_id_idx").on(table.churchId),
+    unique("giving_categories_church_name_unique").on(table.churchId, table.name),
+  ],
+);
+
 export const giving = pgTable(
   "giving",
   {
@@ -296,12 +318,6 @@ export const giving = pgTable(
     memberId: uuid("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
-    currentAmount: numeric("current_amount", { precision: 10, scale: 2 }),
-    missionAmount: numeric("mission_amount", { precision: 10, scale: 2 }),
-    memorialsAmount: numeric("memorials_amount", { precision: 10, scale: 2 }),
-    debtAmount: numeric("debt_amount", { precision: 10, scale: 2 }),
-    schoolAmount: numeric("school_amount", { precision: 10, scale: 2 }),
-    miscellaneousAmount: numeric("miscellaneous_amount", { precision: 10, scale: 2 }),
     dateGiven: date("date_given").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -313,6 +329,26 @@ export const giving = pgTable(
   (table) => [
     index("giving_member_id_idx").on(table.memberId),
     index("giving_date_given_idx").on(table.dateGiven),
+  ],
+);
+
+export const givingItems = pgTable(
+  "giving_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    givingId: uuid("giving_id")
+      .notNull()
+      .references(() => giving.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => givingCategories.id, { onDelete: "restrict" }),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("giving_items_giving_id_idx").on(table.givingId),
+    index("giving_items_category_id_idx").on(table.categoryId),
+    unique("giving_items_giving_category_unique").on(table.givingId, table.categoryId),
   ],
 );
 

@@ -80,12 +80,7 @@ interface GivingAnalytics {
     month: string;
     totalAmount: number;
     recordCount: number;
-    currentAmount: number;
-    missionAmount: number;
-    memorialsAmount: number;
-    debtAmount: number;
-    schoolAmount: number;
-    miscellaneousAmount: number;
+    categoryAmounts: Record<string, number>;
   }>;
   monthlyGivingByService: Array<{
     month: string;

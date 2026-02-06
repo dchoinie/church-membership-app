@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, desc, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members } from "@/db/schema";
+import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 
@@ -67,16 +67,10 @@ export async function GET(
     }
 
     // Get all giving records for the target member (head of household)
-    const givingRecords = await db
+    const givingRecordsRaw = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -91,6 +85,26 @@ export async function GET(
       .innerJoin(members, eq(giving.memberId, members.id))
       .where(and(eq(giving.memberId, targetMemberId), eq(members.churchId, churchId)))
       .orderBy(desc(giving.dateGiven), desc(giving.createdAt));
+
+    // Fetch items for each giving record
+    const givingRecords = await Promise.all(
+      givingRecordsRaw.map(async (record) => {
+        const items = await db
+          .select({
+            categoryId: givingItems.categoryId,
+            categoryName: givingCategories.name,
+            amount: givingItems.amount,
+          })
+          .from(givingItems)
+          .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+          .where(eq(givingItems.givingId, record.id));
+
+        return {
+          ...record,
+          items,
+        };
+      })
+    );
 
     return NextResponse.json({ giving: givingRecords });
   } catch (error) {

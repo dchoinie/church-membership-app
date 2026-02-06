@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
-import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon } from "lucide-react";
+import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon, SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { GivingCategoryManager } from "@/components/giving-category-manager";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -60,19 +61,20 @@ interface Member {
   lastName: string;
 }
 
+interface GivingItem {
+  categoryId: string;
+  categoryName: string;
+  amount: string;
+}
+
 interface GivingRecord {
   id: string;
   memberId: string;
-  currentAmount: string | null;
-  missionAmount: string | null;
-  memorialsAmount: string | null;
-  debtAmount: string | null;
-  schoolAmount: string | null;
-  miscellaneousAmount: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  items: GivingItem[];
   member: {
     id: string;
     firstName: string;
@@ -80,16 +82,18 @@ interface GivingRecord {
   };
 }
 
+interface GivingCategory {
+  id: string;
+  name: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
 interface GivingFormData {
   envelopeNumber: string;
-  currentAmount: string;
-  missionAmount: string;
-  memorialsAmount: string;
-  debtAmount: string;
-  schoolAmount: string;
-  miscellaneousAmount: string;
   dateGiven: string;
   notes: string;
+  items: Record<string, string>; // categoryId -> amount
 }
 
 interface PaginationInfo {
@@ -104,14 +108,16 @@ interface MemberWithEnvelope extends Member {
 }
 
 export default function GivingPage() {
-  const { canEditGiving } = usePermissions();
+  const { canEditGiving, canManageUsers } = usePermissions();
   const [allMembers, setAllMembers] = useState<MemberWithEnvelope[]>([]);
   const [envelopeNumbers, setEnvelopeNumbers] = useState<number[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
+  const [categories, setCategories] = useState<GivingCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [bulkImportDialogOpen, setBulkImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -125,22 +131,8 @@ export default function GivingPage() {
   const [bulkInputRows, setBulkInputRows] = useState<Array<{
     envelopeNumber: string;
     dateGiven: string;
-    currentAmount: string;
-    missionAmount: string;
-    memorialsAmount: string;
-    debtAmount: string;
-    schoolAmount: string;
-    miscellaneousAmount: string;
-  }>>(Array.from({ length: 3 }, () => ({
-    envelopeNumber: "",
-    dateGiven: new Date().toISOString().split("T")[0],
-    currentAmount: "",
-    missionAmount: "",
-    memorialsAmount: "",
-    debtAmount: "",
-    schoolAmount: "",
-    miscellaneousAmount: "",
-  })));
+    items: Record<string, string>; // categoryId -> amount
+  }>>([]);
   const [bulkInputSubmitting, setBulkInputSubmitting] = useState(false);
   const [bulkInputResults, setBulkInputResults] = useState<{
     success: number;
@@ -155,20 +147,50 @@ export default function GivingPage() {
     totalPages: 0,
   });
 
-  const form = useForm<GivingFormData>({
-    defaultValues: {
+  // Fetch categories
+  const fetchCategories = async () => {
+    try {
+      const response = await apiFetch("/api/giving-categories");
+      if (response.ok) {
+        const data = await response.json();
+        const activeCategories = (data.categories || []).filter((cat: GivingCategory) => cat.isActive);
+        setCategories(activeCategories.sort((a: GivingCategory, b: GivingCategory) => {
+          if (a.displayOrder !== b.displayOrder) {
+            return a.displayOrder - b.displayOrder;
+          }
+          return a.name.localeCompare(b.name);
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
+  // Initialize form defaults based on categories
+  const getFormDefaults = () => {
+    const items: Record<string, string> = {};
+    categories.forEach(cat => {
+      items[cat.id] = "";
+    });
+    return {
       envelopeNumber: "",
-      currentAmount: "",
-      missionAmount: "",
-      memorialsAmount: "",
-      debtAmount: "",
-      schoolAmount: "",
-      miscellaneousAmount: "",
       dateGiven: new Date().toISOString().split("T")[0],
       notes: "",
-    },
+      items,
+    };
+  };
+
+  const form = useForm<GivingFormData>({
+    defaultValues: getFormDefaults(),
     mode: "onChange",
   });
+
+  // Update form defaults when categories change
+  useEffect(() => {
+    if (categories.length > 0) {
+      form.reset(getFormDefaults());
+    }
+  }, [categories]);
 
   const selectedEnvelopeNumber = form.watch("envelopeNumber");
 
@@ -243,6 +265,7 @@ export default function GivingPage() {
 
   useEffect(() => {
     fetchMembers();
+    fetchCategories();
     fetchGivingRecords(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -261,15 +284,21 @@ export default function GivingPage() {
       return;
     }
 
-    // Validate at least one amount is provided
-    const current = data.currentAmount ? parseFloat(data.currentAmount) : null;
-    const mission = data.missionAmount ? parseFloat(data.missionAmount) : null;
-    const memorials = data.memorialsAmount ? parseFloat(data.memorialsAmount) : null;
-    const debt = data.debtAmount ? parseFloat(data.debtAmount) : null;
-    const school = data.schoolAmount ? parseFloat(data.schoolAmount) : null;
-    const miscellaneous = data.miscellaneousAmount ? parseFloat(data.miscellaneousAmount) : null;
+    // Build items array from form data
+    const items = Object.entries(data.items || {})
+      .map(([categoryId, amount]) => {
+        const parsedAmount = amount ? parseFloat(amount) : null;
+        if (!categoryId || !parsedAmount || parsedAmount <= 0) {
+          return null;
+        }
+        return {
+          categoryId,
+          amount: parsedAmount,
+        };
+      })
+      .filter((item): item is { categoryId: string; amount: number } => item !== null);
 
-    if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+    if (items.length === 0) {
       alert("At least one amount is required");
       return;
     }
@@ -294,14 +323,9 @@ export default function GivingPage() {
         method: "POST",
         body: JSON.stringify({
           envelopeNumber: envelopeNum,
-          currentAmount: current,
-          missionAmount: mission,
-          memorialsAmount: memorials,
-          debtAmount: debt,
-          schoolAmount: school,
-          miscellaneousAmount: miscellaneous,
           dateGiven: data.dateGiven,
           notes: data.notes || null,
+          items,
         }),
       });
 
@@ -312,17 +336,7 @@ export default function GivingPage() {
       }
 
       setDialogOpen(false);
-      form.reset({
-        envelopeNumber: "",
-        currentAmount: "",
-        missionAmount: "",
-        memorialsAmount: "",
-        debtAmount: "",
-        schoolAmount: "",
-        miscellaneousAmount: "",
-        dateGiven: new Date().toISOString().split("T")[0],
-        notes: "",
-      });
+      form.reset(getFormDefaults());
       setFilteredMembers([]);
       // Refresh the giving records list
       await fetchGivingRecords(currentPage);
@@ -359,21 +373,8 @@ export default function GivingPage() {
     }).format(num);
   };
 
-  const calculateTotal = (
-    current: string | null,
-    mission: string | null,
-    memorials: string | null,
-    debt: string | null,
-    school: string | null,
-    miscellaneous: string | null
-  ): number => {
-    const curr = parseFloat(current || "0") || 0;
-    const miss = parseFloat(mission || "0") || 0;
-    const mem = parseFloat(memorials || "0") || 0;
-    const deb = parseFloat(debt || "0") || 0;
-    const sch = parseFloat(school || "0") || 0;
-    const misc = parseFloat(miscellaneous || "0") || 0;
-    return curr + miss + mem + deb + sch + misc;
+  const calculateTotal = (items: GivingItem[]): number => {
+    return items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
   };
 
   // CSV parsing function (same as API)
@@ -475,21 +476,13 @@ export default function GivingPage() {
     const validRecords: Array<{
       envelopeNumber: number;
       dateGiven: string;
-      currentAmount: number | null;
-      missionAmount: number | null;
-      memorialsAmount: number | null;
-      debtAmount: number | null;
-      schoolAmount: number | null;
-      miscellaneousAmount: number | null;
-      notes?: string | null;
+      items: Array<{ categoryId: string; amount: number }>;
     }> = [];
 
     bulkInputRows.forEach((row, index) => {
       // Skip empty rows (rows with no envelope number and no amounts filled in)
-      // Note: dateGiven is always set by default, so we check if envelopeNumber and all amounts are empty
       const hasEnvelope = row.envelopeNumber && row.envelopeNumber.trim() !== "";
-      const hasAnyAmount = row.currentAmount || row.missionAmount || row.memorialsAmount || 
-                          row.debtAmount || row.schoolAmount || row.miscellaneousAmount;
+      const hasAnyAmount = Object.values(row.items || {}).some(amount => amount && parseFloat(amount) > 0);
       
       if (!hasEnvelope && !hasAnyAmount) {
         return; // Skip completely empty rows
@@ -522,43 +515,23 @@ export default function GivingPage() {
         }
       }
 
-      // Parse amounts
-      const current = row.currentAmount ? parseFloat(row.currentAmount) : null;
-      const mission = row.missionAmount ? parseFloat(row.missionAmount) : null;
-      const memorials = row.memorialsAmount ? parseFloat(row.memorialsAmount) : null;
-      const debt = row.debtAmount ? parseFloat(row.debtAmount) : null;
-      const school = row.schoolAmount ? parseFloat(row.schoolAmount) : null;
-      const miscellaneous = row.miscellaneousAmount ? parseFloat(row.miscellaneousAmount) : null;
+      // Build items array
+      const items = Object.entries(row.items || {})
+        .map(([categoryId, amount]) => {
+          const parsedAmount = amount ? parseFloat(amount) : null;
+          if (!categoryId || !parsedAmount || parsedAmount <= 0) {
+            return null;
+          }
+          return {
+            categoryId,
+            amount: parsedAmount,
+          };
+        })
+        .filter((item): item is { categoryId: string; amount: number } => item !== null);
 
       // Validate at least one amount
-      if (!current && !mission && !memorials && !debt && !school && !miscellaneous) {
+      if (items.length === 0) {
         errors.push(`Row ${index + 1}: At least one amount is required`);
-        return;
-      }
-
-      // Validate amounts are non-negative
-      if (current !== null && (isNaN(current) || current < 0)) {
-        errors.push(`Row ${index + 1}: Invalid current amount`);
-        return;
-      }
-      if (mission !== null && (isNaN(mission) || mission < 0)) {
-        errors.push(`Row ${index + 1}: Invalid mission amount`);
-        return;
-      }
-      if (memorials !== null && (isNaN(memorials) || memorials < 0)) {
-        errors.push(`Row ${index + 1}: Invalid memorials amount`);
-        return;
-      }
-      if (debt !== null && (isNaN(debt) || debt < 0)) {
-        errors.push(`Row ${index + 1}: Invalid debt amount`);
-        return;
-      }
-      if (school !== null && (isNaN(school) || school < 0)) {
-        errors.push(`Row ${index + 1}: Invalid school amount`);
-        return;
-      }
-      if (miscellaneous !== null && (isNaN(miscellaneous) || miscellaneous < 0)) {
-        errors.push(`Row ${index + 1}: Invalid miscellaneous amount`);
         return;
       }
 
@@ -577,12 +550,7 @@ export default function GivingPage() {
       validRecords.push({
         envelopeNumber: envelopeNum,
         dateGiven: row.dateGiven,
-        currentAmount: current,
-        missionAmount: mission,
-        memorialsAmount: memorials,
-        debtAmount: debt,
-        schoolAmount: school,
-        miscellaneousAmount: miscellaneous,
+        items,
       });
     });
 
@@ -623,16 +591,15 @@ export default function GivingPage() {
         await fetchGivingRecords(currentPage);
         // Reset rows after successful submission
         if (data.failed === 0) {
-        setBulkInputRows(Array.from({ length: 3 }, () => ({
-          envelopeNumber: "",
-          dateGiven: new Date().toISOString().split("T")[0],
-          currentAmount: "",
-          missionAmount: "",
-          memorialsAmount: "",
-          debtAmount: "",
-          schoolAmount: "",
-          miscellaneousAmount: "",
-        })));
+          const defaultItems: Record<string, string> = {};
+          categories.forEach(cat => {
+            defaultItems[cat.id] = "";
+          });
+          setBulkInputRows(Array.from({ length: 3 }, () => ({
+            envelopeNumber: "",
+            dateGiven: new Date().toISOString().split("T")[0],
+            items: { ...defaultItems },
+          })));
         }
         // Close the dialog after successful submission
         setBulkInputDialogOpen(false);
@@ -648,15 +615,14 @@ export default function GivingPage() {
   };
 
   const addBulkInputRow = () => {
+    const defaultItems: Record<string, string> = {};
+    categories.forEach(cat => {
+      defaultItems[cat.id] = "";
+    });
     setBulkInputRows([...bulkInputRows, {
       envelopeNumber: "",
       dateGiven: new Date().toISOString().split("T")[0],
-      currentAmount: "",
-      missionAmount: "",
-      memorialsAmount: "",
-      debtAmount: "",
-      schoolAmount: "",
-      miscellaneousAmount: "",
+      items: { ...defaultItems },
     }]);
   };
 
@@ -666,9 +632,37 @@ export default function GivingPage() {
 
   const updateBulkInputRow = (index: number, field: string, value: string) => {
     const newRows = [...bulkInputRows];
-    newRows[index] = { ...newRows[index], [field]: value };
+    if (field.startsWith("category_")) {
+      // Update category amount
+      const categoryId = field.replace("category_", "");
+      newRows[index] = {
+        ...newRows[index],
+        items: {
+          ...newRows[index].items,
+          [categoryId]: value,
+        },
+      };
+    } else {
+      // Update other fields
+      newRows[index] = { ...newRows[index], [field]: value };
+    }
     setBulkInputRows(newRows);
   };
+
+  // Initialize bulk input rows when categories are loaded
+  useEffect(() => {
+    if (categories.length > 0 && bulkInputRows.length === 0) {
+      const defaultItems: Record<string, string> = {};
+      categories.forEach(cat => {
+        defaultItems[cat.id] = "";
+      });
+      setBulkInputRows(Array.from({ length: 3 }, () => ({
+        envelopeNumber: "",
+        dateGiven: new Date().toISOString().split("T")[0],
+        items: { ...defaultItems },
+      })));
+    }
+  }, [categories]);
 
   // Handle bulk import
   const handleBulkImport = async () => {
@@ -725,8 +719,28 @@ export default function GivingPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          {canManageUsers && (
+            <GivingCategoryManager
+              open={categoryManagerOpen}
+              onOpenChange={setCategoryManagerOpen}
+              onCategoriesUpdated={() => {
+                fetchCategories();
+                fetchGivingRecords(currentPage);
+              }}
+            />
+          )}
           {canEditGiving && (
             <>
+              {canManageUsers && (
+                <Button
+                  variant="outline"
+                  onClick={() => setCategoryManagerOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <SettingsIcon className="mr-2 h-4 w-4" />
+                  Manage Categories
+                </Button>
+              )}
               <Dialog
                 open={bulkInputDialogOpen}
             onOpenChange={(open) => {
@@ -756,25 +770,24 @@ export default function GivingPage() {
                         <TableHead className="w-12"></TableHead>
                         <TableHead>Envelope Number</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Current</TableHead>
-                        <TableHead>Mission</TableHead>
-                        <TableHead>Memorials</TableHead>
-                        <TableHead>Debt</TableHead>
-                        <TableHead>School</TableHead>
-                        <TableHead>Miscellaneous</TableHead>
+                        {categories.map((cat) => (
+                          <TableHead key={cat.id}>{cat.name}</TableHead>
+                        ))}
                         <TableHead>Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {bulkInputRows.map((row, index) => {
-                        const total = calculateTotal(
-                          row.currentAmount || null,
-                          row.missionAmount || null,
-                          row.memorialsAmount || null,
-                          row.debtAmount || null,
-                          row.schoolAmount || null,
-                          row.miscellaneousAmount || null
-                        );
+                        // Convert row.items to GivingItem[] for calculateTotal
+                        const items: GivingItem[] = Object.entries(row.items || {}).map(([categoryId, amount]) => {
+                          const category = categories.find(c => c.id === categoryId);
+                          return {
+                            categoryId,
+                            categoryName: category?.name || "",
+                            amount: amount || "0",
+                          };
+                        });
+                        const total = calculateTotal(items);
                         return (
                           <TableRow key={index}>
                             <TableCell>
@@ -815,72 +828,19 @@ export default function GivingPage() {
                                 className="w-40"
                               />
                             </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.currentAmount}
-                                onChange={(e) => updateBulkInputRow(index, "currentAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.missionAmount}
-                                onChange={(e) => updateBulkInputRow(index, "missionAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.memorialsAmount}
-                                onChange={(e) => updateBulkInputRow(index, "memorialsAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.debtAmount}
-                                onChange={(e) => updateBulkInputRow(index, "debtAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.schoolAmount}
-                                onChange={(e) => updateBulkInputRow(index, "schoolAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={row.miscellaneousAmount}
-                                onChange={(e) => updateBulkInputRow(index, "miscellaneousAmount", e.target.value)}
-                                className="w-32"
-                              />
-                            </TableCell>
+                            {categories.map((cat) => (
+                              <TableCell key={cat.id}>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                  value={row.items?.[cat.id] || ""}
+                                  onChange={(e) => updateBulkInputRow(index, `category_${cat.id}`, e.target.value)}
+                                  className="w-32"
+                                />
+                              </TableCell>
+                            ))}
                             <TableCell className="font-medium">
                               {formatCurrency(total.toString())}
                             </TableCell>
@@ -1085,17 +1045,7 @@ export default function GivingPage() {
               setDialogOpen(open);
               if (!open) {
                 // Reset form and filtered members when dialog closes
-                form.reset({
-                  envelopeNumber: "",
-                  currentAmount: "",
-                  missionAmount: "",
-                  memorialsAmount: "",
-                  debtAmount: "",
-                  schoolAmount: "",
-                  miscellaneousAmount: "",
-                  dateGiven: new Date().toISOString().split("T")[0],
-                  notes: "",
-                });
+                form.reset(getFormDefaults());
                 setFilteredMembers([]);
               }
             }}
@@ -1172,120 +1122,28 @@ export default function GivingPage() {
                       </p>
                     </div>
                   )}
-                  <FormField
-                    control={form.control}
-                    name="currentAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Current Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="missionAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mission Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="memorialsAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Memorials Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="debtAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Debt Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="schoolAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>School Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="miscellaneousAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Miscellaneous Amount</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0.00"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {categories.map((category) => (
+                    <FormField
+                      key={category.id}
+                      control={form.control}
+                      name={`items.${category.id}`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{category.name} Amount</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
                   <p className="text-xs text-muted-foreground">
                     * At least one amount is required
                   </p>
@@ -1356,12 +1214,9 @@ export default function GivingPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-xs md:text-sm">Member Name</TableHead>
-                      <TableHead className="text-xs md:text-sm">Current</TableHead>
-                      <TableHead className="text-xs md:text-sm">Mission</TableHead>
-                      <TableHead className="text-xs md:text-sm">Memorials</TableHead>
-                      <TableHead className="text-xs md:text-sm">Debt</TableHead>
-                      <TableHead className="text-xs md:text-sm">School</TableHead>
-                      <TableHead className="text-xs md:text-sm">Miscellaneous</TableHead>
+                      {categories.map((cat) => (
+                        <TableHead key={cat.id} className="text-xs md:text-sm">{cat.name}</TableHead>
+                      ))}
                       <TableHead className="text-xs md:text-sm">Total</TableHead>
                       <TableHead className="text-xs md:text-sm">Date Given</TableHead>
                       <TableHead className="text-xs md:text-sm">Notes</TableHead>
@@ -1369,14 +1224,7 @@ export default function GivingPage() {
                   </TableHeader>
                 <TableBody>
                   {givingRecords.map((record) => {
-                    const total = calculateTotal(
-                      record.currentAmount,
-                      record.missionAmount,
-                      record.memorialsAmount,
-                      record.debtAmount,
-                      record.schoolAmount,
-                      record.miscellaneousAmount
-                    );
+                    const total = calculateTotal(record.items || []);
                     return (
                       <TableRow key={record.id}>
                         <TableCell className="font-medium text-xs md:text-sm">
@@ -1387,12 +1235,14 @@ export default function GivingPage() {
                             {record.member.firstName} {record.member.lastName}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.currentAmount)}</TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.missionAmount)}</TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.memorialsAmount)}</TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.debtAmount)}</TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.schoolAmount)}</TableCell>
-                        <TableCell className="text-xs md:text-sm">{formatCurrency(record.miscellaneousAmount)}</TableCell>
+                        {categories.map((cat) => {
+                          const item = record.items?.find(i => i.categoryId === cat.id);
+                          return (
+                            <TableCell key={cat.id} className="text-xs md:text-sm">
+                              {formatCurrency(item?.amount || "0")}
+                            </TableCell>
+                          );
+                        })}
                         <TableCell className="font-medium text-xs md:text-sm">{formatCurrency(total.toString())}</TableCell>
                         <TableCell className="text-xs md:text-sm">{formatDate(record.dateGiven)}</TableCell>
                         <TableCell className="text-muted-foreground text-xs md:text-sm">

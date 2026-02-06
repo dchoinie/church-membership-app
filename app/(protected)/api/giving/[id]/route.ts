@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members } from "@/db/schema";
+import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -21,12 +21,6 @@ export async function GET(
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -49,7 +43,18 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ giving: givingRecord });
+    // Get items for this giving record
+    const items = await db
+      .select({
+        categoryId: givingItems.categoryId,
+        categoryName: givingCategories.name,
+        amount: givingItems.amount,
+      })
+      .from(givingItems)
+      .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+      .where(eq(givingItems.givingId, id));
+
+    return NextResponse.json({ giving: { ...givingRecord, items } });
   } catch (error) {
     return createErrorResponse(error);
   }
@@ -74,12 +79,6 @@ export async function PUT(
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
       })
@@ -95,115 +94,101 @@ export async function PUT(
       );
     }
 
-    // Validate amounts if provided
-    let currentAmount = existingGiving.currentAmount;
-    let missionAmount = existingGiving.missionAmount;
-    let memorialsAmount = existingGiving.memorialsAmount;
-    let debtAmount = existingGiving.debtAmount;
-    let schoolAmount = existingGiving.schoolAmount;
-    let miscellaneousAmount = existingGiving.miscellaneousAmount;
-
-    if (body.currentAmount !== undefined) {
-      const parsedAmount = body.currentAmount ? parseFloat(body.currentAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+    // Validate items array if provided
+    let validItems: Array<{ categoryId: string; amount: string }> = [];
+    if (body.items !== undefined) {
+      if (!Array.isArray(body.items) || body.items.length === 0) {
         return NextResponse.json(
-          { error: "Current amount must be a non-negative number" },
+          { error: "At least one giving item is required" },
           { status: 400 },
         );
       }
-      currentAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
 
-    if (body.missionAmount !== undefined) {
-      const parsedAmount = body.missionAmount ? parseFloat(body.missionAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+      // Validate items and filter out zero/null amounts
+      validItems = body.items
+        .map((item: { categoryId: string; amount: number | string }) => {
+          const amount = typeof item.amount === "string" ? parseFloat(item.amount) : item.amount;
+          if (!item.categoryId || isNaN(amount) || amount <= 0) {
+            return null;
+          }
+          return {
+            categoryId: item.categoryId,
+            amount: amount.toString(),
+          };
+        })
+        .filter((item: { categoryId: string; amount: string } | null) => item !== null) as Array<{ categoryId: string; amount: string }>;
+
+      if (validItems.length === 0) {
         return NextResponse.json(
-          { error: "Mission amount must be a non-negative number" },
+          { error: "At least one item with a positive amount is required" },
           { status: 400 },
         );
       }
-      missionAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
 
-    if (body.memorialsAmount !== undefined) {
-      const parsedAmount = body.memorialsAmount ? parseFloat(body.memorialsAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
-        return NextResponse.json(
-          { error: "Memorials amount must be a non-negative number" },
-          { status: 400 },
-        );
+      // Verify all category IDs belong to this church
+      for (const item of validItems) {
+        const [category] = await db
+          .select()
+          .from(givingCategories)
+          .where(and(
+            eq(givingCategories.id, item.categoryId),
+            eq(givingCategories.churchId, churchId),
+          ))
+          .limit(1);
+
+        if (!category) {
+          return NextResponse.json(
+            { error: `Category ${item.categoryId} not found or does not belong to this church` },
+            { status: 400 },
+          );
+        }
       }
-      memorialsAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
-
-    if (body.debtAmount !== undefined) {
-      const parsedAmount = body.debtAmount ? parseFloat(body.debtAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
-        return NextResponse.json(
-          { error: "Debt amount must be a non-negative number" },
-          { status: 400 },
-        );
-      }
-      debtAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
-
-    if (body.schoolAmount !== undefined) {
-      const parsedAmount = body.schoolAmount ? parseFloat(body.schoolAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
-        return NextResponse.json(
-          { error: "School amount must be a non-negative number" },
-          { status: 400 },
-        );
-      }
-      schoolAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
-
-    if (body.miscellaneousAmount !== undefined) {
-      const parsedAmount = body.miscellaneousAmount ? parseFloat(body.miscellaneousAmount) : null;
-      if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
-        return NextResponse.json(
-          { error: "Miscellaneous amount must be a non-negative number" },
-          { status: 400 },
-        );
-      }
-      miscellaneousAmount = parsedAmount !== null ? parsedAmount.toString() : null;
-    }
-
-    // Validate at least one amount is provided
-    if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
-      return NextResponse.json(
-        { error: "At least one amount is required" },
-        { status: 400 },
-      );
     }
 
     // Update giving record
-    await db
-      .update(giving)
-      .set({
-        currentAmount,
-        missionAmount,
-        memorialsAmount,
-        debtAmount,
-        schoolAmount,
-        miscellaneousAmount,
-        dateGiven: body.dateGiven !== undefined ? body.dateGiven : existingGiving.dateGiven,
-        notes: body.notes !== undefined ? (body.notes ? sanitizeText(body.notes) : null) : existingGiving.notes,
-      })
-      .where(eq(giving.id, id))
-      .returning();
+    const updateData: {
+      dateGiven?: string;
+      notes?: string | null;
+    } = {};
 
-    // Fetch with member info
+    if (body.dateGiven !== undefined) {
+      updateData.dateGiven = body.dateGiven;
+    }
+    if (body.notes !== undefined) {
+      updateData.notes = body.notes ? sanitizeText(body.notes) : null;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await db
+        .update(giving)
+        .set(updateData)
+        .where(eq(giving.id, id));
+    }
+
+    // Update items if provided
+    if (validItems.length > 0) {
+      // Delete existing items
+      await db
+        .delete(givingItems)
+        .where(eq(givingItems.givingId, id));
+
+      // Insert new items
+      await db
+        .insert(givingItems)
+        .values(
+          validItems.map(item => ({
+            givingId: id,
+            categoryId: item.categoryId,
+            amount: item.amount,
+          }))
+        );
+    }
+
+    // Fetch updated record with member info and items
     const [givingWithMember] = await db
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -219,9 +204,19 @@ export async function PUT(
       .where(and(eq(giving.id, id), eq(members.churchId, churchId)))
       .limit(1);
 
-    return NextResponse.json({ giving: givingWithMember });
+    // Get items for this giving record
+    const items = await db
+      .select({
+        categoryId: givingItems.categoryId,
+        categoryName: givingCategories.name,
+        amount: givingItems.amount,
+      })
+      .from(givingItems)
+      .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+      .where(eq(givingItems.givingId, id));
+
+    return NextResponse.json({ giving: { ...givingWithMember, items } });
   } catch (error) {
     return createErrorResponse(error);
   }
 }
-

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, asc } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, household } from "@/db/schema";
+import { giving, members, household, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 
@@ -84,7 +84,25 @@ export async function GET(request: Request) {
       if (memberIds.length === 0) {
         // No members in household, return empty result
         if (format === "csv") {
-          const csvHeaders = ["Household Name", "Envelope Number", "Member Name", "Date Given", "Current", "Mission", "Memorials", "Debt", "School", "Miscellaneous", "Total", "Notes"];
+          // Get categories for CSV headers
+          const categoriesForHeaders = await db
+            .select()
+            .from(givingCategories)
+            .where(and(
+              eq(givingCategories.churchId, churchId),
+              eq(givingCategories.isActive, true),
+            ))
+            .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
+          
+          const csvHeaders = [
+            "Household Name",
+            "Envelope Number",
+            "Member Name",
+            "Date Given",
+            ...categoriesForHeaders.map(cat => cat.name),
+            "Total",
+            "Notes"
+          ];
           const csvContent = generateCsv([], csvHeaders);
           const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
           return new NextResponse(csvContent, {
@@ -105,12 +123,6 @@ export async function GET(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
-        currentAmount: giving.currentAmount,
-        missionAmount: giving.missionAmount,
-        memorialsAmount: giving.memorialsAmount,
-        debtAmount: giving.debtAmount,
-        schoolAmount: giving.schoolAmount,
-        miscellaneousAmount: giving.miscellaneousAmount,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         member: {
@@ -131,7 +143,50 @@ export async function GET(request: Request) {
       .where(and(...conditions))
       .orderBy(giving.dateGiven);
 
-    const givingRecords = await queryBuilder;
+    const givingRecordsRaw = await queryBuilder;
+
+    // Get all giving items for these records
+    const givingIds = givingRecordsRaw.map(g => g.id);
+    const allItems = givingIds.length > 0 ? await db
+      .select({
+        givingId: givingItems.givingId,
+        categoryId: givingItems.categoryId,
+        categoryName: givingCategories.name,
+        amount: givingItems.amount,
+      })
+      .from(givingItems)
+      .innerJoin(givingCategories, eq(givingItems.categoryId, givingCategories.id))
+      .where(inArray(givingItems.givingId, givingIds))
+      : [];
+
+    // Group items by giving ID
+    const itemsByGivingId: Record<string, Array<{ categoryId: string; categoryName: string; amount: string }>> = {};
+    allItems.forEach(item => {
+      if (!itemsByGivingId[item.givingId]) {
+        itemsByGivingId[item.givingId] = [];
+      }
+      itemsByGivingId[item.givingId].push({
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        amount: item.amount,
+      });
+    });
+
+    // Get active categories for CSV headers
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.isActive, true),
+      ))
+      .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
+
+    // Add items to giving records
+    const givingRecords = givingRecordsRaw.map(record => ({
+      ...record,
+      items: itemsByGivingId[record.id] || [],
+    }));
 
     // For each giving record, find the head of household using sequence column
     const recordsWithHeadOfHousehold = await Promise.all(
@@ -236,89 +291,91 @@ export async function GET(request: Request) {
       };
     });
 
-    // Calculate totals for each type and overall
-    const totals = recordsWithHouseholdNames.reduce(
-      (acc, record) => {
-        const current = parseFloat(record.currentAmount || "0");
-        const mission = parseFloat(record.missionAmount || "0");
-        const memorials = parseFloat(record.memorialsAmount || "0");
-        const debt = parseFloat(record.debtAmount || "0");
-        const school = parseFloat(record.schoolAmount || "0");
-        const miscellaneous = parseFloat(record.miscellaneousAmount || "0");
-        const currentVal = isNaN(current) ? 0 : current;
-        const missionVal = isNaN(mission) ? 0 : mission;
-        const memorialsVal = isNaN(memorials) ? 0 : memorials;
-        const debtVal = isNaN(debt) ? 0 : debt;
-        const schoolVal = isNaN(school) ? 0 : school;
-        const miscellaneousVal = isNaN(miscellaneous) ? 0 : miscellaneous;
-        return {
-          current: acc.current + currentVal,
-          mission: acc.mission + missionVal,
-          memorials: acc.memorials + memorialsVal,
-          debt: acc.debt + debtVal,
-          school: acc.school + schoolVal,
-          miscellaneous: acc.miscellaneous + miscellaneousVal,
-          total: acc.total + currentVal + missionVal + memorialsVal + debtVal + schoolVal + miscellaneousVal,
-        };
-      },
-      { current: 0, mission: 0, memorials: 0, debt: 0, school: 0, miscellaneous: 0, total: 0 }
-    );
+    // Calculate totals for each category and overall
+    const categoryTotals: Record<string, number> = {};
+    categories.forEach(cat => {
+      categoryTotals[cat.id] = 0;
+    });
+    let grandTotal = 0;
+
+    recordsWithHouseholdNames.forEach(record => {
+      record.items.forEach(item => {
+        const amount = parseFloat(item.amount || "0");
+        if (!categoryTotals[item.categoryId]) {
+          categoryTotals[item.categoryId] = 0;
+        }
+        categoryTotals[item.categoryId] += amount;
+        grandTotal += amount;
+      });
+    });
+
+    // Build totals object with category names
+    const totals: Record<string, string> = {};
+    categories.forEach(cat => {
+      totals[cat.name] = (categoryTotals[cat.id] || 0).toFixed(2);
+    });
+    totals.total = grandTotal.toFixed(2);
 
     if (format === "json") {
       return NextResponse.json({ 
         giving: recordsWithHouseholdNames,
-        totals: {
-          current: totals.current.toFixed(2),
-          mission: totals.mission.toFixed(2),
-          memorials: totals.memorials.toFixed(2),
-          debt: totals.debt.toFixed(2),
-          school: totals.school.toFixed(2),
-          miscellaneous: totals.miscellaneous.toFixed(2),
-          total: totals.total.toFixed(2),
-        },
+        totals,
       });
     }
 
-    // Generate CSV
-    const csvRows = recordsWithHouseholdNames.map((record) => ({
-      "Household Name": record.householdName || "N/A",
-      "Envelope Number": record.member.envelopeNumber?.toString() || "N/A",
-      "Member Name": `${record.member.firstName} ${record.member.lastName}`,
-      "Date Given": record.dateGiven || "",
-      "Current": record.currentAmount || "0.00",
-      "Mission": record.missionAmount || "0.00",
-      "Memorials": record.memorialsAmount || "0.00",
-      "Debt": record.debtAmount || "0.00",
-      "School": record.schoolAmount || "0.00",
-      "Miscellaneous": record.miscellaneousAmount || "0.00",
-      "Total": (
-        (parseFloat(record.currentAmount || "0") || 0) +
-        (parseFloat(record.missionAmount || "0") || 0) +
-        (parseFloat(record.memorialsAmount || "0") || 0) +
-        (parseFloat(record.debtAmount || "0") || 0) +
-        (parseFloat(record.schoolAmount || "0") || 0) +
-        (parseFloat(record.miscellaneousAmount || "0") || 0)
-      ).toFixed(2),
-      "Notes": record.notes || "",
-    }));
+    // Generate CSV with dynamic category columns
+    const csvRows = recordsWithHouseholdNames.map((record) => {
+      const row: Record<string, string> = {
+        "Household Name": record.householdName || "N/A",
+        "Envelope Number": record.member.envelopeNumber?.toString() || "N/A",
+        "Member Name": `${record.member.firstName} ${record.member.lastName}`,
+        "Date Given": record.dateGiven || "",
+      };
+
+      // Add category columns dynamically
+      const categoryAmounts: Record<string, number> = {};
+      let recordTotal = 0;
+      record.items.forEach(item => {
+        categoryAmounts[item.categoryName] = parseFloat(item.amount || "0");
+        recordTotal += categoryAmounts[item.categoryName];
+      });
+
+      categories.forEach(cat => {
+        row[cat.name] = (categoryAmounts[cat.name] || 0).toFixed(2);
+      });
+
+      row["Total"] = recordTotal.toFixed(2);
+      row["Notes"] = record.notes || "";
+
+      return row;
+    });
 
     // Add total row at the bottom
-    csvRows.push({
+    const totalRow: Record<string, string> = {
       "Household Name": "",
       "Envelope Number": "",
       "Member Name": "",
       "Date Given": "",
-      "Current": totals.current.toFixed(2),
-      "Mission": totals.mission.toFixed(2),
-      "Memorials": totals.memorials.toFixed(2),
-      "Debt": totals.debt.toFixed(2),
-      "School": totals.school.toFixed(2),
-      "Miscellaneous": totals.miscellaneous.toFixed(2),
-      "Total": totals.total.toFixed(2),
-      "Notes": "TOTAL",
+    };
+    categories.forEach(cat => {
+      totalRow[cat.name] = totals[cat.name] || "0.00";
     });
+    totalRow["Total"] = totals.total;
+    totalRow["Notes"] = "TOTAL";
+    csvRows.push(totalRow);
 
-    const csvContent = generateCsv(csvRows);
+    // Build CSV headers dynamically
+    const csvHeaders = [
+      "Household Name",
+      "Envelope Number",
+      "Member Name",
+      "Date Given",
+      ...categories.map(cat => cat.name),
+      "Total",
+      "Notes"
+    ];
+
+    const csvContent = generateCsv(csvRows, csvHeaders);
     const filename = `giving-report-${new Date().toISOString().split("T")[0]}.csv`;
 
     return new NextResponse(csvContent, {

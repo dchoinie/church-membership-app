@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members } from "@/db/schema";
+import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -78,6 +78,15 @@ export async function POST(request: Request) {
       return headOfHousehold?.id || null;
     };
 
+    // Get active categories for this church
+    const categories = await db
+      .select()
+      .from(givingCategories)
+      .where(and(
+        eq(givingCategories.churchId, churchId),
+        eq(givingCategories.isActive, true),
+      ));
+
     const results = {
       success: 0,
       failed: 0,
@@ -86,14 +95,9 @@ export async function POST(request: Request) {
 
     const recordsToInsert: Array<{
       memberId: string;
-      currentAmount: string | null;
-      missionAmount: string | null;
-      memorialsAmount: string | null;
-      debtAmount: string | null;
-      schoolAmount: string | null;
-      miscellaneousAmount: string | null;
       dateGiven: string;
       notes: string | null;
+      items: Array<{ categoryId: string; amount: string }>;
     }> = [];
 
     for (let i = 0; i < records.length; i++) {
@@ -153,63 +157,51 @@ export async function POST(request: Request) {
           targetMemberId = await findHeadOfHousehold(firstMember.householdId) || firstMember.id;
         }
 
-        // Parse amounts
-        const currentAmount = record.currentAmount ? parseFloat(record.currentAmount) : null;
-        const missionAmount = record.missionAmount ? parseFloat(record.missionAmount) : null;
-        const memorialsAmount = record.memorialsAmount ? parseFloat(record.memorialsAmount) : null;
-        const debtAmount = record.debtAmount ? parseFloat(record.debtAmount) : null;
-        const schoolAmount = record.schoolAmount ? parseFloat(record.schoolAmount) : null;
-        const miscellaneousAmount = record.miscellaneousAmount ? parseFloat(record.miscellaneousAmount) : null;
+        // Build items array from record.items
+        if (!record.items || !Array.isArray(record.items) || record.items.length === 0) {
+          results.failed++;
+          results.errors.push(
+            `Row ${i + 1}: At least one giving item is required`,
+          );
+          continue;
+        }
 
-        // Validate at least one amount is provided
-        if (!currentAmount && !missionAmount && !memorialsAmount && !debtAmount && !schoolAmount && !miscellaneousAmount) {
+        const items: Array<{ categoryId: string; amount: string }> = [];
+        for (const item of record.items) {
+          if (!item.categoryId) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: Invalid item - missing categoryId`,
+            );
+            continue;
+          }
+
+          // Verify category belongs to this church
+          const category = categories.find(c => c.id === item.categoryId);
+          if (!category) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: Invalid categoryId ${item.categoryId}`,
+            );
+            continue;
+          }
+
+          const amount = typeof item.amount === "string" ? parseFloat(item.amount) : item.amount;
+          if (isNaN(amount) || amount <= 0) {
+            continue; // Skip zero/null amounts
+          }
+
+          items.push({
+            categoryId: item.categoryId,
+            amount: amount.toString(),
+          });
+        }
+
+        // Validate at least one item with positive amount
+        if (items.length === 0) {
           results.failed++;
           results.errors.push(
             `Row ${i + 1}: At least one amount is required`,
-          );
-          continue;
-        }
-
-        // Validate amounts are non-negative
-        if (currentAmount !== null && (isNaN(currentAmount) || currentAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid current amount (must be a non-negative number)`,
-          );
-          continue;
-        }
-        if (missionAmount !== null && (isNaN(missionAmount) || missionAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid mission amount (must be a non-negative number)`,
-          );
-          continue;
-        }
-        if (memorialsAmount !== null && (isNaN(memorialsAmount) || memorialsAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid memorials amount (must be a non-negative number)`,
-          );
-          continue;
-        }
-        if (debtAmount !== null && (isNaN(debtAmount) || debtAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid debt amount (must be a non-negative number)`,
-          );
-          continue;
-        }
-        if (schoolAmount !== null && (isNaN(schoolAmount) || schoolAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid school amount (must be a non-negative number)`,
-          );
-          continue;
-        }
-        if (miscellaneousAmount !== null && (isNaN(miscellaneousAmount) || miscellaneousAmount < 0)) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid miscellaneous amount (must be a non-negative number)`,
           );
           continue;
         }
@@ -237,14 +229,9 @@ export async function POST(request: Request) {
         // Add to records to insert
         recordsToInsert.push({
           memberId: targetMemberId,
-          currentAmount: currentAmount !== null ? currentAmount.toString() : null,
-          missionAmount: missionAmount !== null ? missionAmount.toString() : null,
-          memorialsAmount: memorialsAmount !== null ? memorialsAmount.toString() : null,
-          debtAmount: debtAmount !== null ? debtAmount.toString() : null,
-          schoolAmount: schoolAmount !== null ? schoolAmount.toString() : null,
-          miscellaneousAmount: miscellaneousAmount !== null ? miscellaneousAmount.toString() : null,
           dateGiven,
           notes: record.notes ? sanitizeText(record.notes) : null,
+          items,
         });
       } catch (error) {
         results.failed++;
@@ -258,7 +245,25 @@ export async function POST(request: Request) {
     if (recordsToInsert.length > 0) {
       try {
         await db.transaction(async (tx) => {
-          await tx.insert(giving).values(recordsToInsert);
+          for (const record of recordsToInsert) {
+            // Insert giving record
+            const [newGiving] = await tx.insert(giving).values({
+              memberId: record.memberId,
+              dateGiven: record.dateGiven,
+              notes: record.notes,
+            }).returning();
+
+            // Insert giving items
+            if (record.items.length > 0) {
+              await tx.insert(givingItems).values(
+                record.items.map(item => ({
+                  givingId: newGiving.id,
+                  categoryId: item.categoryId,
+                  amount: item.amount,
+                }))
+              );
+            }
+          }
         });
         results.success = recordsToInsert.length;
       } catch (error) {
