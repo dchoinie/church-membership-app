@@ -169,7 +169,15 @@ export async function GET(request: Request) {
     };
 
     // Calculate totals for each service by category
-    const serviceBreakdown = allServices.map(service => {
+    const serviceBreakdown: Array<{
+      serviceId: string | null;
+      serviceDate: string;
+      serviceType: string;
+      serviceTime: string | null;
+      displayName: string;
+      categoryTotals: Record<string, number>;
+      total: number;
+    }> = allServices.map(service => {
       const givingForService = givingByServiceId[service.id] || [];
 
       // Initialize category totals for this service
