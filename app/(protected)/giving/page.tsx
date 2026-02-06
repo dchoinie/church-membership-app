@@ -8,6 +8,7 @@ import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon,
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { GivingCategoryManager } from "@/components/giving-category-manager";
+import { ServiceSelector } from "@/components/ui/service-selector";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -91,9 +92,16 @@ interface GivingCategory {
 
 interface GivingFormData {
   envelopeNumber: string;
-  dateGiven: string;
+  serviceId: string | null;
   notes: string;
   items: Record<string, string>; // categoryId -> amount
+}
+
+interface Service {
+  id: string;
+  serviceDate: string;
+  serviceType: string;
+  serviceTime: string | null;
 }
 
 interface PaginationInfo {
@@ -114,6 +122,7 @@ export default function GivingPage() {
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
   const [categories, setCategories] = useState<GivingCategory[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,7 +139,7 @@ export default function GivingPage() {
   const [bulkInputDialogOpen, setBulkInputDialogOpen] = useState(false);
   const [bulkInputRows, setBulkInputRows] = useState<Array<{
     envelopeNumber: string;
-    dateGiven: string;
+    serviceId: string | null;
     items: Record<string, string>; // categoryId -> amount
   }>>([]);
   const [bulkInputSubmitting, setBulkInputSubmitting] = useState(false);
@@ -166,6 +175,19 @@ export default function GivingPage() {
     }
   };
 
+  // Fetch services
+  const fetchServices = async () => {
+    try {
+      const response = await apiFetch("/api/services?pageSize=1000");
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data.services || []);
+      }
+    } catch (error) {
+      console.error("Error fetching services:", error);
+    }
+  };
+
   // Initialize form defaults based on categories
   const getFormDefaults = () => {
     const items: Record<string, string> = {};
@@ -174,7 +196,7 @@ export default function GivingPage() {
     });
     return {
       envelopeNumber: "",
-      dateGiven: new Date().toISOString().split("T")[0],
+      serviceId: null,
       notes: "",
       items,
     };
@@ -266,6 +288,7 @@ export default function GivingPage() {
   useEffect(() => {
     fetchMembers();
     fetchCategories();
+    fetchServices();
     fetchGivingRecords(currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -279,8 +302,8 @@ export default function GivingPage() {
   };
 
   const onSubmit = async (data: GivingFormData) => {
-    if (!data.envelopeNumber || !data.dateGiven) {
-      alert("Envelope number and date are required");
+    if (!data.envelopeNumber || data.serviceId === undefined) {
+      alert("Envelope number and service selection are required");
       return;
     }
 
@@ -323,7 +346,7 @@ export default function GivingPage() {
         method: "POST",
         body: JSON.stringify({
           envelopeNumber: envelopeNum,
-          dateGiven: data.dateGiven,
+          serviceId: data.serviceId,
           notes: data.notes || null,
           items,
         }),
@@ -475,7 +498,7 @@ export default function GivingPage() {
     const errors: string[] = [];
     const validRecords: Array<{
       envelopeNumber: number;
-      dateGiven: string;
+      serviceId: string | null;
       items: Array<{ categoryId: string; amount: number }>;
     }> = [];
 
@@ -494,8 +517,8 @@ export default function GivingPage() {
         return;
       }
 
-      if (!row.dateGiven) {
-        errors.push(`Row ${index + 1}: Date is required`);
+      if (row.serviceId === undefined || row.serviceId === null) {
+        errors.push(`Row ${index + 1}: Service selection is required`);
         return;
       }
 
@@ -535,21 +558,9 @@ export default function GivingPage() {
         return;
       }
 
-      // Validate date
-      try {
-        const date = new Date(row.dateGiven);
-        if (isNaN(date.getTime())) {
-          errors.push(`Row ${index + 1}: Invalid date format`);
-          return;
-        }
-      } catch {
-        errors.push(`Row ${index + 1}: Invalid date format`);
-        return;
-      }
-
       validRecords.push({
         envelopeNumber: envelopeNum,
-        dateGiven: row.dateGiven,
+        serviceId: row.serviceId,
         items,
       });
     });
@@ -597,7 +608,7 @@ export default function GivingPage() {
           });
           setBulkInputRows(Array.from({ length: 3 }, () => ({
             envelopeNumber: "",
-            dateGiven: new Date().toISOString().split("T")[0],
+            serviceId: null,
             items: { ...defaultItems },
           })));
         }
@@ -621,7 +632,7 @@ export default function GivingPage() {
     });
     setBulkInputRows([...bulkInputRows, {
       envelopeNumber: "",
-      dateGiven: new Date().toISOString().split("T")[0],
+      serviceId: null,
       items: { ...defaultItems },
     }]);
   };
@@ -630,7 +641,7 @@ export default function GivingPage() {
     setBulkInputRows(bulkInputRows.filter((_, i) => i !== index));
   };
 
-  const updateBulkInputRow = (index: number, field: string, value: string) => {
+  const updateBulkInputRow = (index: number, field: string, value: string | null) => {
     const newRows = [...bulkInputRows];
     if (field.startsWith("category_")) {
       // Update category amount
@@ -639,7 +650,7 @@ export default function GivingPage() {
         ...newRows[index],
         items: {
           ...newRows[index].items,
-          [categoryId]: value,
+          [categoryId]: value || "",
         },
       };
     } else {
@@ -658,7 +669,7 @@ export default function GivingPage() {
       });
       setBulkInputRows(Array.from({ length: 3 }, () => ({
         envelopeNumber: "",
-        dateGiven: new Date().toISOString().split("T")[0],
+        serviceId: null,
         items: { ...defaultItems },
       })));
     }
@@ -830,11 +841,11 @@ export default function GivingPage() {
                               </Select>
                             </TableCell>
                             <TableCell>
-                              <Input
-                                type="date"
-                                value={row.dateGiven}
-                                onChange={(e) => updateBulkInputRow(index, "dateGiven", e.target.value)}
-                                className="w-40"
+                              <ServiceSelector
+                                value={row.serviceId}
+                                onValueChange={(value) => updateBulkInputRow(index, "serviceId", value)}
+                                services={services}
+                                className="w-64"
                               />
                             </TableCell>
                             {categories.map((cat) => (
@@ -1158,12 +1169,16 @@ export default function GivingPage() {
                   </p>
                   <FormField
                     control={form.control}
-                    name="dateGiven"
+                    name="serviceId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Date Given *</FormLabel>
+                        <FormLabel>Service *</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <ServiceSelector
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            services={services}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

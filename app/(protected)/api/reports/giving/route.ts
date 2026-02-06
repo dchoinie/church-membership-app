@@ -91,10 +91,12 @@ export async function GET(request: Request) {
       ))
       .orderBy(asc(givingCategories.displayOrder), asc(givingCategories.name));
 
-    // Get all giving records in the date range
+    // Get all giving records with serviceId join for the date range
+    // Include both records with serviceId and those without (serviceId is null)
     const givingRecordsRaw = await db
       .select({
         id: giving.id,
+        serviceId: giving.serviceId,
         dateGiven: giving.dateGiven,
       })
       .from(giving)
@@ -134,14 +136,15 @@ export async function GET(request: Request) {
       });
     });
 
-    // Create a map of giving records by date
-    const givingByDate: Record<string, Array<{ id: string; items: Array<{ categoryId: string; categoryName: string; amount: string }> }>> = {};
+    // Create a map of giving records by serviceId
+    // Records with null serviceId will be grouped separately as "Other"
+    const givingByServiceId: Record<string, Array<{ id: string; items: Array<{ categoryId: string; categoryName: string; amount: string }> }>> = {};
     givingRecordsRaw.forEach(record => {
-      const dateKey = record.dateGiven;
-      if (!givingByDate[dateKey]) {
-        givingByDate[dateKey] = [];
+      const serviceKey = record.serviceId || "OTHER";
+      if (!givingByServiceId[serviceKey]) {
+        givingByServiceId[serviceKey] = [];
       }
-      givingByDate[dateKey].push({
+      givingByServiceId[serviceKey].push({
         id: record.id,
         items: itemsByGivingId[record.id] || [],
       });
@@ -167,8 +170,7 @@ export async function GET(request: Request) {
 
     // Calculate totals for each service by category
     const serviceBreakdown = allServices.map(service => {
-      const serviceDateKey = service.serviceDate;
-      const givingForService = givingByDate[serviceDateKey] || [];
+      const givingForService = givingByServiceId[service.id] || [];
 
       // Initialize category totals for this service
       const serviceCategoryTotals: Record<string, number> = {};
@@ -200,6 +202,38 @@ export async function GET(request: Request) {
       };
     });
 
+    // Handle "Other" donations (serviceId is null)
+    const otherGiving = givingByServiceId["OTHER"] || [];
+    let otherCategoryTotals: Record<string, number> = {};
+    categories.forEach(cat => {
+      otherCategoryTotals[cat.id] = 0;
+    });
+    let otherTotal = 0;
+
+    otherGiving.forEach(givingRecord => {
+      givingRecord.items.forEach(item => {
+        const amount = parseFloat(item.amount || "0");
+        if (!otherCategoryTotals[item.categoryId]) {
+          otherCategoryTotals[item.categoryId] = 0;
+        }
+        otherCategoryTotals[item.categoryId] += amount;
+        otherTotal += amount;
+      });
+    });
+
+    // Add "Other" to service breakdown if there are any
+    if (otherTotal > 0) {
+      serviceBreakdown.push({
+        serviceId: null,
+        serviceDate: "",
+        serviceType: "",
+        serviceTime: null,
+        displayName: "Other (not at a service)",
+        categoryTotals: otherCategoryTotals,
+        total: otherTotal,
+      });
+    }
+
     // Calculate grand totals for each category and overall
     const grandCategoryTotals: Record<string, number> = {};
     categories.forEach(cat => {
@@ -225,9 +259,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ 
         services: serviceBreakdown.map(service => ({
           serviceId: service.serviceId,
-          serviceDate: service.serviceDate,
-          serviceType: service.serviceType,
-          serviceTime: service.serviceTime,
+          serviceDate: service.serviceDate || null,
+          serviceType: service.serviceType || null,
+          serviceTime: service.serviceTime || null,
           displayName: service.displayName,
           categoryTotals: Object.fromEntries(
             categories.map(cat => [cat.name, (service.categoryTotals[cat.id] || 0).toFixed(2)])
@@ -241,8 +275,8 @@ export async function GET(request: Request) {
     // Generate CSV with service breakdown
     const csvRows = serviceBreakdown.map(service => {
       const row: Record<string, string> = {
-        "Service Date": service.serviceDate,
-        "Service Type": formatServiceType(service.serviceType),
+        "Service Date": service.serviceDate || "",
+        "Service Type": service.serviceType ? formatServiceType(service.serviceType) : "Other",
         "Service Time": service.serviceTime || "",
       };
 

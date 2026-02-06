@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { ServiceSelector } from "@/components/ui/service-selector";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ interface GivingItem {
 interface GivingRecord {
   id: string;
   memberId: string;
+  serviceId: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;
@@ -74,9 +76,16 @@ interface GivingCategory {
 }
 
 interface GivingFormData {
-  dateGiven: string;
+  serviceId: string | null;
   notes: string;
   items: Record<string, string>; // categoryId -> amount
+}
+
+interface Service {
+  id: string;
+  serviceDate: string;
+  serviceType: string;
+  serviceTime: string | null;
 }
 
 export default function MemberGivingPage({
@@ -88,6 +97,7 @@ export default function MemberGivingPage({
   const [member, setMember] = useState<Member | null>(null);
   const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
   const [categories, setCategories] = useState<GivingCategory[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -114,6 +124,19 @@ export default function MemberGivingPage({
     }
   };
 
+  // Fetch services
+  const fetchServices = async () => {
+    try {
+      const response = await apiFetch("/api/services?pageSize=1000");
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data.services || []);
+      }
+    } catch (error) {
+      console.error("Error fetching services:", error);
+    }
+  };
+
   // Initialize form defaults based on categories
   const getFormDefaults = () => {
     const items: Record<string, string> = {};
@@ -121,7 +144,7 @@ export default function MemberGivingPage({
       items[cat.id] = "";
     });
     return {
-      dateGiven: new Date().toISOString().split("T")[0],
+      serviceId: null,
       notes: "",
       items,
     };
@@ -149,6 +172,7 @@ export default function MemberGivingPage({
       const id = resolvedParams.memberId;
       setMemberId(id);
       await fetchCategories();
+      await fetchServices();
       await fetchMember(id);
       await fetchGivingRecords(id);
     }
@@ -192,7 +216,7 @@ export default function MemberGivingPage({
       items[cat.id] = item?.amount || "";
     });
     editForm.reset({
-      dateGiven: record.dateGiven,
+      serviceId: record.serviceId,
       notes: record.notes || "",
       items,
     });
@@ -226,7 +250,7 @@ export default function MemberGivingPage({
       const response = await apiFetch(`/api/giving/${editingRecord.id}`, {
         method: "PUT",
         body: JSON.stringify({
-          dateGiven: data.dateGiven,
+          serviceId: data.serviceId,
           notes: data.notes || null,
           items,
         }),
@@ -276,7 +300,7 @@ export default function MemberGivingPage({
         method: "POST",
         body: JSON.stringify({
           memberId: memberId,
-          dateGiven: data.dateGiven,
+          serviceId: data.serviceId,
           notes: data.notes || null,
           items,
         }),
@@ -498,12 +522,16 @@ export default function MemberGivingPage({
               </p>
               <FormField
                 control={editForm.control}
-                name="dateGiven"
+                name="serviceId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date Given *</FormLabel>
+                    <FormLabel>Service *</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <ServiceSelector
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        services={services}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -586,12 +614,16 @@ export default function MemberGivingPage({
               </p>
               <FormField
                 control={addForm.control}
-                name="dateGiven"
+                name="serviceId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date Given *</FormLabel>
+                    <FormLabel>Service *</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <ServiceSelector
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        services={services}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

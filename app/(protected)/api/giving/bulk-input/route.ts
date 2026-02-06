@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, givingItems, givingCategories } from "@/db/schema";
+import { giving, members, givingItems, givingCategories, services } from "@/db/schema";
 import { requireAdmin } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -95,6 +95,7 @@ export async function POST(request: Request) {
 
     const recordsToInsert: Array<{
       memberId: string;
+      serviceId: string | null;
       dateGiven: string;
       notes: string | null;
       items: Array<{ categoryId: string; amount: string }>;
@@ -105,10 +106,62 @@ export async function POST(request: Request) {
         const record = records[i];
 
         // Validate required fields
-        if (!record.envelopeNumber || !record.dateGiven) {
+        if (!record.envelopeNumber) {
           results.failed++;
           results.errors.push(
-            `Row ${i + 1}: Missing required fields (envelopeNumber and dateGiven)`,
+            `Row ${i + 1}: Missing required field (envelopeNumber)`,
+          );
+          continue;
+        }
+
+        // Validate serviceId if provided, or fallback to dateGiven
+        let serviceId: string | null = null;
+        let dateGiven: string;
+
+        if (record.serviceId !== undefined && record.serviceId !== null) {
+          // Validate service exists and belongs to church
+          const [service] = await db
+            .select()
+            .from(services)
+            .where(and(
+              eq(services.id, record.serviceId),
+              eq(services.churchId, churchId),
+            ))
+            .limit(1);
+
+          if (!service) {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: Service not found or does not belong to this church`,
+            );
+            continue;
+          }
+
+          serviceId = record.serviceId;
+          dateGiven = service.serviceDate; // Use service date
+        } else if (record.dateGiven) {
+          // Fallback to provided dateGiven if no serviceId
+          try {
+            const parsedDate = new Date(record.dateGiven);
+            if (isNaN(parsedDate.getTime())) {
+              results.failed++;
+              results.errors.push(
+                `Row ${i + 1}: Invalid date format (use YYYY-MM-DD)`,
+              );
+              continue;
+            }
+            dateGiven = parsedDate.toISOString().split("T")[0];
+          } catch {
+            results.failed++;
+            results.errors.push(
+              `Row ${i + 1}: Invalid date format (use YYYY-MM-DD)`,
+            );
+            continue;
+          }
+        } else {
+          results.failed++;
+          results.errors.push(
+            `Row ${i + 1}: Either serviceId or dateGiven is required`,
           );
           continue;
         }
@@ -206,29 +259,10 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Validate date
-        let dateGiven: string;
-        try {
-          const parsedDate = new Date(record.dateGiven);
-          if (isNaN(parsedDate.getTime())) {
-            results.failed++;
-            results.errors.push(
-              `Row ${i + 1}: Invalid date format (use YYYY-MM-DD)`,
-            );
-            continue;
-          }
-          dateGiven = parsedDate.toISOString().split("T")[0];
-        } catch {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: Invalid date format (use YYYY-MM-DD)`,
-          );
-          continue;
-        }
-
         // Add to records to insert
         recordsToInsert.push({
           memberId: targetMemberId,
+          serviceId,
           dateGiven,
           notes: record.notes ? sanitizeText(record.notes) : null,
           items,
@@ -249,6 +283,7 @@ export async function POST(request: Request) {
             // Insert giving record
             const [newGiving] = await tx.insert(giving).values({
               memberId: record.memberId,
+              serviceId: record.serviceId,
               dateGiven: record.dateGiven,
               notes: record.notes,
             }).returning();

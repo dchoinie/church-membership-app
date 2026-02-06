@@ -176,6 +176,13 @@
       "when": 1770409892987,
       "tag": "0024_lumpy_adam_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1770420068172,
+      "tag": "0025_jazzy_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

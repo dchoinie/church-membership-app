@@ -324,6 +324,7 @@ export const giving = pgTable(
     memberId: uuid("member_id")
       .notNull()
       .references(() => members.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "set null" }),
     dateGiven: date("date_given").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -335,6 +336,7 @@ export const giving = pgTable(
   (table) => [
     index("giving_member_id_idx").on(table.memberId),
     index("giving_date_given_idx").on(table.dateGiven),
+    index("giving_service_id_idx").on(table.serviceId),
   ],
 );
 

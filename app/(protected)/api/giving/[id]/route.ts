@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, givingItems, givingCategories } from "@/db/schema";
+import { giving, members, givingItems, givingCategories, services } from "@/db/schema";
 import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -79,6 +79,7 @@ export async function PUT(
       .select({
         id: giving.id,
         memberId: giving.memberId,
+        serviceId: giving.serviceId,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
       })
@@ -145,14 +146,59 @@ export async function PUT(
       }
     }
 
+    // Validate serviceId if provided
+    let serviceId: string | null = null;
+    let dateGiven: string | undefined = undefined;
+
+    if (body.serviceId !== undefined) {
+      if (body.serviceId === null) {
+        serviceId = null;
+        // If serviceId is null, require dateGiven
+        if (!body.dateGiven) {
+          return NextResponse.json(
+            { error: "dateGiven is required when serviceId is null" },
+            { status: 400 },
+          );
+        }
+        dateGiven = body.dateGiven;
+      } else {
+        // Validate service exists and belongs to church
+        const [service] = await db
+          .select()
+          .from(services)
+          .where(and(
+            eq(services.id, body.serviceId),
+            eq(services.churchId, churchId),
+          ))
+          .limit(1);
+
+        if (!service) {
+          return NextResponse.json(
+            { error: "Service not found or does not belong to this church" },
+            { status: 400 },
+          );
+        }
+
+        serviceId = body.serviceId;
+        dateGiven = service.serviceDate; // Use service date
+      }
+    } else if (body.dateGiven !== undefined) {
+      // Fallback to provided dateGiven if no serviceId
+      dateGiven = body.dateGiven;
+    }
+
     // Update giving record
     const updateData: {
+      serviceId?: string | null;
       dateGiven?: string;
       notes?: string | null;
     } = {};
 
-    if (body.dateGiven !== undefined) {
-      updateData.dateGiven = body.dateGiven;
+    if (body.serviceId !== undefined) {
+      updateData.serviceId = serviceId;
+    }
+    if (dateGiven !== undefined) {
+      updateData.dateGiven = dateGiven;
     }
     if (body.notes !== undefined) {
       updateData.notes = body.notes ? sanitizeText(body.notes) : null;

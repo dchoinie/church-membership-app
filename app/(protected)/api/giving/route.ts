@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, desc, count, and } from "drizzle-orm";
 
 import { db } from "@/db";
-import { giving, members, givingItems, givingCategories } from "@/db/schema";
+import { giving, members, givingItems, givingCategories, services } from "@/db/schema";
 import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       .select({
         id: giving.id,
         memberId: giving.memberId,
+        serviceId: giving.serviceId,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
@@ -152,9 +153,43 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Validate required fields
-    if ((!body.memberId && !body.envelopeNumber) || !body.dateGiven) {
+    if (!body.memberId && !body.envelopeNumber) {
       return NextResponse.json(
-        { error: "Member ID (or envelope number) and date given are required" },
+        { error: "Member ID (or envelope number) is required" },
+        { status: 400 },
+      );
+    }
+
+    // Validate serviceId if provided
+    let serviceId: string | null = null;
+    let dateGiven: string;
+
+    if (body.serviceId) {
+      // Validate service exists and belongs to church
+      const [service] = await db
+        .select()
+        .from(services)
+        .where(and(
+          eq(services.id, body.serviceId),
+          eq(services.churchId, churchId),
+        ))
+        .limit(1);
+
+      if (!service) {
+        return NextResponse.json(
+          { error: "Service not found or does not belong to this church" },
+          { status: 400 },
+        );
+      }
+
+      serviceId = body.serviceId;
+      dateGiven = service.serviceDate; // Use service date
+    } else if (body.dateGiven) {
+      // Fallback to provided dateGiven if no serviceId
+      dateGiven = body.dateGiven;
+    } else {
+      return NextResponse.json(
+        { error: "Either serviceId or dateGiven is required" },
         { status: 400 },
       );
     }
@@ -317,7 +352,8 @@ export async function POST(request: Request) {
       .insert(giving)
       .values({
         memberId: targetMemberId,
-        dateGiven: body.dateGiven,
+        serviceId: serviceId,
+        dateGiven: dateGiven,
         notes: body.notes ? sanitizeText(body.notes) : null,
       })
       .returning();

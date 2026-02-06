@@ -71,6 +71,7 @@ export async function GET(
       .select({
         id: giving.id,
         memberId: giving.memberId,
+        serviceId: giving.serviceId,
         dateGiven: giving.dateGiven,
         notes: giving.notes,
         createdAt: giving.createdAt,
