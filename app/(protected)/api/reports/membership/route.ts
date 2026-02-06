@@ -60,7 +60,6 @@ export async function GET(request: Request) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const participationParam = searchParams.get("participation");
-    const householdId = searchParams.get("householdId");
     const type = searchParams.get("type") || "member";
     const format = searchParams.get("format") || "csv";
 
@@ -82,151 +81,43 @@ export async function GET(request: Request) {
       participationStatuses = [...VALID_PARTICIPATION_STATUSES];
     }
 
-    if (type === "household") {
-      // Generate household report
-      const conditions = [eq(household.churchId, churchId)];
-      
-      if (householdId) {
-        conditions.push(eq(household.id, householdId));
-      }
+    // Always generate member report (grouped by household)
+    const conditions = [eq(members.churchId, churchId)];
 
-      // Get all households (filtered by churchId)
-      const allHouseholds = await db
-        .select({
+    if (participationStatuses.length > 0) {
+      conditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
+    }
+
+    // Get members with household info (filtered by churchId)
+    // Order by householdId first to group by household, then by lastName, firstName
+    const queryBuilder = db
+      .select({
+        id: members.id,
+        householdId: members.householdId,
+        firstName: members.firstName,
+        middleName: members.middleName,
+        lastName: members.lastName,
+        preferredName: members.preferredName,
+        email1: members.email1,
+        phoneHome: members.phoneHome,
+        phoneCell1: members.phoneCell1,
+        participation: members.participation,
+        envelopeNumber: members.envelopeNumber,
+        dateOfBirth: members.dateOfBirth,
+        dateReceived: members.dateReceived,
+        household: {
           id: household.id,
           name: household.name,
-          type: household.type,
           address1: household.address1,
           address2: household.address2,
           city: household.city,
           state: household.state,
           zip: household.zip,
-        })
-        .from(household)
-        .where(and(...conditions));
-
-      // For each household, get members with matching participation statuses (filtered by churchId)
-      const householdsWithMembers = await Promise.all(
-        allHouseholds.map(async (h) => {
-          const memberConditions = [
-            eq(members.householdId, h.id),
-            eq(members.churchId, churchId),
-          ];
-          
-          if (participationStatuses.length > 0) {
-            memberConditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
-          }
-
-          const householdMembers = await db
-            .select({
-              id: members.id,
-              firstName: members.firstName,
-              lastName: members.lastName,
-              participation: members.participation,
-            })
-            .from(members)
-            .where(and(...memberConditions));
-
-          // Generate display name if household name is not set
-          let displayName = h.name;
-          if (!displayName && householdMembers.length > 0) {
-            if (householdMembers.length === 1) {
-              displayName = `${householdMembers[0].firstName} ${householdMembers[0].lastName}`;
-            } else if (householdMembers.length === 2) {
-              displayName = `${householdMembers[0].firstName} & ${householdMembers[1].firstName} ${householdMembers[1].lastName}`;
-            } else {
-              displayName = `${householdMembers[0].firstName} ${householdMembers[0].lastName} (+${householdMembers.length - 1})`;
-            }
-          }
-
-          const participationStatusesList = Array.from(
-            new Set(householdMembers.map((m) => m.participation)),
-          ).join(", ");
-
-          return {
-            id: h.id,
-            name: displayName,
-            type: h.type,
-            address: [h.address1, h.address2].filter(Boolean).join(" "),
-            city: h.city,
-            state: h.state,
-            zip: h.zip,
-            memberCount: householdMembers.length,
-            participationStatuses: participationStatusesList,
-          };
-        }),
-      );
-
-      // Filter out households with no matching members
-      const filteredHouseholds = householdsWithMembers.filter((h) => h.memberCount > 0);
-
-      if (format === "json") {
-        return NextResponse.json({ households: filteredHouseholds });
-      }
-
-      // Generate CSV
-      const csvRows = filteredHouseholds.map((h) => ({
-        "Household Name": h.name || "N/A",
-        "Household ID": h.id,
-        "Household Type": h.type || "N/A",
-        "Address": h.address || "N/A",
-        "City": h.city || "N/A",
-        "State": h.state || "N/A",
-        "ZIP": h.zip || "N/A",
-        "Member Count": h.memberCount.toString(),
-        "Participation Statuses": h.participationStatuses || "N/A",
-      }));
-
-      const csvContent = generateCsv(csvRows);
-      const filename = `membership-household-report-${new Date().toISOString().split("T")[0]}.csv`;
-
-      return new NextResponse(csvContent, {
-        headers: {
-          "Content-Type": "text/csv",
-          "Content-Disposition": `attachment; filename="${filename}"`,
         },
-      });
-    } else {
-      // Generate member report
-      const conditions = [eq(members.churchId, churchId)];
-
-      if (participationStatuses.length > 0) {
-        conditions.push(inArray(members.participation, participationStatuses as typeof VALID_PARTICIPATION_STATUSES[number][]));
-      }
-
-      if (householdId) {
-        conditions.push(eq(members.householdId, householdId));
-      }
-
-      // Get members with household info (filtered by churchId)
-      const queryBuilder = db
-        .select({
-          id: members.id,
-          householdId: members.householdId,
-          firstName: members.firstName,
-          middleName: members.middleName,
-          lastName: members.lastName,
-          preferredName: members.preferredName,
-          email1: members.email1,
-          phoneHome: members.phoneHome,
-          phoneCell1: members.phoneCell1,
-          participation: members.participation,
-          envelopeNumber: members.envelopeNumber,
-          dateOfBirth: members.dateOfBirth,
-          dateReceived: members.dateReceived,
-          household: {
-            id: household.id,
-            name: household.name,
-            address1: household.address1,
-            address2: household.address2,
-            city: household.city,
-            state: household.state,
-            zip: household.zip,
-          },
-        })
-        .from(members)
-        .leftJoin(household, eq(members.householdId, household.id))
-        .orderBy(members.lastName, members.firstName);
+      })
+      .from(members)
+      .leftJoin(household, eq(members.householdId, household.id))
+      .orderBy(members.householdId, members.lastName, members.firstName);
 
       const allMembers = conditions.length > 0
         ? await queryBuilder.where(and(...conditions))
@@ -330,7 +221,6 @@ export async function GET(request: Request) {
           "Content-Disposition": `attachment; filename="${filename}"`,
         },
       });
-    }
   } catch (error) {
     return createErrorResponse(error);
   }
