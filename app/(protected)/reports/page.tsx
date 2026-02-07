@@ -52,9 +52,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Eye,
-  Settings
+  Settings,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api-client";
 
 interface Household {
   id: string;
@@ -132,6 +134,9 @@ export default function ReportsPage() {
   const [showMissingTaxDialog, setShowMissingTaxDialog] = useState(false);
   const [missingTaxFields, setMissingTaxFields] = useState<string[]>([]);
   const [pendingGeneration, setPendingGeneration] = useState<{ preview: boolean } | null>(null);
+  const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [statementToDelete, setStatementToDelete] = useState<{ id: string; householdName: string } | null>(null);
 
   const givingForm = useForm<GivingReportFormData>({
     defaultValues: {
@@ -351,6 +356,37 @@ export default function ReportsPage() {
     } catch (error) {
       console.error("Error downloading statement:", error);
       toast.error("Failed to download statement");
+    }
+  };
+
+  const handleDeleteClick = (statementId: string, householdName: string) => {
+    setStatementToDelete({ id: statementId, householdName });
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!statementToDelete) return;
+
+    setDeletingStatementId(statementToDelete.id);
+    try {
+      const response = await apiFetch(`/api/giving-statements/${statementToDelete.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete statement");
+      }
+
+      toast.success("Statement deleted successfully");
+      setShowDeleteDialog(false);
+      setStatementToDelete(null);
+      loadStatements();
+    } catch (error) {
+      console.error("Error deleting statement:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to delete statement");
+    } finally {
+      setDeletingStatementId(null);
     }
   };
 
@@ -1230,19 +1266,36 @@ export default function ReportsPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                downloadStatement(
-                                  statement.id,
-                                  statement.householdName,
-                                  statement.statementNumber
-                                )
-                              }
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  downloadStatement(
+                                    statement.id,
+                                    statement.householdName,
+                                    statement.statementNumber
+                                  )
+                                }
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  handleDeleteClick(statement.id, statement.householdName)
+                                }
+                                disabled={deletingStatementId === statement.id}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                {deletingStatementId === statement.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1254,6 +1307,44 @@ export default function ReportsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Statement</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the giving statement for {statementToDelete?.householdName}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setStatementToDelete(null);
+              }}
+              disabled={deletingStatementId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deletingStatementId !== null}
+            >
+              {deletingStatementId ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Missing Tax Info Dialog */}
       <Dialog 
