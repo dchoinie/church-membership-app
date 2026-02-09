@@ -86,6 +86,57 @@ export interface SupportTicketData {
   screenshotCount: number;
 }
 
+const PRIORITY_OPTIONS = ["Low", "Medium", "High", "Urgent"];
+
+/**
+ * Add priority dropdown validation to a specific row
+ */
+async function addPriorityValidationToRow(
+  spreadsheetId: string,
+  rowNumber: number
+): Promise<void> {
+  const sheets = initializeGoogleSheets();
+
+  const validationRule = {
+    condition: {
+      type: "ONE_OF_LIST" as const,
+      values: PRIORITY_OPTIONS.map(option => ({ userEnteredValue: option })),
+    },
+    showCustomUi: true,
+    strict: false, // Allow manual entry if needed
+  };
+
+  // Get sheet metadata to find the sheet ID
+  const spreadsheet = await sheets.spreadsheets.get({
+    spreadsheetId,
+  });
+
+  const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId;
+  if (sheetId === undefined) {
+    throw new Error("Could not determine sheet ID");
+  }
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          setDataValidation: {
+            range: {
+              sheetId,
+              startRowIndex: rowNumber - 1, // Convert to 0-indexed
+              endRowIndex: rowNumber,
+              startColumnIndex: 8, // Column I is index 8 (0-indexed: A=0, B=1, ..., I=8)
+              endColumnIndex: 9,
+            },
+            rule: validationRule,
+          },
+        },
+      ],
+    },
+  });
+}
+
 /**
  * Create a new support ticket row in Google Sheet
  */
@@ -133,7 +184,24 @@ export async function createSupportTicket(
       },
     });
 
-    console.log(`[Google Sheets] Successfully appended row. Updated range: ${response.data.updates?.updatedRange}`);
+    const updatedRange = response.data.updates?.updatedRange;
+    console.log(`[Google Sheets] Successfully appended row. Updated range: ${updatedRange}`);
+
+    // Automatically add priority dropdown validation to the new row
+    if (updatedRange) {
+      try {
+        // Extract row number from updated range (e.g., "Sheet1!A2:L2" -> row 2)
+        const rowMatch = updatedRange.match(/!A(\d+)/);
+        if (rowMatch) {
+          const rowNumber = parseInt(rowMatch[1], 10);
+          await addPriorityValidationToRow(spreadsheetId, rowNumber);
+          console.log(`[Google Sheets] Added priority dropdown validation to row ${rowNumber}`);
+        }
+      } catch (validationError) {
+        // Don't fail ticket creation if validation setup fails
+        console.warn("[Google Sheets] Failed to add priority validation (non-critical):", validationError);
+      }
+    }
   } catch (error) {
     console.error("[Google Sheets] Error creating support ticket:", error);
     
