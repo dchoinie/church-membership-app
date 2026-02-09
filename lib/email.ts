@@ -555,3 +555,158 @@ Important: This statement meets IRS requirements for donor acknowledgment. No go
   }
 }
 
+export async function sendSupportTicketEmail({
+  ticketId,
+  customerName,
+  customerEmail,
+  subject,
+  category,
+  description,
+  screenshots,
+}: {
+  ticketId: string;
+  customerName: string;
+  customerEmail: string;
+  subject: string;
+  category: string;
+  description: string;
+  screenshots: Array<{ filename: string; content: Buffer }>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      return {
+        success: false,
+        error: "RESEND_API_KEY is not set in environment variables",
+      };
+    }
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    const supportEmail = process.env.SUPPORT_EMAIL || "support@simplechurchtools.com";
+
+    // Format description with line breaks
+    const formattedDescription = description.replace(/\n/g, "<br>");
+
+    // Build screenshot list HTML
+    const screenshotListHtml =
+      screenshots.length > 0
+        ? `
+          <div style="margin-top: 20px;">
+            <p style="color: #4b5563; font-size: 14px; font-weight: 600;">Attached Screenshots (${screenshots.length}):</p>
+            <ul style="color: #6b7280; font-size: 14px; margin-top: 8px; padding-left: 20px;">
+              ${screenshots.map((s) => `<li>${s.filename}</li>`).join("")}
+            </ul>
+          </div>
+        `
+        : "";
+
+    const { data, error } = await resend.emails.send({
+      from: fromEmail,
+      to: supportEmail,
+      replyTo: customerEmail,
+      subject: `[Support Ticket #${ticketId}] ${subject}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Support Ticket #${ticketId}</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">Support Ticket</h1>
+            </div>
+            
+            <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+              <div style="background: #f3f4f6; border-left: 4px solid #667eea; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                <p style="margin: 0; color: #1f2937; font-weight: 600; font-size: 18px;">
+                  Ticket ID: #${ticketId}
+                </p>
+                <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">
+                  ${new Date().toLocaleString()}
+                </p>
+              </div>
+
+              <div style="margin-bottom: 24px;">
+                <h2 style="color: #1f2937; margin-top: 0; margin-bottom: 16px; font-size: 20px;">Customer Information</h2>
+                <div style="background: #f9fafb; padding: 16px; border-radius: 4px;">
+                  <p style="margin: 0 0 8px 0; color: #4b5563;">
+                    <strong>Name:</strong> ${customerName}
+                  </p>
+                  <p style="margin: 0; color: #4b5563;">
+                    <strong>Email:</strong> <a href="mailto:${customerEmail}" style="color: #667eea; text-decoration: none;">${customerEmail}</a>
+                  </p>
+                </div>
+              </div>
+
+              <div style="margin-bottom: 24px;">
+                <h2 style="color: #1f2937; margin-top: 0; margin-bottom: 16px; font-size: 20px;">Ticket Details</h2>
+                <div style="background: #f9fafb; padding: 16px; border-radius: 4px; space-y: 8px;">
+                  <p style="margin: 0 0 12px 0; color: #4b5563;">
+                    <strong>Subject:</strong> ${subject}
+                  </p>
+                  <p style="margin: 0 0 12px 0; color: #4b5563;">
+                    <strong>Category:</strong> <span style="background: #667eea; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${category}</span>
+                  </p>
+                  <div style="margin-top: 12px;">
+                    <p style="margin: 0 0 8px 0; color: #4b5563; font-weight: 600;">Description:</p>
+                    <div style="background: white; padding: 12px; border-radius: 4px; border: 1px solid #e5e7eb; color: #374151; white-space: pre-wrap;">
+                      ${formattedDescription}
+                    </div>
+                  </div>
+                  ${screenshotListHtml}
+                </div>
+              </div>
+
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin-top: 24px; border-radius: 4px;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">
+                  <strong>Note:</strong> Reply to this email to respond directly to the customer. Update the ticket status in the Google Sheet when resolved.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+      text: `
+Support Ticket #${ticketId}
+
+Customer Information:
+Name: ${customerName}
+Email: ${customerEmail}
+
+Ticket Details:
+Subject: ${subject}
+Category: ${category}
+
+Description:
+${description}
+
+${screenshots.length > 0 ? `\nAttached Screenshots (${screenshots.length}):\n${screenshots.map((s) => `- ${s.filename}`).join("\n")}` : ""}
+
+---
+Note: Reply to this email to respond directly to the customer. Update the ticket status in the Google Sheet when resolved.
+      `.trim(),
+      attachments: screenshots.map((screenshot) => ({
+        filename: screenshot.filename,
+        content: screenshot.content,
+      })),
+    });
+
+    if (error) {
+      console.error("Error sending support ticket email:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to send email",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending support ticket email:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+

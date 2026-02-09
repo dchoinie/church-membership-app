@@ -30,6 +30,7 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
+  { label: "Support", href: "/support" },
   { label: "Church Settings", href: "/settings" },
 ];
 
