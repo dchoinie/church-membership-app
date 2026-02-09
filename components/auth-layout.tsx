@@ -3,7 +3,7 @@
 import { useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings, Menu } from "lucide-react";
+import { Settings, Menu, HelpCircle, Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
 import { ChurchSwitcher } from "@/components/church-switcher";
@@ -30,7 +30,6 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
-  { label: "Support", href: "/support" },
   { label: "Church Settings", href: "/settings" },
 ];
 
@@ -47,10 +46,10 @@ function SidebarContent({
   onNavigate: () => void;
   church: Church | null;
 }) {
-  const { canManageUsers, canEditGiving } = usePermissions();
+  const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
-  // Filter nav items based on permissions
+  // Filter nav items based on permissions (only when loaded)
   const visibleNavItems = navItems.filter((item) => {
     // Only show Settings for admins
     if (item.href === "/settings") {
@@ -68,44 +67,66 @@ function SidebarContent({
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
-        {visibleNavItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={`rounded-md px-4 py-2 text-sm transition-colors ${
-                isActive
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                  : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-        <div className="mt-auto">
-          {canManageUsers && (
-            <Link
-              href="/manage-admin-access"
-              onClick={onNavigate}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
-                pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
-                  : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              }`}
-            >
-              <Settings className="size-4" />
-              Manage Admin Access
-            </Link>
-          )}
-          <div className="border-t border-sidebar-border pt-4">
-            <div className="px-3">
-              <UserMenu />
-            </div>
+        {permissionsLoading ? (
+          // Show loading state - don't show any nav items until permissions are loaded
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        </div>
+        ) : (
+          // Show all nav items once permissions are loaded
+          <>
+            {visibleNavItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            <div className="mt-auto">
+              {canManageUsers && (
+                <Link
+                  href="/manage-admin-access"
+                  onClick={onNavigate}
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
+                    pathname === "/manage-admin-access" || pathname.startsWith("/manage-admin-access/")
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <Settings className="size-4" />
+                  Manage Admin Access
+                </Link>
+              )}
+              <Link
+                href="/support"
+                onClick={onNavigate}
+                className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
+                  pathname === "/support" || pathname.startsWith("/support/")
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                    : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                }`}
+              >
+                <HelpCircle className="size-4" />
+                Support
+              </Link>
+              <div className="border-t border-sidebar-border pt-4">
+                <div className="px-3">
+                  <UserMenu />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </nav>
     </>
   );
