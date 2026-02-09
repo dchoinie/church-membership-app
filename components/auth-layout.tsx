@@ -110,7 +110,7 @@ function SidebarContent({
               <Link
                 href="/support"
                 onClick={onNavigate}
-                className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors pb-4 ${
+                className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
                   pathname === "/support" || pathname.startsWith("/support/")
                     ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
                     : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -119,10 +119,9 @@ function SidebarContent({
                 <HelpCircle className="size-4" />
                 Support
               </Link>
-              <div className="border-t border-sidebar-border pt-4">
-                <div className="px-3">
-                  <UserMenu />
-                </div>
+              <hr className="border-sidebar-border my-4" />
+              <div className="px-3">
+                <UserMenu />
               </div>
             </div>
           </>
