@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   TrendingUp,
   Activity,
+  UserPlus,
+  UserMinus,
+  Cross,
 } from "lucide-react";
 import {
   Card,
@@ -24,7 +27,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ChartContainer,
@@ -33,6 +36,7 @@ import {
 } from "@/components/ui/chart";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { isSetupComplete } from "@/lib/setup-helpers";
+import { Badge } from "@/components/ui/badge";
 
 interface Church {
   subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
@@ -55,19 +59,20 @@ interface DashboardStats {
   };
 }
 
-interface RecentGiving {
-  id: string;
-  dateGiven: string;
-  householdName: string;
-  amount: number;
-}
-
 interface RecentStatusChange {
   id: string;
   firstName: string;
   lastName: string;
-  type: "new" | "inactive";
+  changeType:
+    | "confirmation"
+    | "baptism"
+    | "transfer_in"
+    | "transfer_out"
+    | "received"
+    | "removed";
   date: string;
+  receivedBy?: string;
+  removedBy?: string;
   householdName: string | null;
 }
 
@@ -78,6 +83,19 @@ interface RecentService {
   serviceTime: string | null;
   attendeesCount: number;
   communionCount: number;
+}
+
+interface RecentGivingByService {
+  serviceId: string;
+  serviceDate: string;
+  serviceType: string;
+  serviceTime: string | null;
+  categoryTotals: Array<{
+    categoryId: string;
+    categoryName: string;
+    amount: number;
+  }>;
+  totalAmount: number;
 }
 
 export default function Dashboard() {
@@ -93,9 +111,11 @@ export default function Dashboard() {
 
   // Dashboard data state
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentGiving, setRecentGiving] = useState<RecentGiving[]>([]);
   const [recentChanges, setRecentChanges] = useState<RecentStatusChange[]>([]);
   const [recentServices, setRecentServices] = useState<RecentService[]>([]);
+  const [recentGivingByService, setRecentGivingByService] = useState<
+    RecentGivingByService[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   // Handle checkout success - poll for subscription update
@@ -167,22 +187,21 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const [statsResponse, givingResponse, changesResponse, servicesResponse] =
-          await Promise.all([
-            fetch("/api/dashboard/stats"),
-            fetch("/api/dashboard/recent-giving"),
-            fetch("/api/dashboard/recent-status-changes"),
-            fetch("/api/dashboard/recent-services"),
-          ]);
+        const [
+          statsResponse,
+          changesResponse,
+          servicesResponse,
+          givingByServiceResponse,
+        ] = await Promise.all([
+          fetch("/api/dashboard/stats"),
+          fetch("/api/dashboard/recent-status-changes"),
+          fetch("/api/dashboard/recent-services"),
+          fetch("/api/dashboard/recent-giving-by-service"),
+        ]);
 
         if (statsResponse.ok) {
           const data = await statsResponse.json();
           setStats(data);
-        }
-
-        if (givingResponse.ok) {
-          const data = await givingResponse.json();
-          setRecentGiving(data.giving || []);
         }
 
         if (changesResponse.ok) {
@@ -193,6 +212,11 @@ export default function Dashboard() {
         if (servicesResponse.ok) {
           const data = await servicesResponse.json();
           setRecentServices(data.services || []);
+        }
+
+        if (givingByServiceResponse.ok) {
+          const data = await givingByServiceResponse.json();
+          setRecentGivingByService(data.services || []);
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -257,6 +281,58 @@ export default function Dashboard() {
       festival: "Festival",
     };
     return types[type] || type;
+  };
+
+  const formatChangeType = (
+    changeType: RecentStatusChange["changeType"],
+  ): string => {
+    const types: Record<string, string> = {
+      confirmation: "Confirmation",
+      baptism: "Baptism",
+      transfer_in: "Transfer In",
+      transfer_out: "Transfer Out",
+      received: "Received",
+      removed: "Removed",
+    };
+    return types[changeType] || changeType;
+  };
+
+  const getChangeTypeIcon = (
+    changeType: RecentStatusChange["changeType"],
+  ) => {
+    switch (changeType) {
+      case "confirmation":
+        return <CheckCircle2 className="h-4 w-4" />;
+      case "baptism":
+        return <Cross className="h-4 w-4" />;
+      case "transfer_in":
+        return <UserPlus className="h-4 w-4" />;
+      case "transfer_out":
+        return <UserMinus className="h-4 w-4" />;
+      case "received":
+        return <UserPlus className="h-4 w-4" />;
+      case "removed":
+        return <UserMinus className="h-4 w-4" />;
+      default:
+        return <Activity className="h-4 w-4" />;
+    }
+  };
+
+  const getChangeTypeColor = (
+    changeType: RecentStatusChange["changeType"],
+  ): string => {
+    switch (changeType) {
+      case "confirmation":
+      case "baptism":
+      case "transfer_in":
+      case "received":
+        return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
+      case "transfer_out":
+      case "removed":
+        return "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20";
+      default:
+        return "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20";
+    }
   };
 
   return (
@@ -418,288 +494,273 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Charts and Activity Feed */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-        {/* Charts Section */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Monthly Giving Trend */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Monthly Giving Trend
-              </CardTitle>
-              <CardDescription>Last 6 months</CardDescription>
-            </CardHeader>
-            <CardContent>
+      {/* Recent Modules */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+        {/* Recent Services Module */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              <CardTitle>Recent Services</CardTitle>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/attendance">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
               {loading ? (
-                <Skeleton className="h-[250px] w-full" />
-              ) : stats?.trends.monthlyGiving.length ? (
-                <ChartContainer
-                  config={{
-                    amount: {
-                      label: "Amount",
-                      color: "hsl(var(--chart-1))",
-                    },
-                  }}
-                  className="h-[250px]"
-                >
-                  <LineChart data={stats.trends.monthlyGiving}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis
-                      tickFormatter={(value) => `$${value.toLocaleString()}`}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) => formatCurrency(Number(value))}
-                        />
-                      }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="hsl(var(--chart-1))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ChartContainer>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : recentServices.length > 0 ? (
+                <div className="space-y-3">
+                  {recentServices.map((service) => (
+                    <Link
+                      key={service.serviceId}
+                      href={`/attendance/service/${service.serviceId}`}
+                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">
+                            {formatServiceType(service.serviceType)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatDate(service.serviceDate)}
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="font-semibold text-sm">
+                            {service.attendeesCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            attended
+                          </p>
+                          <p className="font-semibold text-sm mt-1">
+                            {service.communionCount}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            communion
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               ) : (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                  No giving data available
+                <div className="text-center text-muted-foreground py-8">
+                  No recent services
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
-          {/* Monthly Attendance Trend */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Monthly Attendance Trend
-              </CardTitle>
-              <CardDescription>Average per service (last 6 months)</CardDescription>
-            </CardHeader>
-            <CardContent>
+        {/* Recent Membership Changes Module */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              <CardTitle>Membership Changes</CardTitle>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/membership">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
               {loading ? (
-                <Skeleton className="h-[250px] w-full" />
-              ) : stats?.trends.monthlyAttendance.length ? (
-                <ChartContainer
-                  config={{
-                    average: {
-                      label: "Average Attendance",
-                      color: "hsl(var(--chart-2))",
-                    },
-                  }}
-                  className="h-[250px]"
-                >
-                  <LineChart data={stats.trends.monthlyAttendance}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) =>
-                            `${Number(value).toFixed(1)} people`
-                          }
-                        />
-                      }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="average"
-                      stroke="hsl(var(--chart-2))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ChartContainer>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : recentChanges.length > 0 ? (
+                <div className="space-y-3">
+                  {recentChanges.map((change) => (
+                    <Link
+                      key={change.id}
+                      href={`/membership/${change.id}`}
+                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge
+                              variant="outline"
+                              className={`${getChangeTypeColor(change.changeType)} text-xs`}
+                            >
+                              <span className="flex items-center gap-1">
+                                {getChangeTypeIcon(change.changeType)}
+                                {formatChangeType(change.changeType)}
+                              </span>
+                            </Badge>
+                          </div>
+                          <p className="font-medium text-sm truncate">
+                            {change.firstName} {change.lastName}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatDate(change.date)}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               ) : (
-                <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                  No attendance data available
+                <div className="text-center text-muted-foreground py-8">
+                  No recent membership changes
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
-        {/* Recent Activity Feed */}
-        <div className="lg:col-span-1">
-          <Card className="h-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="giving" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="giving" className="text-xs">
-                    Giving
-                  </TabsTrigger>
-                  <TabsTrigger value="members" className="text-xs">
-                    Members
-                  </TabsTrigger>
-                  <TabsTrigger value="services" className="text-xs">
-                    Services
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="giving" className="mt-4">
-                  <ScrollArea className="h-[400px]">
-                    {loading ? (
-                      <div className="space-y-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Skeleton key={i} className="h-16 w-full" />
-                        ))}
+        {/* Recent Giving by Service Module */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              <CardTitle>Giving by Service</CardTitle>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/giving">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : recentGivingByService.length > 0 ? (
+                <div className="space-y-3">
+                  {recentGivingByService.map((service) => (
+                    <Link
+                      key={service.serviceId}
+                      href={`/attendance/service/${service.serviceId}`}
+                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">
+                              {formatServiceType(service.serviceType)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(service.serviceDate)}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-sm">
+                            {formatCurrency(service.totalAmount)}
+                          </p>
+                        </div>
+                        {service.categoryTotals.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {service.categoryTotals
+                              .slice(0, 3)
+                              .map((category) => (
+                                <Badge
+                                  key={category.categoryId}
+                                  variant="secondary"
+                                  className="text-xs"
+                                >
+                                  {category.categoryName}:{" "}
+                                  {formatCurrency(category.amount)}
+                                </Badge>
+                              ))}
+                            {service.categoryTotals.length > 3 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{service.categoryTotals.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ) : recentGiving.length > 0 ? (
-                      <div className="space-y-3">
-                        {recentGiving.map((record) => (
-                          <Link
-                            key={record.id}
-                            href="/giving"
-                            className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {record.householdName}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(record.dateGiven)}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-sm">
-                                  {formatCurrency(record.amount)}
-                                </p>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        No recent giving records
-                      </div>
-                    )}
-                  </ScrollArea>
-                </TabsContent>
-
-                <TabsContent value="members" className="mt-4">
-                  <ScrollArea className="h-[400px]">
-                    {loading ? (
-                      <div className="space-y-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Skeleton key={i} className="h-16 w-full" />
-                        ))}
-                      </div>
-                    ) : recentChanges.length > 0 ? (
-                      <div className="space-y-3">
-                        {recentChanges.map((change) => (
-                          <Link
-                            key={change.id}
-                            href={`/membership/${change.id}`}
-                            className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {change.firstName} {change.lastName}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {change.type === "new"
-                                    ? "New member"
-                                    : "Status changed"}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(change.date)}
-                                </p>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        No recent member changes
-                      </div>
-                    )}
-                  </ScrollArea>
-                </TabsContent>
-
-                <TabsContent value="services" className="mt-4">
-                  <ScrollArea className="h-[400px]">
-                    {loading ? (
-                      <div className="space-y-3">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Skeleton key={i} className="h-16 w-full" />
-                        ))}
-                      </div>
-                    ) : recentServices.length > 0 ? (
-                      <div className="space-y-3">
-                        {recentServices.map((service) => (
-                          <Link
-                            key={service.serviceId}
-                            href={`/attendance/service/${service.serviceId}`}
-                            className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {formatServiceType(service.serviceType)}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(service.serviceDate)}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-semibold text-sm">
-                                  {service.attendeesCount} attended
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {service.communionCount} communion
-                                </p>
-                              </div>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center text-muted-foreground py-8">
-                        No recent services
-                      </div>
-                    )}
-                  </ScrollArea>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No recent giving records
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Attendance Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Monthly Attendance Trend
+          </CardTitle>
+          <CardDescription>Average per service (last 6 months)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <Skeleton className="h-[250px] w-full" />
+          ) : stats?.trends.monthlyAttendance.length ? (
+            <ChartContainer
+              config={{
+                average: {
+                  label: "Average Attendance",
+                  color: "hsl(var(--chart-2))",
+                },
+              }}
+              className="h-[250px]"
+            >
+              <LineChart data={stats.trends.monthlyAttendance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) =>
+                        `${Number(value).toFixed(1)} people`
+                      }
+                    />
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="average"
+                  stroke="hsl(var(--chart-2))"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ChartContainer>
+          ) : (
+            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              No attendance data available
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
-      <div>
+      <div className="pb-8 md:pb-12">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
         <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/membership">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Users className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">
+                <h2 className="text-base md:text-lg font-semibold mb-1">
                   Member Directory
                 </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
@@ -712,14 +773,14 @@ export default function Dashboard() {
 
           <Link href="/giving">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">Giving</h2>
+                <h2 className="text-base md:text-lg font-semibold mb-1">Giving</h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
                   Track and manage all donations, including current, mission,
                   memorials, debt, school, and miscellaneous giving.
@@ -730,14 +791,14 @@ export default function Dashboard() {
 
           <Link href="/attendance">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Calendar className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Calendar className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">
+                <h2 className="text-base md:text-lg font-semibold mb-1">
                   Attendance
                 </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
@@ -750,14 +811,14 @@ export default function Dashboard() {
 
           <Link href="/analytics">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <BarChart3 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <BarChart3 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">
+                <h2 className="text-base md:text-lg font-semibold mb-1">
                   Analytics
                 </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
@@ -770,14 +831,14 @@ export default function Dashboard() {
 
           <Link href="/reports">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <FileText className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <FileText className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">Reports</h2>
+                <h2 className="text-base md:text-lg font-semibold mb-1">Reports</h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
                   Generate and download detailed reports for giving,
                   membership, and other church data.
@@ -788,14 +849,14 @@ export default function Dashboard() {
 
           <Link href="/manage-admin-access">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-start justify-between mb-3 md:mb-4">
-                  <div className="p-2 md:p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                    <Settings className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              <CardContent className="p-4 md:p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <Settings className="h-4 w-4 md:h-5 md:w-5 text-primary" />
                   </div>
-                  <ArrowRight className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-lg md:text-xl font-semibold mb-2">
+                <h2 className="text-base md:text-lg font-semibold mb-1">
                   Manage Admin Access
                 </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">

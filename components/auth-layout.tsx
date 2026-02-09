@@ -197,30 +197,39 @@ export default function AuthLayout({
   // This prevents redirect loops when session cookie is still propagating after login
   // Always redirect to root domain for login (consistent with design goal - all logins happen on root domain)
   useEffect(() => {
-    // Wait for session to finish loading before making authentication decisions
-    if (!isPending && !isAuthenticated && !isPublicRoute) {
-      // Extract root domain from current origin
-      const currentOrigin = window.location.origin;
-      const isLocalhost = currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1');
-      
+    if (isPending || isAuthenticated || isPublicRoute) return;
+
+    const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+    const isLocalhost = currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1");
+
+    const redirectToLogin = () => {
       let rootDomain: string;
       if (isLocalhost) {
-        const port = window.location.port ? `:${window.location.port}` : '';
+        const port = typeof window !== "undefined" && window.location.port ? `:${window.location.port}` : ":3000";
         rootDomain = `http://localhost${port}`;
       } else {
-        // Extract root domain (remove subdomain)
         const url = new URL(currentOrigin);
         const hostname = url.hostname;
-        const parts = hostname.split('.');
-        // Get root domain (last 2 parts: domain.com)
-        const rootHostname = parts.slice(-2).join('.');
-        rootDomain = `${url.protocol}//${rootHostname}${url.port ? `:${url.port}` : ''}`;
+        const parts = hostname.split(".");
+        const rootHostname = parts.slice(-2).join(".");
+        rootDomain = `${url.protocol}//${rootHostname}${url.port ? `:${url.port}` : ""}`;
       }
-      
-      // Redirect to root domain for login (consistent with design goal)
-      // After login, the login flow will redirect to the correct subdomain
       window.location.href = `${rootDomain}/?login=true`;
+    };
+
+    // In development, cookie may be set on *.localhost but useSession hasn't refetched yet after redirect.
+    // Give one refetch a moment to complete before redirecting.
+    if (isLocalhost && typeof window !== "undefined") {
+      const t = setTimeout(() => {
+        authClient.getSession().then(({ data }) => {
+          if (data?.user) return; // Session found, don't redirect
+          redirectToLogin();
+        });
+      }, 400);
+      return () => clearTimeout(t);
     }
+
+    redirectToLogin();
   }, [isPending, isAuthenticated, isPublicRoute, pathname]);
 
   // Show loading state only while session is being fetched

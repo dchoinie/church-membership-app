@@ -89,16 +89,47 @@ export const getCookieDomain = () => {
     return cleanDomain
 }
 
-const getTrustedOrigins = (): string[] | undefined => {
+const getStaticDevOrigins = (): string[] => {
+    const port = process.env.BETTER_AUTH_DEV_URL?.includes(":")
+        ? (process.env.BETTER_AUTH_DEV_URL.split(":")[1] || "3000")
+        : "3000";
+    return [
+        `http://localhost:${port}`,
+        `http://127.0.0.1:${port}`,
+        `http://*.localhost:${port}`,
+    ];
+};
+
+/**
+ * In development, allow any localhost origin (exact origin from request) so sign-in from
+ * subdomain (e.g. church1.localhost:3000) is not rejected. Wildcard "http://*.localhost:3000"
+ * may not match in all better-auth versions.
+ */
+const getTrustedOrigins = (): string[] | ((request: Request) => Promise<string[]>) => {
     if (process.env.NODE_ENV === "development") {
-        // In development, allow localhost origins
-        return [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-        ]
+        return async (request: Request) => {
+            const origin = request.headers.get("origin") || request.headers.get("referer")?.split("?")[0]?.replace(/\/$/, "");
+            const base = getStaticDevOrigins();
+            if (origin) {
+                try {
+                    const u = new URL(origin);
+                    const host = u.hostname.toLowerCase();
+                    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
+                        return [...base, origin];
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+            return base;
+        };
     }
-    
-    // In production, explicitly allow root domain and all subdomains using wildcards
+
+    // In production, return static array
+    return getProductionTrustedOrigins();
+};
+
+const getProductionTrustedOrigins = (): string[] => {
     // Better-auth supports wildcard patterns like "https://*.example.com" to trust all subdomains
     const baseUrl = getBaseURL()
     
@@ -118,8 +149,7 @@ const getTrustedOrigins = (): string[] | undefined => {
         
         return origins
     } catch {
-        // If URL parsing fails, return undefined to let better-auth use default
-        return undefined
+        return []
     }
 }
 
@@ -244,7 +274,7 @@ export const auth = betterAuth({
     advanced: {
         useSecureCookies: process.env.NODE_ENV === "production",
         crossSubDomainCookies: process.env.NODE_ENV === "development"
-            ? undefined // Don't set cookie domain in dev - browsers handle *.localhost automatically
+            ? undefined // No domain: cookie is for exact host so sign-in from subdomain (e.g. church1.localhost) works; redirect from root to subdomain won't share cookie
             : {
                 enabled: true,
                 domain: getCookieDomain(), // Returns ".yourdomain.com" in prod
