@@ -18,15 +18,50 @@ function initializeGoogleSheets() {
     throw new Error("GOOGLE_SHEET_ID environment variable is not set");
   }
 
+  const credentialsString = process.env.GOOGLE_SHEETS_CREDENTIALS;
   let credentials: any;
+  
   try {
     // Try parsing as JSON string first
-    credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
-  } catch {
-    // If parsing fails, assume it's a file path (not implemented in serverless environments)
+    credentials = JSON.parse(credentialsString);
+    
+    // Validate required fields
+    if (!credentials.client_email) {
+      throw new Error("GOOGLE_SHEETS_CREDENTIALS missing client_email field");
+    }
+    if (!credentials.private_key) {
+      throw new Error("GOOGLE_SHEETS_CREDENTIALS missing private_key field");
+    }
+    if (credentials.type !== "service_account") {
+      throw new Error(`GOOGLE_SHEETS_CREDENTIALS type should be "service_account", got "${credentials.type}"`);
+    }
+    
+    console.log(`[Google Sheets] Initializing with service account: ${credentials.client_email}`);
+  } catch (error) {
+    // Provide detailed error information for debugging
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const credentialsPreview = credentialsString.substring(0, 100) + "...";
+    
+    console.error("[Google Sheets] Failed to parse GOOGLE_SHEETS_CREDENTIALS");
+    console.error(`[Google Sheets] Parse error: ${errorMessage}`);
+    console.error(`[Google Sheets] Credentials preview (first 100 chars): ${credentialsPreview}`);
+    console.error(`[Google Sheets] Credentials length: ${credentialsString.length} characters`);
+    
+    // Check for common issues
+    if (errorMessage.includes("Unexpected token") || errorMessage.includes("JSON")) {
+      console.error("[Google Sheets] Common fixes:");
+      console.error("1. Ensure all quotes inside JSON are escaped with backslash: \\\"");
+      console.error("2. Ensure newlines in private_key are escaped as \\n (not actual newlines)");
+      console.error("3. Ensure the entire JSON is on a single line (if setting via CLI)");
+      console.error("4. Try copying the JSON file content directly into Vercel dashboard");
+      console.error("5. In Vercel dashboard, paste the JSON file content as-is (Vercel handles escaping)");
+    }
+    
     throw new Error(
-      "GOOGLE_SHEETS_CREDENTIALS must be a JSON string. " +
-      "Parse your service account JSON file and set it as an environment variable."
+      "GOOGLE_SHEETS_CREDENTIALS must be a valid JSON string. " +
+      `Parse error: ${errorMessage}. ` +
+      "Check Vercel logs above for more details. " +
+      "Common issues: unescaped quotes, incorrect newline handling, or multi-line format."
     );
   }
 
@@ -61,6 +96,12 @@ export async function createSupportTicket(
     const sheets = initializeGoogleSheets();
     const spreadsheetId = process.env.GOOGLE_SHEET_ID!;
 
+    if (!spreadsheetId) {
+      throw new Error("GOOGLE_SHEET_ID environment variable is not set");
+    }
+
+    console.log(`[Google Sheets] Creating ticket ${ticketData.ticketId} in sheet ${spreadsheetId}`);
+
     // Format date as string for Google Sheets
     const dateCreatedStr = ticketData.dateCreated.toISOString();
 
@@ -81,7 +122,9 @@ export async function createSupportTicket(
       "", // Date Resolved - filled when resolved
     ];
 
-    await sheets.spreadsheets.values.append({
+    console.log(`[Google Sheets] Appending row with ${rowData.length} columns`);
+
+    const response = await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: "A:A", // Append to column A (will auto-expand to all columns)
       valueInputOption: "USER_ENTERED",
@@ -89,8 +132,23 @@ export async function createSupportTicket(
         values: [rowData],
       },
     });
+
+    console.log(`[Google Sheets] Successfully appended row. Updated range: ${response.data.updates?.updatedRange}`);
   } catch (error) {
-    console.error("Error creating support ticket in Google Sheet:", error);
+    console.error("[Google Sheets] Error creating support ticket:", error);
+    
+    // Provide more helpful error messages
+    if (error instanceof Error) {
+      if (error.message.includes("PERMISSION_DENIED") || error.message.includes("403")) {
+        console.error("[Google Sheets] Permission denied. Service account email needs Editor access to the sheet.");
+        console.error("[Google Sheets] Share the sheet with the service account email from GOOGLE_SHEETS_CREDENTIALS");
+      }
+      if (error.message.includes("NOT_FOUND") || error.message.includes("404")) {
+        console.error("[Google Sheets] Sheet not found. Check that GOOGLE_SHEET_ID is correct.");
+        console.error(`[Google Sheets] Current GOOGLE_SHEET_ID: ${process.env.GOOGLE_SHEET_ID}`);
+      }
+    }
+    
     throw error;
   }
 }
