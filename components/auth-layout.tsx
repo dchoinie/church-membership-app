@@ -3,7 +3,7 @@
 import { useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings, Menu, HelpCircle, Loader2 } from "lucide-react";
+import { Settings, Menu, HelpCircle, Loader2, Users } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
 import { ChurchSwitcher } from "@/components/church-switcher";
@@ -30,7 +30,6 @@ const navItems = [
   { label: "Attendance", href: "/attendance" },
   { label: "Analytics", href: "/analytics" },
   { label: "Reports", href: "/reports" },
-  { label: "Church Settings", href: "/settings" },
 ];
 
 const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms", "/about"];
@@ -49,15 +48,6 @@ function SidebarContent({
   const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
-  // Filter nav items based on permissions (only when loaded)
-  const visibleNavItems = navItems.filter((item) => {
-    // Only show Settings for admins
-    if (item.href === "/settings") {
-      return canManageUsers;
-    }
-    return true;
-  });
-  
   return (
     <>
       <div className="border-b border-sidebar-border px-3 py-4 shrink-0 space-y-3">
@@ -75,7 +65,7 @@ function SidebarContent({
         ) : (
           // Show all nav items once permissions are loaded
           <>
-            {visibleNavItems.map((item) => {
+            {navItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
                 <Link
@@ -95,6 +85,20 @@ function SidebarContent({
             <div className="mt-auto">
               {canManageUsers && (
                 <Link
+                  href="/settings"
+                  onClick={onNavigate}
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
+                    pathname === "/settings" || pathname.startsWith("/settings/")
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <Settings className="size-4" />
+                  Church Settings
+                </Link>
+              )}
+              {canManageUsers && (
+                <Link
                   href="/manage-admin-access"
                   onClick={onNavigate}
                   className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
@@ -103,7 +107,7 @@ function SidebarContent({
                       : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
                 >
-                  <Settings className="size-4" />
+                  <Users className="size-4" />
                   Manage Admin Access
                 </Link>
               )}
