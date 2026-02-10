@@ -89,22 +89,6 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     }
   }, [open]);
 
-  // Clear rate limit (development only)
-  const clearRateLimit = async () => {
-    try {
-      const response = await fetch("/api/dev/clear-rate-limit", {
-        method: "POST",
-      });
-      if (response.ok) {
-        setError(null);
-        setIsRateLimited(false);
-        setRetryAfter(null);
-      }
-    } catch (err) {
-      console.error("Failed to clear rate limit:", err);
-    }
-  };
-
   // Validate invitation code when it changes
   useEffect(() => {
     const validateInviteCode = async () => {
@@ -333,7 +317,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           } else {
             // In development, show detailed error with option to clear
             setIsRateLimited(true);
-            setError("Too many login attempts. Please wait 15 minutes before trying again, or use the button below to clear the rate limit (development only).");
+            setError("Too many login attempts. Please wait 15 minutes before trying again.");
           }
         } else {
           // For other errors, show generic message in production
@@ -597,19 +581,8 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 </div>
 
                 {error && (
-                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive space-y-2">
+                  <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     <div>{error}</div>
-                    {isRateLimited && (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={clearRateLimit}
-                        className="mt-2 w-full"
-                      >
-                        Clear Rate Limit (Dev Only)
-                      </Button>
-                    )}
                   </div>
                 )}
 

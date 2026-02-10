@@ -40,10 +40,7 @@ export async function POST(request: Request) {
     }
 
     // Rate limiting
-    const rateLimitResponse = await checkRateLimit(request, {
-      maxRequests: 10,
-      windowMs: 15 * 60 * 1000, // 15 minutes
-    });
+    const rateLimitResponse = await checkRateLimit(request, RATE_LIMITS.SUPPORT);
     if (rateLimitResponse) {
       return rateLimitResponse;
     }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -105,10 +105,7 @@ function sanitizeInput(input: string): string {
 export async function POST(request: Request) {
   try {
     // Rate limiting - use moderate limits for contact form
-    const rateLimitResponse = await checkRateLimit(request, {
-      maxRequests: 5,
-      windowMs: 15 * 60 * 1000, // 15 minutes
-    });
+    const rateLimitResponse = await checkRateLimit(request, RATE_LIMITS.CONTACT);
 
     if (rateLimitResponse) {
       return rateLimitResponse;
