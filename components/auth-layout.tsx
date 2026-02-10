@@ -3,7 +3,7 @@
 import { useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings, Menu, HelpCircle, Loader2, Users } from "lucide-react";
+import { Settings, Menu, HelpCircle, Loader2, LayoutDashboard, Users, DollarSign, CalendarCheck, BarChart3, FileText, Shield } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
 import { ChurchSwitcher } from "@/components/church-switcher";
@@ -25,12 +25,12 @@ interface Church {
 }
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Member Directory", href: "/membership" },
-  { label: "Giving", href: "/giving" },
-  { label: "Attendance", href: "/attendance" },
-  { label: "Analytics", href: "/analytics" },
-  { label: "Reports", href: "/reports" },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Member Directory", href: "/membership", icon: Users },
+  { label: "Giving", href: "/giving", icon: DollarSign },
+  { label: "Attendance", href: "/attendance", icon: CalendarCheck },
+  { label: "Analytics", href: "/analytics", icon: BarChart3 },
+  { label: "Reports", href: "/reports", icon: FileText },
 ];
 
 const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms", "/about"];
@@ -68,17 +68,19 @@ function SidebarContent({
           <>
             {navItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={onNavigate}
-                  className={`rounded-md px-4 py-2 text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
                     isActive
                       ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
                       : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
                 >
+                  <Icon className="size-4" />
                   {item.label}
                 </Link>
               );
@@ -108,7 +110,7 @@ function SidebarContent({
                       : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   }`}
                 >
-                  <Users className="size-4" />
+                  <Shield className="size-4" />
                   Manage Admin Access
                 </Link>
               )}
