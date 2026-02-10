@@ -212,9 +212,8 @@ export default function ReportsPage() {
   const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false) => {
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/giving-statements/generate", {
+      const response = await apiFetch("/api/giving-statements/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ year, preview: previewOnly, skipValidation }),
       });
 
@@ -288,9 +287,8 @@ export default function ReportsPage() {
 
     setIsSending(true);
     try {
-      const response = await fetch("/api/giving-statements/send", {
+      const response = await apiFetch("/api/giving-statements/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ statementIds: Array.from(selectedStatements) }),
       });
 

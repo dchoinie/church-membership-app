@@ -7,6 +7,7 @@ import { givingStatements, household, members, churches } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { canManageGivingStatements } from "@/lib/permissions-server";
 import { sendGivingStatementEmail } from "@/lib/email";
+import { checkCsrfToken } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,11 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) {
+      return csrfError;
+    }
+
     const session = await auth.api.getSession({
       headers: await headers(),
     });

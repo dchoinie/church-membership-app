@@ -11,6 +11,7 @@ import {
   validateChurchTaxInfo,
 } from "@/lib/pdf-generator";
 import { canManageGivingStatements } from "@/lib/permissions-server";
+import { checkCsrfToken } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,11 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   try {
+    const csrfError = await checkCsrfToken(request);
+    if (csrfError) {
+      return csrfError;
+    }
+
     const session = await auth.api.getSession({
       headers: await headers(),
     });
