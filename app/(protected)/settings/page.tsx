@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useChurch } from "@/lib/hooks/use-church";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,8 +69,7 @@ const DENOMINATIONS = [
 export default function SettingsPage() {
   const router = useRouter();
   const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
-  const [church, setChurch] = useState<Church | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { church, isLoading: loading, error: churchError, mutate: mutateChurch } = useChurch();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isCreatingCheckout, setIsCreatingCheckout] = useState(false);
@@ -100,44 +100,32 @@ export default function SettingsPage() {
   }, [canManageUsers, permissionsLoading, router]);
 
   useEffect(() => {
-    const fetchChurch = async () => {
-      try {
-        const response = await apiFetch("/api/church");
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch church data: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        setChurch(data.church);
-        
-        // Pre-fill form with existing data
-        setFormData({
-          phone: data.church.phone || "",
-          email: data.church.email || "",
-          address: data.church.address || "",
-          city: data.church.city || "",
-          state: data.church.state || "",
-          zip: data.church.zip || "",
-          denomination: data.church.denomination || "",
-          otherDenomination: data.church.denomination && !DENOMINATIONS.includes(data.church.denomination as typeof DENOMINATIONS[number]) 
-            ? data.church.denomination 
-            : "",
-          taxId: data.church.taxId || "",
-          is501c3: data.church.is501c3 ?? true,
-          taxStatementDisclaimer: data.church.taxStatementDisclaimer || "",
-          goodsServicesProvided: data.church.goodsServicesProvided ?? false,
-          goodsServicesStatement: data.church.goodsServicesStatement || "",
-        });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load church data");
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (church) {
+      setFormData({
+        phone: church.phone || "",
+        email: church.email || "",
+        address: church.address || "",
+        city: church.city || "",
+        state: church.state || "",
+        zip: church.zip || "",
+        denomination: church.denomination || "",
+        otherDenomination: church.denomination && !DENOMINATIONS.includes(church.denomination as typeof DENOMINATIONS[number])
+          ? church.denomination
+          : "",
+        taxId: church.taxId || "",
+        is501c3: church.is501c3 ?? true,
+        taxStatementDisclaimer: church.taxStatementDisclaimer || "",
+        goodsServicesProvided: church.goodsServicesProvided ?? false,
+        goodsServicesStatement: church.goodsServicesStatement || "",
+      });
+    }
+  }, [church]);
 
-    fetchChurch();
-  }, []);
+  useEffect(() => {
+    if (churchError) {
+      setError(churchError.message || "Failed to load church data");
+    }
+  }, [churchError]);
 
   const handleSaveSettings = async () => {
     if (!church) return;
@@ -176,7 +164,7 @@ export default function SettingsPage() {
       }
 
       const data = await response.json();
-      setChurch(data.church);
+      mutateChurch(data.church);
       
       // Update form data with saved values
       setFormData({

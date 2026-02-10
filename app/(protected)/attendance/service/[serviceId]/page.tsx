@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSWRConfig } from "swr";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { Loader2, ArrowLeft, PencilIcon, PlusIcon, XIcon, CheckCircle2, AlertCircle } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useServiceAttendance, useAttendanceMembers } from "@/lib/hooks/use-attendance";
 import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -108,19 +110,15 @@ export default function ServiceAttendancePage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditAttendance } = usePermissions();
   const serviceId = params.serviceId as string;
   const modeParam = searchParams.get("mode");
-  // Force view mode if user doesn't have edit permission
   const mode = canEditAttendance ? (modeParam || "view") : "view";
+  const isEditMode = mode === "edit";
 
-  const [service, setService] = useState<Service | null>(null);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
   const [formData, setFormData] = useState<AttendanceFormData>({});
   const [nonMembers, setNonMembers] = useState<NonMemberFormData[]>([{ name: "", tookCommunion: false }]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMembers, setLoadingMembers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
@@ -129,59 +127,40 @@ export default function ServiceAttendancePage() {
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showAlertMessage, setShowAlertMessage] = useState(false);
   const alertTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isEditMode = mode === "edit";
+
+  const {
+    service,
+    attendance: attendanceRecords,
+    isLoading: loading,
+    error: serviceError,
+    mutate: mutateServiceAttendance,
+  } = useServiceAttendance(serviceId);
+
+  const {
+    members,
+    isLoading: loadingMembers,
+    mutate: mutateAttendanceMembers,
+  } = useAttendanceMembers({ includeInactive, enabled: isEditMode });
+
+  const invalidateAttendance = () => {
+    mutateServiceAttendance();
+    mutateAttendanceMembers();
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/attendance"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/dashboard"));
+  };
 
   useEffect(() => {
-    if (serviceId) {
-      fetchServiceAttendance();
-      if (isEditMode) {
-        fetchMembers();
-      } else {
-        // Clear members when switching to view mode
-        setMembers([]);
-        setFormData({});
-        setNonMembers([{ name: "", tookCommunion: false }]);
-      }
+    if (serviceError?.message === "NOT_FOUND") {
+      router.push("/attendance");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId, mode, includeInactive]);
+  }, [serviceError, router]);
 
-
-  const fetchMembers = async () => {
-    setLoadingMembers(true);
-    try {
-      const url = includeInactive 
-        ? "/api/attendance/members?includeInactive=true"
-        : "/api/attendance/members";
-      const response = await apiFetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setMembers(data.members || []);
-      }
-    } catch (error) {
-      console.error("Error fetching members:", error);
-    } finally {
-      setLoadingMembers(false);
+  useEffect(() => {
+    if (!isEditMode) {
+      setFormData({});
+      setNonMembers([{ name: "", tookCommunion: false }]);
     }
-  };
-
-  const fetchServiceAttendance = async () => {
-    setLoading(true);
-    try {
-      const response = await apiFetch(`/api/attendance/service/${serviceId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setService(data.service);
-        setAttendanceRecords(data.attendance || []);
-      } else if (response.status === 404) {
-        router.push("/attendance");
-      }
-    } catch (error) {
-      console.error("Error fetching service attendance:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [isEditMode]);
 
   // Initialize form data when members and attendance records are loaded
   useEffect(() => {
@@ -384,8 +363,7 @@ export default function ServiceAttendancePage() {
         setAlertMessage({ type: "error", message: `Some records failed to save:\n${result.errors.join("\n")}` });
       }
 
-      // Refresh attendance records
-      await fetchServiceAttendance();
+      invalidateAttendance();
       
       setShowAlertMessage(true);
       setAlertMessage({ type: "success", message: `Successfully saved ${result.success} attendance record(s)` });
@@ -439,7 +417,7 @@ export default function ServiceAttendancePage() {
 
       setEditDialogOpen(false);
       setEditingRecord(null);
-      await fetchServiceAttendance();
+      invalidateAttendance();
       setShowAlertMessage(true);
       setAlertMessage({ type: "success", message: "Successfully updated attendance" });
     } catch (error) {

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
+import { useSWRConfig } from "swr";
 import { PencilIcon, SaveIcon, XIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useMember } from "@/lib/hooks/use-member";
+import { useHouseholds } from "@/lib/hooks/use-households";
 import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -128,12 +131,13 @@ export default function MemberDetailPage({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditMembers } = usePermissions();
-  const [member, setMember] = useState<Member | null>(null);
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isEditMode, setIsEditMode] = useState(false);
   const [memberId, setMemberId] = useState<string>("");
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  const { member, isLoading: loading, mutate: mutateMember } = useMember(memberId || null);
+  const { households } = useHouseholds(1, 1000);
 
   const form = useForm<MemberFormData>({
     defaultValues: {
@@ -189,75 +193,47 @@ export default function MemberDetailPage({
     }
   };
 
-  const fetchMember = useCallback(async (id: string) => {
-    try {
-      const response = await apiFetch(`/api/members/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMember(data.member);
-        form.reset({
-          firstName: data.member.firstName || "",
-          middleName: data.member.middleName || "",
-          lastName: data.member.lastName || "",
-          suffix: data.member.suffix || "",
-          preferredName: data.member.preferredName || "",
-          maidenName: data.member.maidenName || "",
-          title: data.member.title || "",
-          sex: data.member.sex || "",
-          dateOfBirth: formatDateInput(data.member.dateOfBirth) || "",
-          email1: data.member.email1 || "",
-          email2: data.member.email2 || "",
-          phoneHome: data.member.phoneHome || "",
-          phoneCell1: data.member.phoneCell1 || "",
-          phoneCell2: data.member.phoneCell2 || "",
-          baptismDate: formatDateInput(data.member.baptismDate) || "",
-          confirmationDate: formatDateInput(data.member.confirmationDate) || "",
-          receivedBy: data.member.receivedBy || "",
-          dateReceived: formatDateInput(data.member.dateReceived) || "",
-          removedBy: data.member.removedBy || "",
-          dateRemoved: formatDateInput(data.member.dateRemoved) || "",
-          deceasedDate: formatDateInput(data.member.deceasedDate) || "",
-          membershipCode: data.member.membershipCode || "",
-          participation: data.member.participation || "active",
-          householdId: data.member.householdId || "",
-          envelopeNumber: data.member.envelopeNumber ? String(data.member.envelopeNumber) : "",
-        });
-      } else {
-        console.error("Failed to fetch member");
-      }
-    } catch (error) {
-      console.error("Error fetching member:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [form]);
-
   useEffect(() => {
-    const init = async () => {
-      const resolvedParams = await params;
-      const id = resolvedParams.id;
-      setMemberId(id);
+    params.then((resolved) => {
+      setMemberId(resolved.id);
       const editParam = searchParams.get("edit");
       setIsEditMode(editParam === "true");
-      await fetchMember(id);
-      await fetchHouseholds();
-    };
-    init();
-  }, [params, searchParams, fetchMember]);
+    });
+  }, [params, searchParams]);
 
-  const fetchHouseholds = async () => {
-    try {
-      const response = await apiFetch("/api/families?page=1&pageSize=1000");
-      if (response.ok) {
-        const data = await response.json();
-        setHouseholds(data.households || []);
-      }
-    } catch (error) {
-      console.error("Error fetching households:", error);
+  useEffect(() => {
+    if (member) {
+      form.reset({
+        firstName: member.firstName || "",
+        middleName: (member.middleName as string) || "",
+        lastName: member.lastName || "",
+        suffix: (member.suffix as string) || "",
+        preferredName: (member.preferredName as string) || "",
+        maidenName: (member.maidenName as string) || "",
+        title: (member.title as string) || "",
+        sex: (member.sex as string) || "",
+        dateOfBirth: formatDateInput(member.dateOfBirth as string) || "",
+        email1: (member.email1 as string) || "",
+        email2: (member.email2 as string) || "",
+        phoneHome: (member.phoneHome as string) || "",
+        phoneCell1: (member.phoneCell1 as string) || "",
+        phoneCell2: (member.phoneCell2 as string) || "",
+        baptismDate: formatDateInput(member.baptismDate as string) || "",
+        confirmationDate: formatDateInput(member.confirmationDate as string) || "",
+        receivedBy: (member.receivedBy as string) || "",
+        dateReceived: formatDateInput(member.dateReceived as string) || "",
+        removedBy: (member.removedBy as string) || "",
+        dateRemoved: formatDateInput(member.dateRemoved as string) || "",
+        deceasedDate: formatDateInput(member.deceasedDate as string) || "",
+        membershipCode: (member.membershipCode as string) || "",
+        participation: (member.participation as string) || "active",
+        householdId: (member.householdId as string) || "",
+        envelopeNumber: member.envelopeNumber ? String(member.envelopeNumber) : "",
+      });
     }
-  };
+  }, [member, form]);
 
-  const getHouseholdDisplayName = (household: Household): string => {
+  const getHouseholdDisplayName = (household: (typeof households)[0]): string => {
     if (household.name) {
       return household.name;
     }
@@ -320,7 +296,8 @@ export default function MemberDetailPage({
 
       if (response.ok) {
         setIsEditMode(false);
-        await fetchMember(memberId);
+        mutateMember();
+        globalMutate((k) => typeof k === "string" && k.startsWith("/api/families"));
         router.push(`/membership/${memberId}`);
       } else {
         const error = await response.json();
@@ -339,6 +316,7 @@ export default function MemberDetailPage({
       });
 
       if (response.ok) {
+        globalMutate((k) => typeof k === "string" && (k.startsWith("/api/families") || k.startsWith("/api/members")));
         router.push("/membership");
       } else {
         const error = await response.json();

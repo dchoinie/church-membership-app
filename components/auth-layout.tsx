@@ -9,6 +9,7 @@ import { UserMenu } from "@/components/user-menu";
 import { ChurchSwitcher } from "@/components/church-switcher";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useChurch } from "@/lib/hooks/use-church";
 import {
   Sheet,
   SheetContent,
@@ -143,30 +144,9 @@ export default function AuthLayout({
   const pathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [church, setChurch] = useState<Church | null>(null);
-
-  // Fetch church data for branding (only for authenticated, non-public routes)
-  // Only fetch once when needed - prevents refetching on every route change
-  useEffect(() => {
-    const fetchChurch = async () => {
-      try {
-        const response = await fetch("/api/church");
-        if (response.ok) {
-          const data = await response.json();
-          setChurch(data.church);
-        }
-      } catch (error) {
-        console.error("Error fetching church data:", error);
-      }
-    };
-
-    const isPublicRoute = publicRoutes.includes(pathname);
-    // Only fetch if authenticated, not on public route, and church data not already loaded
-    // The !church check prevents unnecessary refetches when navigating between protected routes
-    if (!isPublicRoute && session?.user && !church) {
-      fetchChurch();
-    }
-  }, [pathname, session, church]); // Include church to satisfy exhaustive-deps, but !church guard prevents refetch loops
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const isAuthenticated = !!session?.user;
+  const { church } = useChurch(!isPublicRoute && isAuthenticated);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -175,9 +155,7 @@ export default function AuthLayout({
     });
   }, [pathname]);
 
-  const isPublicRoute = publicRoutes.includes(pathname);
   const isSetupRoute = setupRoutes.includes(pathname);
-  const isAuthenticated = !!session?.user;
 
   // Add/remove class on body for protected routes to control overflow
   useEffect(() => {

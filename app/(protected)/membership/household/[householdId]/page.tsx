@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSWRConfig } from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useHousehold } from "@/lib/hooks/use-household";
+import { useHouseholds } from "@/lib/hooks/use-households";
 import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
@@ -136,17 +139,18 @@ export default function HouseholdViewPage({
   params: Promise<{ householdId: string }>;
 }) {
   const router = useRouter();
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditMembers } = usePermissions();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [household, setHousehold] = useState<Household | null>(null);
-  const [loading, setLoading] = useState(true);
   const [householdId, setHouseholdId] = useState<string>("");
+
+  const { household, members, isLoading: loading, mutate: mutateHousehold } = useHousehold(householdId || null);
+  const { households: allHouseholdsRaw, mutate: mutateHouseholds } = useHouseholds(1, 1000);
+  const allHouseholds = allHouseholdsRaw as HouseholdOption[];
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [allHouseholds, setAllHouseholds] = useState<HouseholdOption[]>([]);
 
   const memberForm = useForm<MemberFormData>({
     defaultValues: {
@@ -185,43 +189,14 @@ export default function HouseholdViewPage({
   });
 
   useEffect(() => {
-    const init = async () => {
-      const resolvedParams = await params;
-      const id = resolvedParams.householdId;
-      setHouseholdId(id);
-      await fetchHouseholdData(id);
-      await fetchAllHouseholds();
-    };
-    init();
+    params.then((resolved) => setHouseholdId(resolved.householdId));
   }, [params]);
 
-  const fetchHouseholdData = async (id: string) => {
-    try {
-      const response = await apiFetch(`/api/families/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMembers(data.members || []);
-        setHousehold(data.household);
-      } else {
-        console.error("Failed to fetch household data");
-      }
-    } catch (error) {
-      console.error("Error fetching household data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAllHouseholds = async () => {
-    try {
-      const response = await apiFetch("/api/families?page=1&pageSize=1000");
-      if (response.ok) {
-        const data = await response.json();
-        setAllHouseholds(data.households || []);
-      }
-    } catch (error) {
-      console.error("Error fetching households:", error);
-    }
+  const invalidateHouseholdAndFamilies = () => {
+    mutateHousehold();
+    mutateHouseholds();
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/families"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/members"));
   };
 
   const getHouseholdDisplayName = (): string => {
@@ -340,7 +315,7 @@ export default function HouseholdViewPage({
       if (response.ok) {
         setAddMemberDialogOpen(false);
         memberForm.reset();
-        fetchHouseholdData(householdId);
+        invalidateHouseholdAndFamilies();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to create member");
@@ -367,7 +342,7 @@ export default function HouseholdViewPage({
       if (response.ok) {
         setRemoveMemberDialogOpen(false);
         setSelectedMember(null);
-        fetchHouseholdData(householdId);
+        invalidateHouseholdAndFamilies();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to delete member");
@@ -431,7 +406,7 @@ export default function HouseholdViewPage({
         setRemoveMemberDialogOpen(false);
         setSelectedMember(null);
         transferForm.reset();
-        fetchHouseholdData(householdId);
+        invalidateHouseholdAndFamilies();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to transfer member");
@@ -454,6 +429,7 @@ export default function HouseholdViewPage({
       });
 
       if (response.ok) {
+        invalidateHouseholdAndFamilies();
         router.push("/membership");
       } else {
         const error = await response.json();

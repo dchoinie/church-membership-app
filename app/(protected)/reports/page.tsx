@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { DownloadIcon, FileTextIcon, Loader2 } from "lucide-react";
@@ -114,8 +115,17 @@ interface Statement {
 export default function ReportsPage() {
   const router = useRouter();
   const { canViewReports } = usePermissions();
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [loadingHouseholds, setLoadingHouseholds] = useState(true);
+
+  const reportsHouseholdsFetcher = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch");
+    const data = await res.json();
+    return data.households ?? [];
+  };
+  const { data: households = [], isLoading: loadingHouseholds } = useSWR<Household[]>(
+    "/api/reports/households",
+    reportsHouseholdsFetcher
+  );
   const [generatingGivingReport, setGeneratingGivingReport] = useState(false);
   const [generatingMembershipReport, setGeneratingMembershipReport] = useState(false);
   const [generatingCongressionalReport, setGeneratingCongressionalReport] = useState(false);
@@ -125,9 +135,7 @@ export default function ReportsPage() {
   
   // Giving statements state
   const [year, setYear] = useState(new Date().getFullYear() - 1);
-  const [statements, setStatements] = useState<Statement[]>([]);
   const [selectedStatements, setSelectedStatements] = useState<Set<string>>(new Set());
-  const [isLoadingStatements, setIsLoadingStatements] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [filter, setFilter] = useState<"all" | "sent" | "unsent">("all");
@@ -190,46 +198,16 @@ export default function ReportsPage() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 11 }, (_, i) => currentYear - i);
 
-  // Fetch households for dropdown
-  useEffect(() => {
-    const fetchHouseholds = async () => {
-      try {
-        const response = await fetch("/api/reports/households");
-        if (response.ok) {
-          const data = await response.json();
-          setHouseholds(data.households || []);
-        }
-      } catch (error) {
-        console.error("Error fetching households:", error);
-      } finally {
-        setLoadingHouseholds(false);
-      }
-    };
-    fetchHouseholds();
-  }, []);
-
-  // Load giving statements function
-  const loadStatements = async () => {
-    setIsLoadingStatements(true);
-    try {
-      const response = await fetch(`/api/giving-statements?year=${year}`);
-      if (!response.ok) {
-        throw new Error("Failed to load statements");
-      }
-      const data = await response.json();
-      setStatements(data.statements || []);
-    } catch (error) {
-      console.error("Error loading statements:", error);
-      toast.error("Failed to load statements");
-    } finally {
-      setIsLoadingStatements(false);
-    }
+  const statementsFetcher = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to load statements");
+    const data = await res.json();
+    return data.statements ?? [];
   };
-
-  // Load giving statements when year changes
-  useEffect(() => {
-    loadStatements();
-  }, [year]);
+  const { data: statements = [], isLoading: isLoadingStatements, mutate: mutateStatements } = useSWR<Statement[]>(
+    `/api/giving-statements?year=${year}`,
+    statementsFetcher
+  );
 
   const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false) => {
     setIsGenerating(true);
@@ -278,7 +256,7 @@ export default function ReportsPage() {
         if (data.errors && data.errors.length > 0) {
           toast.warning(`${data.errors.length} statement(s) had errors`);
         }
-        loadStatements();
+        mutateStatements();
       }
     } catch (error) {
       console.error("Error generating statements:", error);
@@ -328,7 +306,7 @@ export default function ReportsPage() {
       }
       
       setSelectedStatements(new Set());
-      loadStatements();
+      mutateStatements();
     } catch (error) {
       console.error("Error sending statements:", error);
       toast.error(error instanceof Error ? error.message : "Failed to send statements");
@@ -381,7 +359,7 @@ export default function ReportsPage() {
       toast.success("Statement deleted successfully");
       setShowDeleteDialog(false);
       setStatementToDelete(null);
-      loadStatements();
+      mutateStatements();
     } catch (error) {
       console.error("Error deleting statement:", error);
       toast.error(error instanceof Error ? error.message : "Failed to delete statement");

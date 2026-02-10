@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { Loader2, BarChart3Icon, UsersIcon, CalendarIcon, TrendingUpIcon, DollarSignIcon } from "lucide-react";
 import {
   LineChart,
@@ -170,10 +171,6 @@ interface Demographics {
 type DateRangePreset = "current-month" | "last-3-months" | "last-6-months" | "current-year" | "custom";
 
 export default function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<AttendanceAnalytics | null>(null);
-  const [demographics, setDemographics] = useState<Demographics | null>(null);
-  const [givingAnalytics, setGivingAnalytics] = useState<GivingAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // Date range state for attendance
   const [attendanceDateRange, setAttendanceDateRange] = useState<DateRangePreset>("current-year");
@@ -254,51 +251,32 @@ export default function AnalyticsPage() {
     setGivingEndDate(endDate);
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const attendanceParams = new URLSearchParams({
-          startDate: attendanceStartDate,
-          endDate: attendanceEndDate,
-        });
+  const attendanceKey =
+    attendanceStartDate && attendanceEndDate
+      ? `/api/reports/attendance?startDate=${attendanceStartDate}&endDate=${attendanceEndDate}`
+      : null;
+  const givingKey =
+    givingStartDate && givingEndDate
+      ? `/api/reports/giving-analytics?startDate=${givingStartDate}&endDate=${givingEndDate}`
+      : null;
 
-        const givingParams = new URLSearchParams({
-          startDate: givingStartDate,
-          endDate: givingEndDate,
-        });
+  const fetcher = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch");
+    return res.json();
+  };
 
-        const [attendanceResponse, demographicsResponse, givingResponse] = await Promise.all([
-          fetch(`/api/reports/attendance?${attendanceParams}`),
-          fetch("/api/reports/demographics"),
-          fetch(`/api/reports/giving-analytics?${givingParams}`),
-        ]);
+  const { data: analyticsData } = useSWR(attendanceKey, fetcher);
+  const { data: demographicsData } = useSWR("/api/reports/demographics", fetcher);
+  const { data: givingData } = useSWR(givingKey, fetcher);
 
-        if (attendanceResponse.ok) {
-          const data = await attendanceResponse.json();
-          setAnalytics(data);
-        }
-
-        if (demographicsResponse.ok) {
-          const data = await demographicsResponse.json();
-          setDemographics(data);
-        }
-
-        if (givingResponse.ok) {
-          const data = await givingResponse.json();
-          setGivingAnalytics(data);
-        }
-      } catch (error) {
-        console.error("Error fetching analytics:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    if (attendanceStartDate && attendanceEndDate && givingStartDate && givingEndDate) {
-      fetchData();
-    }
-  }, [attendanceStartDate, attendanceEndDate, givingStartDate, givingEndDate]);
+  const analytics = analyticsData ?? null;
+  const demographics = demographicsData ?? null;
+  const givingAnalytics = givingData ?? null;
+  const loading =
+    (!!attendanceKey && analyticsData === undefined) ||
+    (demographicsData === undefined) ||
+    (!!givingKey && givingData === undefined);
 
   if (loading) {
     return (

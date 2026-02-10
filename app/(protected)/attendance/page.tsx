@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSWRConfig } from "swr";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PencilIcon, Loader2, PlusIcon, EyeIcon, TrashIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useAttendanceMembers, useAttendanceServices } from "@/lib/hooks/use-attendance";
+import { useServices } from "@/lib/hooks/use-services";
 import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -149,19 +152,30 @@ const formatServiceType = (type: string) => {
 };
 
 export default function AttendancePage() {
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditAttendance } = usePermissions();
-  const [members, setMembers] = useState<Member[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [servicesWithStats, setServicesWithStats] = useState<ServiceWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    pageSize: 50,
-    total: 0,
-    totalPages: 0,
-  });
+
+  const { members, mutate: mutateAttendanceMembers } = useAttendanceMembers();
+  const { services: rawServices } = useServices();
+  const services = [...rawServices].sort(
+    (a, b) => new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime()
+  );
+  const {
+    services: servicesWithStats,
+    pagination,
+    isLoading: loading,
+    mutate: mutateAttendanceServices,
+  } = useAttendanceServices(currentPage, 50);
+
+  const invalidateAttendance = () => {
+    mutateAttendanceMembers();
+    mutateAttendanceServices();
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/attendance"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/services"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/dashboard"));
+  };
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [creatingService, setCreatingService] = useState(false);
   const [createServiceDialogOpen, setCreateServiceDialogOpen] = useState(false);
@@ -203,80 +217,20 @@ export default function AttendancePage() {
     return true;
   };
 
-  // Fetch active members
-  const fetchMembers = async () => {
-    try {
-      const response = await apiFetch("/api/attendance/members");
-      if (response.ok) {
-        const data = await response.json();
-        setMembers(data.members || []);
-        
-        // Initialize form data with all members set to false
-        const initialFormData: AttendanceFormData = {};
-        (data.members || []).forEach((member: Member) => {
-          initialFormData[member.id] = {
-            attended: false,
-            tookCommunion: false,
-          };
-        });
-        setFormData(initialFormData);
-      }
-    } catch (error) {
-      console.error("Error fetching members:", error);
-    }
-  };
-
-  // Fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await apiFetch("/api/services?pageSize=1000");
-      if (response.ok) {
-        const data = await response.json();
-        const servicesList = (data.services || []).sort((a: Service, b: Service) => 
-          new Date(b.serviceDate).getTime() - new Date(a.serviceDate).getTime()
-        );
-        setServices(servicesList);
-      }
-    } catch (error) {
-      console.error("Error fetching services:", error);
-    }
-  };
-
-  // Fetch services with attendance statistics
-  const fetchServicesWithStats = async (page: number) => {
-    setLoading(true);
-    try {
-      const response = await apiFetch(`/api/attendance/services?page=${page}&pageSize=50`);
-      if (response.ok) {
-        const data = await response.json();
-        setServicesWithStats(data.services || []);
-        setPagination(
-          data.pagination || {
-            page: 1,
-            pageSize: 50,
-            total: 0,
-            totalPages: 0,
-          },
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching services with stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchMembers();
-    fetchServices();
-    fetchServicesWithStats(currentPage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const initialFormData: AttendanceFormData = {};
+    members.forEach((member) => {
+      initialFormData[member.id] = {
+        attended: false,
+        tookCommunion: false,
+      };
+    });
+    setFormData(initialFormData);
+  }, [members]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
-      fetchServicesWithStats(newPage);
     }
   };
 
@@ -300,8 +254,7 @@ export default function AttendancePage() {
         return;
       }
 
-      // Refresh the services list
-      fetchServicesWithStats(currentPage);
+      invalidateAttendance();
       setDeleteDialogOpen(false);
       setSelectedServiceForDelete(null);
     } catch (error) {
@@ -391,7 +344,7 @@ export default function AttendancePage() {
       }
 
       const result = await response.json();
-      await fetchServices();
+      invalidateAttendance();
       setSelectedServiceId(result.service.id);
       setCreateServiceDialogOpen(false);
       serviceForm.reset({
@@ -535,9 +488,7 @@ export default function AttendancePage() {
       // Reset selected service to show "Create Service" button again
       setSelectedServiceId("");
 
-      // Refresh services with stats
-      await fetchServicesWithStats(currentPage);
-      
+      invalidateAttendance();
       alert(`Successfully saved ${result.success} attendance record(s)`);
     } catch (error) {
       console.error("Error saving attendance:", error);
@@ -568,7 +519,7 @@ export default function AttendancePage() {
 
       setEditDialogOpen(false);
       setEditingRecord(null);
-      await fetchServicesWithStats(currentPage);
+      invalidateAttendance();
     } catch (error) {
       console.error("Error updating attendance:", error);
       alert("Failed to update attendance");

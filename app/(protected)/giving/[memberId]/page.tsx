@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSWRConfig } from "swr";
 import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useMember } from "@/lib/hooks/use-member";
+import { useGivingCategories } from "@/lib/hooks/use-giving-categories";
+import { useServices } from "@/lib/hooks/use-services";
+import { useMemberGiving } from "@/lib/hooks/use-giving";
 import { ServiceSelector } from "@/components/ui/service-selector";
 
 import { Button } from "@/components/ui/button";
@@ -93,49 +98,38 @@ export default function MemberGivingPage({
 }: {
   params: Promise<{ memberId: string }>;
 }) {
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditGiving } = usePermissions();
-  const [member, setMember] = useState<Member | null>(null);
-  const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
-  const [categories, setCategories] = useState<GivingCategory[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [memberId, setMemberId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<GivingRecord | null>(null);
-  const [memberId, setMemberId] = useState<string>("");
 
-  // Fetch categories
-  const fetchCategories = async () => {
-    try {
-      const response = await apiFetch("/api/giving-categories");
-      if (response.ok) {
-        const data = await response.json();
-        const activeCategories = (data.categories || []).filter((cat: GivingCategory) => cat.isActive);
-        setCategories(activeCategories.sort((a: GivingCategory, b: GivingCategory) => {
-          if (a.displayOrder !== b.displayOrder) {
-            return a.displayOrder - b.displayOrder;
-          }
+  const { member } = useMember(memberId || null);
+  const { categories: rawCategories } = useGivingCategories();
+  const categories = useMemo(
+    () =>
+      (rawCategories as GivingCategory[])
+        .filter((c) => c.isActive)
+        .sort((a, b) => {
+          if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
           return a.name.localeCompare(b.name);
-        }));
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    }
+        }),
+    [rawCategories]
+  );
+  const { services } = useServices();
+  const { giving: givingRecords, isLoading: loading, mutate: mutateMemberGiving } = useMemberGiving(memberId || null);
+
+  const invalidateGiving = () => {
+    mutateMemberGiving();
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/giving"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/dashboard"));
   };
 
-  // Fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await apiFetch("/api/services?pageSize=1000");
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.services || []);
-      }
-    } catch (error) {
-      console.error("Error fetching services:", error);
-    }
-  };
+  useEffect(() => {
+    params.then((resolved) => setMemberId(resolved.memberId));
+  }, [params]);
 
   // Initialize form defaults based on categories
   const getFormDefaults = () => {
@@ -165,48 +159,6 @@ export default function MemberGivingPage({
       addForm.reset(getFormDefaults());
     }
   }, [categories]);
-
-  useEffect(() => {
-    async function loadData() {
-      const resolvedParams = await params;
-      const id = resolvedParams.memberId;
-      setMemberId(id);
-      await fetchCategories();
-      await fetchServices();
-      await fetchMember(id);
-      await fetchGivingRecords(id);
-    }
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-
-  const fetchMember = async (id: string) => {
-    try {
-      const response = await apiFetch(`/api/members/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMember(data.member);
-      }
-    } catch (error) {
-      console.error("Error fetching member:", error);
-    }
-  };
-
-  const fetchGivingRecords = async (id: string) => {
-    setLoading(true);
-    try {
-      const response = await apiFetch(`/api/giving/member/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setGivingRecords(data.giving || []);
-      }
-    } catch (error) {
-      console.error("Error fetching giving records:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleEdit = (record: GivingRecord) => {
     setEditingRecord(record);
@@ -259,7 +211,7 @@ export default function MemberGivingPage({
       if (response.ok) {
         setEditDialogOpen(false);
         setEditingRecord(null);
-        await fetchGivingRecords(memberId);
+        invalidateGiving();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to update giving record");
@@ -309,7 +261,7 @@ export default function MemberGivingPage({
       if (response.ok) {
         setAddDialogOpen(false);
         addForm.reset(getFormDefaults());
-        await fetchGivingRecords(memberId);
+        invalidateGiving();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to create giving record");

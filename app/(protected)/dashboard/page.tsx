@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -108,14 +109,43 @@ export default function Dashboard() {
     "Processing your subscription...",
   );
 
-  // Dashboard data state
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentChanges, setRecentChanges] = useState<RecentStatusChange[]>([]);
-  const [recentServices, setRecentServices] = useState<RecentService[]>([]);
-  const [recentGivingByService, setRecentGivingByService] = useState<
-    RecentGivingByService[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  // Dashboard data via SWR (cached, revalidates on focus)
+  const dashboardFetcher = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch");
+    return res.json();
+  };
+
+  const shouldFetchDashboard = !isVerifyingSubscription;
+  const { data: statsData } = useSWR<DashboardStats>(
+    shouldFetchDashboard ? "/api/dashboard/stats" : null,
+    dashboardFetcher
+  );
+  const { data: changesData } = useSWR<{ changes?: RecentStatusChange[] }>(
+    shouldFetchDashboard ? "/api/dashboard/recent-status-changes" : null,
+    dashboardFetcher
+  );
+  const { data: servicesData } = useSWR<{ services?: RecentService[] }>(
+    shouldFetchDashboard ? "/api/dashboard/recent-services" : null,
+    dashboardFetcher
+  );
+  const { data: givingByServiceData } = useSWR<{
+    services?: RecentGivingByService[];
+  }>(
+    shouldFetchDashboard ? "/api/dashboard/recent-giving-by-service" : null,
+    dashboardFetcher
+  );
+
+  const stats = statsData ?? null;
+  const recentChanges = changesData?.changes ?? [];
+  const recentServices = servicesData?.services ?? [];
+  const recentGivingByService = givingByServiceData?.services ?? [];
+  const loading =
+    shouldFetchDashboard &&
+    (statsData === undefined &&
+      changesData === undefined &&
+      servicesData === undefined &&
+      givingByServiceData === undefined);
 
   // Handle checkout success - poll for subscription update
   useEffect(() => {
@@ -180,54 +210,6 @@ export default function Dashboard() {
       clearTimeout(initialDelay);
     };
   }, [checkoutSuccess, router]);
-
-  // Fetch dashboard data
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        const [
-          statsResponse,
-          changesResponse,
-          servicesResponse,
-          givingByServiceResponse,
-        ] = await Promise.all([
-          fetch("/api/dashboard/stats"),
-          fetch("/api/dashboard/recent-status-changes"),
-          fetch("/api/dashboard/recent-services"),
-          fetch("/api/dashboard/recent-giving-by-service"),
-        ]);
-
-        if (statsResponse.ok) {
-          const data = await statsResponse.json();
-          setStats(data);
-        }
-
-        if (changesResponse.ok) {
-          const data = await changesResponse.json();
-          setRecentChanges(data.changes || []);
-        }
-
-        if (servicesResponse.ok) {
-          const data = await servicesResponse.json();
-          setRecentServices(data.services || []);
-        }
-
-        if (givingByServiceResponse.ok) {
-          const data = await givingByServiceResponse.json();
-          setRecentGivingByService(data.services || []);
-        }
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (!isVerifyingSubscription) {
-      fetchDashboardData();
-    }
-  }, [isVerifyingSubscription]);
 
   // Show verification screen while checking subscription
   if (isVerifyingSubscription) {
@@ -335,7 +317,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 -my-8">
+    <div className="space-y-6 -my-8 min-w-0">
       {/* Header */}
       <div className="pt-4 md:pt-8">
         <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
@@ -345,15 +327,15 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Modules */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3 min-w-0">
         {/* Recent Services Module */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              <CardTitle>Recent Services</CardTitle>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <Calendar className="h-5 w-5 shrink-0" />
+              <CardTitle className="truncate">Recent Services</CardTitle>
             </div>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="shrink-0">
               <Link href="/attendance">View All</Link>
             </Button>
           </CardHeader>
@@ -410,13 +392,13 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Membership Changes Module */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              <CardTitle>Membership Changes</CardTitle>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <Users className="h-5 w-5 shrink-0" />
+              <CardTitle className="truncate">Membership Changes</CardTitle>
             </div>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="shrink-0">
               <Link href="/membership">View All</Link>
             </Button>
           </CardHeader>
@@ -470,13 +452,13 @@ export default function Dashboard() {
         </Card>
 
         {/* Recent Giving by Service Module */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              <CardTitle>Giving by Service</CardTitle>
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <DollarSign className="h-5 w-5 shrink-0" />
+              <CardTitle className="truncate">Giving by Service</CardTitle>
             </div>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="shrink-0">
               <Link href="/giving">View All</Link>
             </Button>
           </CardHeader>
@@ -546,49 +528,53 @@ export default function Dashboard() {
       </div>
 
       {/* Attendance Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Monthly Attendance Trend
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="min-w-0">
+          <CardTitle className="flex items-center gap-2 min-w-0">
+            <BarChart3 className="h-5 w-5 shrink-0" />
+            <span className="truncate">Monthly Attendance Trend</span>
           </CardTitle>
           <CardDescription>Average per service (last 6 months)</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 w-full overflow-hidden px-2 sm:px-6">
           {loading ? (
-            <Skeleton className="h-[250px] w-full" />
+            <Skeleton className="h-[250px] w-full min-w-0" />
           ) : stats?.trends.monthlyAttendance.length ? (
-            <ChartContainer
-              config={{
-                average: {
-                  label: "Average Attendance",
-                  color: "hsl(var(--chart-2))",
-                },
-              }}
-              className="h-[250px]"
-            >
-              <LineChart data={stats.trends.monthlyAttendance}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value) =>
-                        `${Number(value).toFixed(1)} people`
-                      }
+            <div className="w-full min-w-0 overflow-x-auto">
+              <div className="h-[250px] min-w-[280px] w-full">
+                <ChartContainer
+                  config={{
+                    average: {
+                      label: "Average Attendance",
+                      color: "hsl(var(--chart-2))",
+                    },
+                  }}
+                  className="h-full w-full"
+                >
+                  <LineChart data={stats.trends.monthlyAttendance} margin={{ left: 0, right: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis width={32} tick={{ fontSize: 12 }} />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          formatter={(value) =>
+                            `${Number(value).toFixed(1)} people`
+                          }
+                        />
+                    }
                     />
-                  }
-                />
-                <Line
-                  type="monotone"
-                  dataKey="average"
-                  stroke="hsl(var(--chart-2))"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                />
-              </LineChart>
-            </ChartContainer>
+                    <Line
+                      type="monotone"
+                      dataKey="average"
+                      stroke="hsl(var(--chart-2))"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </div>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-muted-foreground">
               No attendance data available
@@ -598,9 +584,9 @@ export default function Dashboard() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="pb-8 md:pb-12">
+      <div className="pb-8 md:pb-12 min-w-0">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 min-w-0">
           <Link href="/membership">
             <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer group">
               <CardContent className="p-4 md:p-5">

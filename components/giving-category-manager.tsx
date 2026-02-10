@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useGivingCategories } from "@/lib/hooks/use-giving-categories";
 import { apiFetch } from "@/lib/api-client";
 import { PencilIcon, TrashIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon, CheckIcon, XIcon } from "lucide-react";
 import {
@@ -53,8 +54,7 @@ export function GivingCategoryManager({
   onOpenChange,
   onCategoriesUpdated,
 }: GivingCategoryManagerProps) {
-  const [categories, setCategories] = useState<GivingCategory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { categories, isLoading: loading, mutate } = useGivingCategories(open);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [addingNew, setAddingNew] = useState(false);
@@ -63,27 +63,6 @@ export function GivingCategoryManager({
   const [categoryToDelete, setCategoryToDelete] = useState<GivingCategory | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  const fetchCategories = async () => {
-    try {
-      setLoading(true);
-      const response = await apiFetch("/api/giving-categories");
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.categories || []);
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (open) {
-      fetchCategories();
-    }
-  }, [open]);
 
   const handleEdit = (category: GivingCategory) => {
     setEditingId(category.id);
@@ -109,7 +88,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         setEditingId(null);
         setEditingName("");
         onCategoriesUpdated?.();
@@ -134,7 +113,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         onCategoriesUpdated?.();
       } else {
         const error = await response.json();
@@ -161,7 +140,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         onCategoriesUpdated?.();
       } else {
         const error = await response.json();
@@ -188,7 +167,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         onCategoriesUpdated?.();
       } else {
         const error = await response.json();
@@ -216,7 +195,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         setAddingNew(false);
         setNewCategoryName("");
         onCategoriesUpdated?.();
@@ -247,7 +226,7 @@ export function GivingCategoryManager({
       });
 
       if (response.ok) {
-        await fetchCategories();
+        mutate();
         setDeleteDialogOpen(false);
         setCategoryToDelete(null);
         onCategoriesUpdated?.();

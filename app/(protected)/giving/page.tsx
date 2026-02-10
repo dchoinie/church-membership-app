@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSWRConfig } from "swr";
 import { apiFetch } from "@/lib/api-client";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, UploadIcon, DownloadIcon, FileTextIcon, TableIcon, TrashIcon, SettingsIcon, ArrowRight, File } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useMembers } from "@/lib/hooks/use-members";
+import { useGivingCategories } from "@/lib/hooks/use-giving-categories";
+import { useServices } from "@/lib/hooks/use-services";
+import { useGiving } from "@/lib/hooks/use-giving";
 import { GivingCategoryManager } from "@/components/giving-category-manager";
 import { ServiceSelector } from "@/components/ui/service-selector";
 
@@ -116,14 +121,50 @@ interface MemberWithEnvelope extends Member {
 }
 
 export default function GivingPage() {
+  const { mutate: globalMutate } = useSWRConfig();
   const { canEditGiving, canManageUsers } = usePermissions();
-  const [allMembers, setAllMembers] = useState<MemberWithEnvelope[]>([]);
-  const [envelopeNumbers, setEnvelopeNumbers] = useState<number[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
-  const [givingRecords, setGivingRecords] = useState<GivingRecord[]>([]);
-  const [categories, setCategories] = useState<GivingCategory[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const { members: rawMembers } = useMembers({ page: 1, pageSize: 10000 });
+  const allMembers = useMemo(
+    () =>
+      (rawMembers as MemberWithEnvelope[]).filter(
+        (m) => m.envelopeNumber != null
+      ) as MemberWithEnvelope[],
+    [rawMembers]
+  );
+  const envelopeNumbers = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          allMembers
+            .map((m) => m.envelopeNumber)
+            .filter((num): num is number => num != null)
+        )
+      ).sort((a, b) => a - b),
+    [allMembers]
+  );
+
+  const { categories: rawCategories, mutate: mutateCategories } = useGivingCategories();
+  const categories = useMemo(
+    () =>
+      (rawCategories as GivingCategory[])
+        .filter((c) => c.isActive)
+        .sort((a, b) => {
+          if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
+          return a.name.localeCompare(b.name);
+        }),
+    [rawCategories]
+  );
+
+  const { services } = useServices();
+  const {
+    giving: givingRecords,
+    pagination,
+    isLoading: loading,
+    mutate: mutateGiving,
+  } = useGiving(currentPage, 50);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
@@ -148,44 +189,11 @@ export default function GivingPage() {
     failed: number;
     errors: string[];
   } | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    pageSize: 50,
-    total: 0,
-    totalPages: 0,
-  });
 
-  // Fetch categories
-  const fetchCategories = async () => {
-    try {
-      const response = await apiFetch("/api/giving-categories");
-      if (response.ok) {
-        const data = await response.json();
-        const activeCategories = (data.categories || []).filter((cat: GivingCategory) => cat.isActive);
-        setCategories(activeCategories.sort((a: GivingCategory, b: GivingCategory) => {
-          if (a.displayOrder !== b.displayOrder) {
-            return a.displayOrder - b.displayOrder;
-          }
-          return a.name.localeCompare(b.name);
-        }));
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    }
-  };
-
-  // Fetch services
-  const fetchServices = async () => {
-    try {
-      const response = await apiFetch("/api/services?pageSize=1000");
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.services || []);
-      }
-    } catch (error) {
-      console.error("Error fetching services:", error);
-    }
+  const invalidateGiving = () => {
+    mutateGiving();
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/giving"));
+    globalMutate((k) => typeof k === "string" && k.startsWith("/api/dashboard"));
   };
 
   // Initialize form defaults based on categories
@@ -216,29 +224,6 @@ export default function GivingPage() {
 
   const selectedEnvelopeNumber = form.watch("envelopeNumber");
 
-  // Fetch all members with envelope numbers
-  const fetchMembers = async () => {
-    try {
-      // Fetch all members (with a large page size to get all)
-      const response = await apiFetch("/api/members?page=1&pageSize=10000");
-      if (response.ok) {
-        const data = await response.json();
-        const membersWithEnvelopes = (data.members || []).filter(
-          (m: MemberWithEnvelope) => m.envelopeNumber !== null && m.envelopeNumber !== undefined,
-        ) as MemberWithEnvelope[];
-        setAllMembers(membersWithEnvelopes);
-        
-        // Extract unique envelope numbers and sort them
-        const uniqueEnvelopeNumbers = Array.from(
-          new Set(membersWithEnvelopes.map((m) => m.envelopeNumber).filter((num): num is number => num !== null))
-        ).sort((a, b) => a - b);
-        setEnvelopeNumbers(uniqueEnvelopeNumbers);
-      }
-    } catch (error) {
-      console.error("Error fetching members:", error);
-    }
-  };
-
   // Update filtered members when envelope number changes
   useEffect(() => {
     if (selectedEnvelopeNumber) {
@@ -261,43 +246,9 @@ export default function GivingPage() {
     }
   }, [selectedEnvelopeNumber, allMembers]);
 
-  // Fetch giving records
-  const fetchGivingRecords = async (page: number) => {
-    setLoading(true);
-    try {
-      const response = await apiFetch(`/api/giving?page=${page}&pageSize=50`);
-      if (response.ok) {
-        const data = await response.json();
-        setGivingRecords(data.giving || []);
-        setPagination(
-          data.pagination || {
-            page: 1,
-            pageSize: 50,
-            total: 0,
-            totalPages: 0,
-          },
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching giving records:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMembers();
-    fetchCategories();
-    fetchServices();
-    fetchGivingRecords(currentPage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
-      fetchGivingRecords(newPage);
     }
   };
 
@@ -361,8 +312,7 @@ export default function GivingPage() {
       setDialogOpen(false);
       form.reset(getFormDefaults());
       setFilteredMembers([]);
-      // Refresh the giving records list
-      await fetchGivingRecords(currentPage);
+      invalidateGiving();
     } catch (error) {
       console.error("Error creating giving record:", error);
       alert("Failed to create giving record");
@@ -598,8 +548,7 @@ export default function GivingPage() {
           failed: data.failed || 0,
           errors: data.errors || [],
         });
-        // Refresh the giving records list
-        await fetchGivingRecords(currentPage);
+        invalidateGiving();
         // Reset rows after successful submission
         if (data.failed === 0) {
           const defaultItems: Record<string, string> = {};
@@ -702,8 +651,7 @@ export default function GivingPage() {
           failed: data.failed || 0,
           errors: data.errors || [],
         });
-        // Refresh the giving records list
-        await fetchGivingRecords(currentPage);
+        invalidateGiving();
         // Clear file input
         const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
         if (fileInput) {
@@ -744,8 +692,8 @@ export default function GivingPage() {
               open={categoryManagerOpen}
               onOpenChange={setCategoryManagerOpen}
               onCategoriesUpdated={() => {
-                fetchCategories();
-                fetchGivingRecords(currentPage);
+                mutateCategories();
+                invalidateGiving();
               }}
             />
           )}

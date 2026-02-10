@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon, File } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { useHouseholds } from "@/lib/hooks/use-households";
 import { apiFetch } from "@/lib/api-client";
 
 import { Button } from "@/components/ui/button";
@@ -99,8 +100,6 @@ interface PaginationInfo {
 export default function MembershipPage() {
   const router = useRouter();
   const { canEditMembers } = usePermissions();
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -117,12 +116,13 @@ export default function MembershipPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    pageSize: 50,
-    total: 0,
-    totalPages: 0,
-  });
+
+  const {
+    households,
+    pagination,
+    isLoading: loading,
+    mutate: mutateHouseholds,
+  } = useHouseholds(currentPage, 50);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<"name" | "type" | "members">("name");
@@ -151,35 +151,6 @@ export default function MembershipPage() {
       zip: "",
     },
   });
-
-  const fetchHouseholds = async (page: number) => {
-    setLoading(true);
-    try {
-      const response = await apiFetch(`/api/families?page=${page}&pageSize=50`);
-      if (response.ok) {
-        const data = await response.json();
-        const fetchedHouseholds = data.households || [];
-        const paginationInfo = data.pagination || {
-          page: 1,
-          pageSize: 50,
-          total: 0,
-          totalPages: 0,
-        };
-
-        setHouseholds(fetchedHouseholds);
-        setPagination(paginationInfo);
-      }
-    } catch (error) {
-      console.error("Error fetching households:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchHouseholds(currentPage);
-  }, [currentPage]);
-
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -261,7 +232,7 @@ export default function MembershipPage() {
       if (response.ok) {
         setCreateDialogOpen(false);
         createForm.reset();
-        fetchHouseholds(currentPage);
+        mutateHouseholds();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to create household");
@@ -293,7 +264,7 @@ export default function MembershipPage() {
         setEditDialogOpen(false);
         setSelectedHousehold(null);
         editForm.reset();
-        fetchHouseholds(currentPage);
+        mutateHouseholds();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to update household");
@@ -320,7 +291,7 @@ export default function MembershipPage() {
       if (response.ok) {
         setDeleteDialogOpen(false);
         setSelectedHousehold(null);
-        fetchHouseholds(currentPage);
+        mutateHouseholds();
       } else {
         const error = await response.json();
         alert(error.error || "Failed to delete household");
@@ -378,9 +349,8 @@ export default function MembershipPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Refresh households data
-        fetchHouseholds(currentPage);
-        
+        mutateHouseholds();
+
         // Clear file input
         setImportFile(null);
         const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
