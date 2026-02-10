@@ -18,6 +18,8 @@ import {
   UserPlus,
   UserMinus,
   Cross,
+  Building2,
+  TrendingUp,
 } from "lucide-react";
 import {
   Card,
@@ -30,17 +32,26 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { Badge } from "@/components/ui/badge";
 
 interface Church {
   subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
   stripeSubscriptionId: string | null;
+  name?: string;
+  denomination?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 }
 
 interface DashboardStats {
@@ -98,6 +109,33 @@ interface RecentGivingByService {
   totalAmount: number;
 }
 
+interface AttendanceMonthlyTrend {
+  month: string;
+  attendance: number;
+  communion: number;
+  serviceCount: number;
+}
+
+interface GivingMonthlyTrend {
+  month: string;
+  totalAmount: number;
+  recordCount: number;
+}
+
+type TrendsDateRange = "6months" | "ytd" | "3months" | "custom";
+
+function formatAddress(church: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}): string {
+  const parts = [church.address, church.city, church.state, church.zip].filter(
+    Boolean
+  );
+  return parts.join(", ");
+}
+
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -109,6 +147,12 @@ export default function Dashboard() {
     "Processing your subscription...",
   );
 
+  // Trends date range state
+  const [trendsDateRange, setTrendsDateRange] =
+    useState<TrendsDateRange>("6months");
+  const [trendsCustomStart, setTrendsCustomStart] = useState("");
+  const [trendsCustomEnd, setTrendsCustomEnd] = useState("");
+
   // Dashboard data via SWR (cached, revalidates on focus)
   const dashboardFetcher = async (url: string) => {
     const res = await fetch(url);
@@ -119,33 +163,95 @@ export default function Dashboard() {
   const shouldFetchDashboard = !isVerifyingSubscription;
   const { data: statsData } = useSWR<DashboardStats>(
     shouldFetchDashboard ? "/api/dashboard/stats" : null,
-    dashboardFetcher
+    dashboardFetcher,
+  );
+  const { data: churchData } = useSWR<{ church: Church }>(
+    shouldFetchDashboard ? "/api/church" : null,
+    dashboardFetcher,
   );
   const { data: changesData } = useSWR<{ changes?: RecentStatusChange[] }>(
     shouldFetchDashboard ? "/api/dashboard/recent-status-changes" : null,
-    dashboardFetcher
+    dashboardFetcher,
   );
   const { data: servicesData } = useSWR<{ services?: RecentService[] }>(
     shouldFetchDashboard ? "/api/dashboard/recent-services" : null,
-    dashboardFetcher
+    dashboardFetcher,
   );
   const { data: givingByServiceData } = useSWR<{
     services?: RecentGivingByService[];
   }>(
     shouldFetchDashboard ? "/api/dashboard/recent-giving-by-service" : null,
-    dashboardFetcher
+    dashboardFetcher,
   );
 
+  // Compute trends date range
+  const getTrendsDateRange = (): { startDate: string; endDate: string } => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const currentYear = today.getFullYear();
+    const yearStart = `${currentYear}-01-01`;
+
+    switch (trendsDateRange) {
+      case "ytd":
+        return { startDate: yearStart, endDate: todayStr };
+      case "3months": {
+        const threeMonthsAgo = new Date(today);
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        return {
+          startDate: threeMonthsAgo.toISOString().split("T")[0],
+          endDate: todayStr,
+        };
+      }
+      case "custom":
+        return {
+          startDate: trendsCustomStart || yearStart,
+          endDate: trendsCustomEnd || todayStr,
+        };
+      case "6months":
+      default: {
+        const sixMonthsAgo = new Date(today);
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        return {
+          startDate: sixMonthsAgo.toISOString().split("T")[0],
+          endDate: todayStr,
+        };
+      }
+    }
+  };
+
+  const { startDate: trendsStartDate, endDate: trendsEndDate } =
+    getTrendsDateRange();
+
+  const attendanceKey =
+    trendsStartDate && trendsEndDate
+      ? `/api/reports/attendance?startDate=${trendsStartDate}&endDate=${trendsEndDate}`
+      : null;
+  const givingKey =
+    trendsStartDate && trendsEndDate
+      ? `/api/reports/giving-analytics?startDate=${trendsStartDate}&endDate=${trendsEndDate}`
+      : null;
+
+  const { data: attendanceData } = useSWR<{
+    monthlyTrend: AttendanceMonthlyTrend[];
+  }>(shouldFetchDashboard ? attendanceKey : null, dashboardFetcher);
+  const { data: givingData } = useSWR<{
+    monthlyTrend: GivingMonthlyTrend[];
+  }>(shouldFetchDashboard ? givingKey : null, dashboardFetcher);
+
   const stats = statsData ?? null;
+  const church = churchData?.church ?? null;
   const recentChanges = changesData?.changes ?? [];
   const recentServices = servicesData?.services ?? [];
   const recentGivingByService = givingByServiceData?.services ?? [];
+  const attendanceTrend = attendanceData?.monthlyTrend ?? [];
+  const givingTrend = givingData?.monthlyTrend ?? [];
+
   const loading =
     shouldFetchDashboard &&
-    (statsData === undefined &&
-      changesData === undefined &&
-      servicesData === undefined &&
-      givingByServiceData === undefined);
+    statsData === undefined &&
+    changesData === undefined &&
+    servicesData === undefined &&
+    givingByServiceData === undefined;
 
   // Handle checkout success - poll for subscription update
   useEffect(() => {
@@ -165,9 +271,9 @@ export default function Dashboard() {
         }
 
         const data = await response.json();
-        const church: Church = data.church;
+        const churchResponse: Church = data.church;
 
-        if (isSetupComplete(church)) {
+        if (isSetupComplete(churchResponse)) {
           setVerificationMessage("Subscription activated successfully!");
 
           setTimeout(() => {
@@ -316,6 +422,28 @@ export default function Dashboard() {
     }
   };
 
+  // Trends summary calculations
+  const totalServices = attendanceTrend.reduce(
+    (sum, m) => sum + m.serviceCount,
+    0,
+  );
+  const totalAttended = attendanceTrend.reduce(
+    (sum, m) => sum + m.attendance * m.serviceCount,
+    0,
+  );
+  const totalCommunion = attendanceTrend.reduce(
+    (sum, m) => sum + m.communion * m.serviceCount,
+    0,
+  );
+  const avgAttendancePerService =
+    totalServices > 0 ? totalAttended / totalServices : 0;
+  const communionPct =
+    totalAttended > 0 ? (totalCommunion / totalAttended) * 100 : 0;
+  const totalGiving = givingTrend.reduce((sum, m) => sum + m.totalAmount, 0);
+  const givingMonthCount = givingTrend.length;
+  const avgGivingPerMonth =
+    givingMonthCount > 0 ? totalGiving / givingMonthCount : 0;
+
   return (
     <div className="space-y-6 -my-8 min-w-0">
       {/* Header */}
@@ -326,259 +454,374 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Recent Modules */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3 min-w-0">
-        {/* Recent Services Module */}
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 min-w-0">
-              <Calendar className="h-5 w-5 shrink-0" />
-              <CardTitle className="truncate">Recent Services</CardTitle>
+      {/* Church Overview */}
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Church Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-32" />
             </div>
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <Link href="/attendance">View All</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px]">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} className="h-20 w-full" />
-                  ))}
-                </div>
-              ) : recentServices.length > 0 ? (
-                <div className="space-y-3">
-                  {recentServices.map((service) => (
-                    <Link
-                      key={service.serviceId}
-                      href={`/attendance/service/${service.serviceId}`}
-                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">
-                            {formatServiceType(service.serviceType)}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatDate(service.serviceDate)}
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="font-semibold text-sm">
-                            {service.attendeesCount}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            attended
-                          </p>
-                          <p className="font-semibold text-sm mt-1">
-                            {service.communionCount}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            communion
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  No recent services
-                </div>
+          ) : (
+            <>
+              {church?.name && (
+                <p className="text-lg font-semibold">{church.name}</p>
               )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Recent Membership Changes Module */}
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 min-w-0">
-              <Users className="h-5 w-5 shrink-0" />
-              <CardTitle className="truncate">Membership Changes</CardTitle>
-            </div>
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <Link href="/membership">View All</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px]">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} className="h-20 w-full" />
-                  ))}
-                </div>
-              ) : recentChanges.length > 0 ? (
-                <div className="space-y-3">
-                  {recentChanges.map((change) => (
-                    <Link
-                      key={change.id}
-                      href={`/membership/${change.id}`}
-                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              variant="outline"
-                              className={`${getChangeTypeColor(change.changeType)} text-xs`}
-                            >
-                              <span className="flex items-center gap-1">
-                                {getChangeTypeIcon(change.changeType)}
-                                {formatChangeType(change.changeType)}
-                              </span>
-                            </Badge>
-                          </div>
-                          <p className="font-medium text-sm truncate">
-                            {change.firstName} {change.lastName}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatDate(change.date)}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  No recent membership changes
-                </div>
+              {church?.denomination && (
+                <p className="text-sm text-muted-foreground">
+                  {church.denomination}
+                </p>
               )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+              {formatAddress(church ?? {}) && (
+                <p className="text-sm text-muted-foreground">
+                  {formatAddress(church ?? {})}
+                </p>
+              )}
+              {stats && (
+                <p className="text-sm">
+                  <span className="font-medium">Total Members:</span>{" "}
+                  {stats.metrics.totalMembers} (
+                  {stats.metrics.activeMembers} active,{" "}
+                  {stats.metrics.inactiveMembers} inactive)
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Recent Giving by Service Module */}
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 min-w-0">
-              <DollarSign className="h-5 w-5 shrink-0" />
-              <CardTitle className="truncate">Giving by Service</CardTitle>
-            </div>
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <Link href="/giving">View All</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[300px]">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Skeleton key={i} className="h-20 w-full" />
-                  ))}
-                </div>
-              ) : recentGivingByService.length > 0 ? (
-                <div className="space-y-3">
-                  {recentGivingByService.map((service) => (
-                    <Link
-                      key={service.serviceId}
-                      href={`/attendance/service/${service.serviceId}`}
-                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
+      {/* Recent Activity */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">Recent Activity</h2>
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-3 min-w-0">
+          {/* Recent Services Module */}
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <Calendar className="h-5 w-5 shrink-0" />
+                <CardTitle className="truncate">Recent Services</CardTitle>
+              </div>
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link href="/attendance">View All</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[300px]">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))}
+                  </div>
+                ) : recentServices.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentServices.map((service) => (
+                      <Link
+                        key={service.serviceId}
+                        href={`/attendance/service/${service.serviceId}`}
+                        className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
                             <p className="font-medium text-sm">
                               {formatServiceType(service.serviceType)}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(service.serviceDate)}
                             </p>
                           </div>
-                          <p className="font-semibold text-sm">
-                            {formatCurrency(service.totalAmount)}
-                          </p>
-                        </div>
-                        {service.categoryTotals.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {service.categoryTotals
-                              .slice(0, 3)
-                              .map((category) => (
-                                <Badge
-                                  key={category.categoryId}
-                                  variant="secondary"
-                                  className="text-xs"
-                                >
-                                  {category.categoryName}:{" "}
-                                  {formatCurrency(category.amount)}
-                                </Badge>
-                              ))}
-                            {service.categoryTotals.length > 3 && (
-                              <Badge variant="secondary" className="text-xs">
-                                +{service.categoryTotals.length - 3} more
-                              </Badge>
-                            )}
+                          <div className="text-right ml-4">
+                            <p className="font-semibold text-sm">
+                              {service.attendeesCount}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              attended
+                            </p>
+                            <p className="font-semibold text-sm mt-1">
+                              {service.communionCount}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              communion
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  No recent giving records
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No recent services
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Recent Membership Changes Module */}
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <Users className="h-5 w-5 shrink-0" />
+                <CardTitle className="truncate">Membership Changes</CardTitle>
+              </div>
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link href="/membership">View All</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[300px]">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))}
+                  </div>
+                ) : recentChanges.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentChanges.map((change) => (
+                      <Link
+                        key={change.id}
+                        href={`/membership/${change.id}`}
+                        className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge
+                                variant="outline"
+                                className={`${getChangeTypeColor(change.changeType)} text-xs`}
+                              >
+                                <span className="flex items-center gap-1">
+                                  {getChangeTypeIcon(change.changeType)}
+                                  {formatChangeType(change.changeType)}
+                                </span>
+                              </Badge>
+                            </div>
+                            <p className="font-medium text-sm truncate">
+                              {change.firstName} {change.lastName}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {formatDate(change.date)}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No recent membership changes
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Recent Giving by Service Module */}
+          <Card className="min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <DollarSign className="h-5 w-5 shrink-0" />
+                <CardTitle className="truncate">Giving by Service</CardTitle>
+              </div>
+              <Button asChild variant="outline" size="sm" className="shrink-0">
+                <Link href="/giving">View All</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[300px]">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))}
+                  </div>
+                ) : recentGivingByService.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentGivingByService.map((service) => (
+                      <Link
+                        key={service.serviceId}
+                        href={`/attendance/service/${service.serviceId}`}
+                        className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-sm">
+                                {formatServiceType(service.serviceType)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(service.serviceDate)}
+                              </p>
+                            </div>
+                            <p className="font-semibold text-sm">
+                              {formatCurrency(service.totalAmount)}
+                            </p>
+                          </div>
+                          {service.categoryTotals.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {service.categoryTotals
+                                .slice(0, 3)
+                                .map((category) => (
+                                  <Badge
+                                    key={category.categoryId}
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {category.categoryName}:{" "}
+                                    {formatCurrency(category.amount)}
+                                  </Badge>
+                                ))}
+                              {service.categoryTotals.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{service.categoryTotals.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No recent giving records
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Attendance Chart */}
+      {/* Trends Section */}
       <Card className="min-w-0 overflow-hidden">
-        <CardHeader className="min-w-0">
-          <CardTitle className="flex items-center gap-2 min-w-0">
-            <BarChart3 className="h-5 w-5 shrink-0" />
-            <span className="truncate">Monthly Attendance Trend</span>
-          </CardTitle>
-          <CardDescription>Average per service (last 6 months)</CardDescription>
-        </CardHeader>
-        <CardContent className="min-w-0 w-full overflow-hidden px-2 sm:px-6">
-          {loading ? (
-            <Skeleton className="h-[250px] w-full min-w-0" />
-          ) : stats?.trends.monthlyAttendance.length ? (
-            <div className="w-full min-w-0 overflow-x-auto">
-              <div className="h-[250px] min-w-[280px] w-full">
-                <ChartContainer
-                  config={{
-                    average: {
-                      label: "Average Attendance",
-                      color: "hsl(var(--chart-2))",
-                    },
-                  }}
-                  className="h-full w-full"
-                >
-                  <LineChart data={stats.trends.monthlyAttendance} margin={{ left: 0, right: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis width={32} tick={{ fontSize: 12 }} />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          formatter={(value) =>
-                            `${Number(value).toFixed(1)} people`
-                          }
-                        />
-                    }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="average"
-                      stroke="hsl(var(--chart-2))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ChartContainer>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Trends
+            </CardTitle>
+            <CardDescription>
+              Compact summary for the selected period
+            </CardDescription>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Select
+              value={trendsDateRange}
+              onValueChange={(v) => setTrendsDateRange(v as TrendsDateRange)}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="6months">Past 6 months</SelectItem>
+                <SelectItem value="ytd">Year-to-date</SelectItem>
+                <SelectItem value="3months">Past 3 months</SelectItem>
+                <SelectItem value="custom">Custom range</SelectItem>
+              </SelectContent>
+            </Select>
+            {trendsDateRange === "custom" && (
+              <div className="flex gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="trends-start" className="text-xs">
+                    Start
+                  </Label>
+                  <Input
+                    id="trends-start"
+                    type="date"
+                    value={trendsCustomStart}
+                    onChange={(e) => setTrendsCustomStart(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="trends-end" className="text-xs">
+                    End
+                  </Label>
+                  <Input
+                    id="trends-end"
+                    type="date"
+                    value={trendsCustomEnd}
+                    onChange={(e) => setTrendsCustomEnd(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {attendanceKey && givingKey ? (
+            attendanceData === undefined || givingData === undefined ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : attendanceTrend.length === 0 && givingTrend.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">
+                No trend data for this period
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-lg border p-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Attendance
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {avgAttendancePerService.toFixed(1)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      avg per service
+                      {totalServices > 0 && ` (${totalServices} services)`}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Giving
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {formatCurrency(totalGiving)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      total
+                      {givingMonthCount > 0 &&
+                        ` (avg ${formatCurrency(avgGivingPerMonth)}/mo)`}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Communion
+                    </p>
+                    <p className="text-2xl font-bold mt-1">
+                      {communionPct.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      of attendees
+                    </p>
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <Link
+                    href="/analytics"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View full analytics
+                  </Link>
+                </div>
+              </>
+            )
           ) : (
-            <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-              No attendance data available
-            </div>
+            <p className="text-center text-muted-foreground py-6">
+              Select a date range to view trends
+            </p>
           )}
         </CardContent>
       </Card>
@@ -616,7 +859,9 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-base md:text-lg font-semibold mb-1">Giving</h2>
+                <h2 className="text-base md:text-lg font-semibold mb-1">
+                  Giving
+                </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
                   Track and manage all donations, including current, mission,
                   memorials, debt, school, and miscellaneous giving.
@@ -674,7 +919,9 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                 </div>
-                <h2 className="text-base md:text-lg font-semibold mb-1">Reports</h2>
+                <h2 className="text-base md:text-lg font-semibold mb-1">
+                  Reports
+                </h2>
                 <p className="text-xs md:text-sm text-muted-foreground">
                   Generate and download detailed reports for giving,
                   membership, and other church data.

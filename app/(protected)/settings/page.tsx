@@ -199,7 +199,8 @@ export default function SettingsPage() {
 
     try {
       // Determine target plan (opposite of current plan)
-      const targetPlan: "basic" | "premium" = church.subscriptionPlan === "basic" ? "premium" : "basic";
+      const plan: "basic" | "premium" = (church.subscriptionPlan === "basic" || church.subscriptionPlan === "premium") ? church.subscriptionPlan : "basic";
+      const targetPlan: "basic" | "premium" = plan === "basic" ? "premium" : "basic";
       const planConfig = SUBSCRIPTION_PLANS[targetPlan];
       
       if (!planConfig.priceId) {
@@ -296,6 +297,11 @@ export default function SettingsPage() {
   // Show upgrade button if user has a subscription (regardless of status)
   // This allows managing subscriptions even if status is "unpaid" (e.g., after promo code application)
   const canManageSubscription = church.stripeSubscriptionId !== null;
+
+  // Defensive: subscriptionPlan may be undefined/null from API (e.g. legacy data)
+  const subscriptionPlan: "basic" | "premium" = (church.subscriptionPlan === "basic" || church.subscriptionPlan === "premium")
+    ? church.subscriptionPlan
+    : "basic";
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -599,7 +605,7 @@ export default function SettingsPage() {
             <div className="p-4 border rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="font-medium">{SUBSCRIPTION_PLANS[church.subscriptionPlan].name} Plan</span>
+                  <span className="font-medium">{SUBSCRIPTION_PLANS[subscriptionPlan].name} Plan</span>
                   <span className={`ml-2 px-2 py-1 rounded text-xs ${
                     hasActiveSubscription 
                       ? "bg-green-500/10 text-green-600 border border-green-500/20"
@@ -610,11 +616,11 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <span className="text-lg font-bold">
-                  ${SUBSCRIPTION_PLANS[church.subscriptionPlan].price}/month
+                  ${SUBSCRIPTION_PLANS[subscriptionPlan].price}/month
                 </span>
               </div>
               <ul className="text-sm text-muted-foreground space-y-1 mt-3">
-                {SUBSCRIPTION_PLANS[church.subscriptionPlan].features.map((feature, index) => (
+                {SUBSCRIPTION_PLANS[subscriptionPlan].features.map((feature, index) => (
                   <li key={index} className="flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-primary" />
                     {feature}
@@ -625,7 +631,7 @@ export default function SettingsPage() {
 
             {canManageSubscription && (
               <div className="space-y-2">
-                {hasActiveSubscription && church.subscriptionPlan === "premium" && (
+                {hasActiveSubscription && subscriptionPlan === "premium" && (
                   <div className="rounded-md bg-blue-500/10 p-3 text-sm text-blue-600 border border-blue-500/20">
                     <p className="font-medium mb-1">Downgrade Notice</p>
                     <p>
@@ -643,7 +649,7 @@ export default function SettingsPage() {
                   </div>
                 )}
                 <Button
-                  variant={church.subscriptionPlan === "basic" ? "default" : "outline"}
+                  variant={subscriptionPlan === "basic" ? "default" : "outline"}
                   onClick={handleChangePlan}
                   disabled={isCreatingCheckout}
                 >
@@ -655,7 +661,7 @@ export default function SettingsPage() {
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-4 w-4" />
-                      {church.subscriptionPlan === "basic" ? "Upgrade to Premium" : "Downgrade to Basic"}
+                      {subscriptionPlan === "basic" ? "Upgrade to Premium" : "Downgrade to Basic"}
                     </>
                   )}
                 </Button>
