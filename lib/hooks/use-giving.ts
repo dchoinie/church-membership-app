@@ -11,6 +11,7 @@ export interface GivingItem {
 export interface GivingRecord {
   id: string;
   memberId: string;
+  serviceId: string | null;
   dateGiven: string;
   notes: string | null;
   createdAt: string;

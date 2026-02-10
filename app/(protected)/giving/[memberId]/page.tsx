@@ -11,7 +11,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useMember } from "@/lib/hooks/use-member";
 import { useGivingCategories } from "@/lib/hooks/use-giving-categories";
 import { useServices } from "@/lib/hooks/use-services";
-import { useMemberGiving } from "@/lib/hooks/use-giving";
+import { useMemberGiving, type GivingRecord } from "@/lib/hooks/use-giving";
 import { ServiceSelector } from "@/components/ui/service-selector";
 
 import { Button } from "@/components/ui/button";
@@ -55,22 +55,6 @@ interface GivingItem {
   categoryId: string;
   categoryName: string;
   amount: string;
-}
-
-interface GivingRecord {
-  id: string;
-  memberId: string;
-  serviceId: string | null;
-  dateGiven: string;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
-  items: GivingItem[];
-  member: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
 }
 
 interface GivingCategory {

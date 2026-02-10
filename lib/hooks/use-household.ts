@@ -6,14 +6,35 @@ export interface HouseholdMember {
   id: string;
   firstName: string;
   lastName: string;
-  [key: string]: unknown;
+  middleName?: string | null;
+  suffix?: string | null;
+  preferredName?: string | null;
+  email1?: string | null;
+  phoneHome?: string | null;
+  phoneCell1?: string | null;
+  participation?: string;
+  envelopeNumber?: number | null;
+  dateOfBirth?: string | null;
+  sex?: string | null;
 }
 
 export interface Household {
   id: string;
   name: string | null;
   type: string | null;
-  [key: string]: unknown;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  isNonHousehold?: boolean;
+  personAssigned?: string | null;
+  ministryGroup?: string | null;
+  alternateAddressBegin?: string | null;
+  alternateAddressEnd?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface HouseholdResponse {

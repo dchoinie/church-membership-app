@@ -73,9 +73,9 @@ interface Household {
   id: string;
   name: string | null;
   type: string | null;
-  address1: string | null;
-  city: string | null;
-  state: string | null;
+  address1?: string | null;
+  city?: string | null;
+  state?: string | null;
   memberCount: number;
   members: HouseholdMember[];
 }

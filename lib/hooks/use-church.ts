@@ -5,8 +5,13 @@ import useSWR from "swr";
 export interface Church {
   id: string;
   name: string;
+  subdomain: string;
   logoUrl: string | null;
   primaryColor: string | null;
+  subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
+  subscriptionPlan: "basic" | "premium";
+  stripeSubscriptionId: string | null;
+  stripeCustomerId: string | null;
   phone?: string | null;
   email?: string | null;
   address?: string | null;
@@ -19,7 +24,10 @@ export interface Church {
   taxStatementDisclaimer?: string | null;
   goodsServicesProvided?: boolean | null;
   goodsServicesStatement?: string | null;
-  [key: string]: unknown;
+  trialEndsAt?: string | null;
+  domain?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 async function fetcher(url: string) {

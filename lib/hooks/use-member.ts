@@ -6,7 +6,37 @@ export interface Member {
   id: string;
   firstName: string;
   lastName: string;
-  [key: string]: unknown;
+  preferredName?: string | null;
+  suffix?: string | null;
+  householdId?: string | null;
+  middleName?: string | null;
+  maidenName?: string | null;
+  title?: string | null;
+  sex?: string | null;
+  dateOfBirth?: string | null;
+  email1?: string | null;
+  email2?: string | null;
+  phoneHome?: string | null;
+  phoneCell1?: string | null;
+  phoneCell2?: string | null;
+  baptismDate?: string | null;
+  confirmationDate?: string | null;
+  receivedBy?: string | null;
+  dateReceived?: string | null;
+  removedBy?: string | null;
+  dateRemoved?: string | null;
+  deceasedDate?: string | null;
+  membershipCode?: string | null;
+  envelopeNumber?: number | null;
+  participation?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  headOfHousehold?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    isCurrentMember: boolean;
+  } | null;
 }
 
 async function fetcher(url: string) {

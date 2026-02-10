@@ -23,7 +23,7 @@ interface Service {
   id: string
   serviceDate: string
   serviceType: string
-  serviceTime: string | null
+  serviceTime?: string | null
 }
 
 interface ServiceSelectorProps {

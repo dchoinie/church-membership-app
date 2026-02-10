@@ -328,7 +328,7 @@ export default function MemberDetailPage({
     }
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "N/A";
     try {
       const parts = dateString.split("-");
@@ -704,7 +704,7 @@ export default function MemberDetailPage({
                         Date of Birth
                       </label>
                       <p className="mt-1 text-sm">
-                        {formatDate(member.dateOfBirth)}
+                        {formatDate(member.dateOfBirth ?? null)}
                       </p>
                     </div>
                     <div>
@@ -712,7 +712,7 @@ export default function MemberDetailPage({
                         Baptism Date
                       </label>
                       <p className="mt-1 text-sm">
-                        {formatDate(member.baptismDate)}
+                        {formatDate(member.baptismDate ?? null)}
                       </p>
                     </div>
                   </>
@@ -1129,7 +1129,7 @@ export default function MemberDetailPage({
                           Confirmation Date
                         </label>
                         <p className="mt-1 text-sm">
-                          {formatDate(member.confirmationDate)}
+                          {formatDate(member.confirmationDate ?? null)}
                         </p>
                       </div>
                     )}
@@ -1148,7 +1148,7 @@ export default function MemberDetailPage({
                         Date Received
                       </label>
                       <p className="mt-1 text-sm">
-                        {formatDate(member.dateReceived)}
+                        {formatDate(member.dateReceived ?? null)}
                       </p>
                     </div>
                   )}
@@ -1184,7 +1184,7 @@ export default function MemberDetailPage({
                             Date Removed
                           </label>
                           <p className="mt-1 text-sm">
-                            {formatDate(member.dateRemoved)}
+                            {formatDate(member.dateRemoved ?? null)}
                           </p>
                         </div>
                       )}
@@ -1196,7 +1196,7 @@ export default function MemberDetailPage({
                         Deceased Date
                       </label>
                       <p className="mt-1 text-sm">
-                        {formatDate(member.deceasedDate)}
+                        {formatDate(member.deceasedDate ?? null)}
                       </p>
                     </div>
                   )}

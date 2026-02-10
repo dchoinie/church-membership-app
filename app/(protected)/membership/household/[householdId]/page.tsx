@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { usePermissions } from "@/lib/hooks/use-permissions";
-import { useHousehold } from "@/lib/hooks/use-household";
+import { useHousehold, type HouseholdMember } from "@/lib/hooks/use-household";
 import { useHouseholds } from "@/lib/hooks/use-households";
 import { apiFetch } from "@/lib/api-client";
 import {
@@ -150,7 +150,7 @@ export default function HouseholdViewPage({
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMember, setSelectedMember] = useState<HouseholdMember | null>(null);
 
   const memberForm = useForm<MemberFormData>({
     defaultValues: {
@@ -273,7 +273,7 @@ export default function HouseholdViewPage({
     }
   };
 
-  const calculateAge = (dateOfBirth: string | null): number | null => {
+  const calculateAge = (dateOfBirth: string | null | undefined): number | null => {
     if (!dateOfBirth) return null;
     try {
       const parts = dateOfBirth.split("-");
@@ -326,7 +326,7 @@ export default function HouseholdViewPage({
     }
   };
 
-  const handleRemoveMemberClick = (member: Member) => {
+  const handleRemoveMemberClick = (member: HouseholdMember) => {
     setSelectedMember(member);
     setRemoveMemberDialogOpen(true);
   };

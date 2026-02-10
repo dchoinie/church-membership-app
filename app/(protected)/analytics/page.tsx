@@ -270,9 +270,9 @@ export default function AnalyticsPage() {
   const { data: demographicsData } = useSWR("/api/reports/demographics", fetcher);
   const { data: givingData } = useSWR(givingKey, fetcher);
 
-  const analytics = analyticsData ?? null;
-  const demographics = demographicsData ?? null;
-  const givingAnalytics = givingData ?? null;
+  const analytics = (analyticsData ?? null) as AttendanceAnalytics | null;
+  const demographics = (demographicsData ?? null) as Demographics | null;
+  const givingAnalytics = (givingData ?? null) as GivingAnalytics | null;
   const loading =
     (!!attendanceKey && analyticsData === undefined) ||
     (demographicsData === undefined) ||
