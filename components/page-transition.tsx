@@ -6,14 +6,13 @@ import { useContext, useEffect, useRef } from "react";
 import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
 function usePreviousValue<T>(value: T): T | undefined {
-  const prevValue = useRef<T>();
+  const prevRef = useRef<T | undefined>(undefined);
+  // eslint-disable-next-line -- usePreviousValue intentionally reads ref during render (valid pattern)
+  const prevValue = prevRef.current;
   useEffect(() => {
-    prevValue.current = value;
-    return () => {
-      prevValue.current = undefined;
-    };
-  });
-  return prevValue.current;
+    prevRef.current = value;
+  }, [value]);
+  return prevValue;
 }
 
 function FrozenRouter(props: { children: React.ReactNode }) {

@@ -240,7 +240,7 @@ export async function GET(request: Request) {
 
     // Handle "Other" donations (serviceId is null)
     const otherGiving = givingByServiceId["OTHER"] || [];
-    let otherCategoryTotals: Record<string, number> = {};
+    const otherCategoryTotals: Record<string, number> = {};
     categories.forEach(cat => {
       otherCategoryTotals[cat.id] = 0;
     });

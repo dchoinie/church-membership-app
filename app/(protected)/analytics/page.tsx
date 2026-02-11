@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import useSWR from "swr";
-import { BarChart3Icon, UsersIcon, CalendarIcon, TrendingUpIcon, DollarSignIcon } from "lucide-react";
-import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
+import { BarChart3Icon, UsersIcon, CalendarIcon, TrendingUpIcon, DollarSignIcon, Loader2 } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -225,40 +224,23 @@ export default function AnalyticsPage() {
     return { startDate, endDate };
   };
 
-  // Update attendance date range when preset changes
-  useEffect(() => {
-    if (attendanceDateRange !== "custom") {
-      const { startDate, endDate } = calculateDateRange(attendanceDateRange);
-      setAttendanceStartDate(startDate);
-      setAttendanceEndDate(endDate);
-    }
-  }, [attendanceDateRange]);
-
-  // Update giving date range when preset changes
-  useEffect(() => {
-    if (givingDateRange !== "custom") {
-      const { startDate, endDate } = calculateDateRange(givingDateRange);
-      setGivingStartDate(startDate);
-      setGivingEndDate(endDate);
-    }
-  }, [givingDateRange]);
-
-  // Initialize default dates
-  useEffect(() => {
-    const { startDate, endDate } = calculateDateRange("current-year");
-    setAttendanceStartDate(startDate);
-    setAttendanceEndDate(endDate);
-    setGivingStartDate(startDate);
-    setGivingEndDate(endDate);
-  }, []);
+  // Derive effective dates from preset (avoid setState in effects)
+  const effectiveAttendanceDates =
+    attendanceDateRange !== "custom"
+      ? calculateDateRange(attendanceDateRange)
+      : { startDate: attendanceStartDate, endDate: attendanceEndDate };
+  const effectiveGivingDates =
+    givingDateRange !== "custom"
+      ? calculateDateRange(givingDateRange)
+      : { startDate: givingStartDate, endDate: givingEndDate };
 
   const attendanceKey =
-    attendanceStartDate && attendanceEndDate
-      ? `/api/reports/attendance?startDate=${attendanceStartDate}&endDate=${attendanceEndDate}`
+    effectiveAttendanceDates.startDate && effectiveAttendanceDates.endDate
+      ? `/api/reports/attendance?startDate=${effectiveAttendanceDates.startDate}&endDate=${effectiveAttendanceDates.endDate}`
       : null;
   const givingKey =
-    givingStartDate && givingEndDate
-      ? `/api/reports/giving-analytics?startDate=${givingStartDate}&endDate=${givingEndDate}`
+    effectiveGivingDates.startDate && effectiveGivingDates.endDate
+      ? `/api/reports/giving-analytics?startDate=${effectiveGivingDates.startDate}&endDate=${effectiveGivingDates.endDate}`
       : null;
 
   const fetcher = async (url: string) => {
@@ -629,7 +611,18 @@ export default function AnalyticsPage() {
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="giving-date-range">Preset Range</Label>
-                      <Select value={givingDateRange} onValueChange={(value) => setGivingDateRange(value as DateRangePreset)}>
+                      <Select
+                        value={givingDateRange}
+                        onValueChange={(value) => {
+                          const newRange = value as DateRangePreset;
+                          if (newRange === "custom") {
+                            const { startDate, endDate } = calculateDateRange(givingDateRange);
+                            setGivingStartDate(startDate);
+                            setGivingEndDate(endDate);
+                          }
+                          setGivingDateRange(newRange);
+                        }}
+                      >
                         <SelectTrigger id="giving-date-range" className="w-full md:w-[250px]">
                           <SelectValue />
                         </SelectTrigger>
@@ -699,11 +692,11 @@ export default function AnalyticsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {givingAnalytics.year || `${new Date(givingStartDate).getFullYear()}`}
+                      {givingAnalytics.year || `${new Date(effectiveGivingDates.startDate).getFullYear()}`}
                     </div>
                     {givingDateRange === "custom" && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(givingStartDate).toLocaleDateString()} - {new Date(givingEndDate).toLocaleDateString()}
+                        {new Date(effectiveGivingDates.startDate).toLocaleDateString()} - {new Date(effectiveGivingDates.endDate).toLocaleDateString()}
                       </p>
                     )}
                   </CardContent>
@@ -916,7 +909,18 @@ export default function AnalyticsPage() {
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="attendance-date-range">Preset Range</Label>
-                      <Select value={attendanceDateRange} onValueChange={(value) => setAttendanceDateRange(value as DateRangePreset)}>
+                      <Select
+                        value={attendanceDateRange}
+                        onValueChange={(value) => {
+                          const newRange = value as DateRangePreset;
+                          if (newRange === "custom") {
+                            const { startDate, endDate } = calculateDateRange(attendanceDateRange);
+                            setAttendanceStartDate(startDate);
+                            setAttendanceEndDate(endDate);
+                          }
+                          setAttendanceDateRange(newRange);
+                        }}
+                      >
                         <SelectTrigger id="attendance-date-range" className="w-full md:w-[250px]">
                           <SelectValue />
                         </SelectTrigger>

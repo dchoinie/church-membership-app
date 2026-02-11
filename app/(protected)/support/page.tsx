@@ -193,7 +193,7 @@ export default function SupportPage() {
           Support
         </h1>
         <p className="text-muted-foreground mt-2 text-sm md:text-base">
-          Submit a support ticket and we'll get back to you as soon as possible
+          Submit a support ticket and we&apos;ll get back to you as soon as possible
         </p>
       </div>
 
