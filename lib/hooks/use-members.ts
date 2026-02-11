@@ -20,12 +20,14 @@ interface MembersResponse {
   };
 }
 
+const EMPTY_MEMBERS: Member[] = [];
+
 async function fetcher(url: string) {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch");
   const data = await res.json();
   return {
-    members: data.members ?? [],
+    members: data.members ?? EMPTY_MEMBERS,
     pagination: data.pagination,
   };
 }
@@ -44,7 +46,7 @@ export function useMembers(options?: { page?: number; pageSize?: number }) {
   );
 
   return {
-    members: data?.members ?? [],
+    members: data?.members ?? EMPTY_MEMBERS,
     pagination: data?.pagination ?? {
       page: 1,
       pageSize,

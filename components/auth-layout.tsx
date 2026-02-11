@@ -17,6 +17,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { PageTransition } from "@/components/page-transition";
 
 interface Church {
   id: string;
@@ -225,7 +226,7 @@ export default function AuthLayout({
 
   // Public routes (login, signup, etc.) - no sidebar
   if (isPublicRoute) {
-    return <>{children}</>;
+    return <PageTransition>{children}</PageTransition>;
   }
   
   // Setup route - show sidebar but allow access even without active subscription
@@ -267,7 +268,9 @@ export default function AuthLayout({
 
         {/* Main Content */}
         <main className="w-full md:flex-1 md:overflow-y-auto bg-background md:min-h-0">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">{children}</div>
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">
+            <PageTransition>{children}</PageTransition>
+          </div>
         </main>
       </div>
     );
@@ -312,7 +315,9 @@ export default function AuthLayout({
 
         {/* Main Content */}
         <main className="w-full md:flex-1 md:overflow-y-auto bg-background md:min-h-0">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">{children}</div>
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">
+            <PageTransition>{children}</PageTransition>
+          </div>
         </main>
       </div>
     );
