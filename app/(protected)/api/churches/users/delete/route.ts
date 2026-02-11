@@ -116,6 +116,14 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // TypeScript guard: membership implies userToDelete exists
+    if (!userToDelete) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     // Delete invitations associated with this email and church
     await db
       .delete(invitations)
