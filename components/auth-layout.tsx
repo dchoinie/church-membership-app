@@ -150,7 +150,11 @@ export default function AuthLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isPublicRoute = publicRoutes.includes(pathname);
   const isAuthenticated = !!session?.user;
-  const { church } = useChurch(!isPublicRoute && isAuthenticated);
+  // Use !isPublicRoute only - tying to isAuthenticated causes flicker when session
+  // refetches (tab focus, etc.) and briefly returns undefined; church hook gets
+  // disabled, cache key becomes null, and we flash "Simple Church Tools" before
+  // church data restores
+  const { church } = useChurch(!isPublicRoute);
 
   // Close mobile menu when route changes
   useEffect(() => {
