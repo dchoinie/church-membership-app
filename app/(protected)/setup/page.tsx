@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, CheckCircle2, CreditCard } from "lucide-react";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { authClient } from "@/lib/auth-client";
@@ -280,7 +281,7 @@ export default function SetupPage() {
   if (isSessionPending || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <ChurchLoadingIndicator size="lg" centered />
       </div>
     );
   }
@@ -289,7 +290,7 @@ export default function SetupPage() {
   if (!session?.user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <ChurchLoadingIndicator size="lg" centered />
       </div>
     );
   }
@@ -312,8 +313,7 @@ export default function SetupPage() {
     // Returning null can cause Next.js to redirect away
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading church data...</span>
+        <ChurchLoadingIndicator size="lg" label="Loading church data..." centered />
       </div>
     );
   }

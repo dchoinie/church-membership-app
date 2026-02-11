@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, CheckCircle2, CreditCard, Settings as SettingsIcon, AlertCircle } from "lucide-react";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 
@@ -260,7 +261,7 @@ export default function SettingsPage() {
   if (permissionsLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <ChurchLoadingIndicator size="lg" centered />
       </div>
     );
   }
@@ -286,8 +287,7 @@ export default function SettingsPage() {
   if (!church) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading church data...</span>
+        <ChurchLoadingIndicator size="lg" label="Loading church data..." centered />
       </div>
     );
   }

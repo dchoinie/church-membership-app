@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { useSWRConfig } from "swr";
 import { PencilIcon, SaveIcon, XIcon, TrashIcon } from "lucide-react";
 import Link from "next/link";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useMember } from "@/lib/hooks/use-member";
 import { useHouseholds } from "@/lib/hooks/use-households";
@@ -348,8 +349,8 @@ export default function MemberDetailPage({
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="text-center py-8 text-muted-foreground">
-          Loading member details...
+        <div className="text-center py-8">
+          <ChurchLoadingIndicator size="md" label="Loading member details..." />
         </div>
       </div>
     );

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import useSWR from "swr";
-import { Loader2, BarChart3Icon, UsersIcon, CalendarIcon, TrendingUpIcon, DollarSignIcon } from "lucide-react";
+import { BarChart3Icon, UsersIcon, CalendarIcon, TrendingUpIcon, DollarSignIcon } from "lucide-react";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import {
   LineChart,
   Line,

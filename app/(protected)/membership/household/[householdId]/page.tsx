@@ -17,6 +17,7 @@ import {
   EyeIcon,
 } from "lucide-react";
 
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -444,8 +445,8 @@ export default function HouseholdViewPage({
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="text-center py-8 text-muted-foreground">
-          Loading household information...
+        <div className="text-center py-8">
+          <ChurchLoadingIndicator size="md" label="Loading household information..." />
         </div>
       </div>
     );

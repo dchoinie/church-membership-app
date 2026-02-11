@@ -21,6 +21,7 @@ import {
   Lock,
   LogIn,
 } from "lucide-react";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { useMarketing } from "@/components/marketing-context";
 import { authClient } from "@/lib/auth-client";
@@ -227,9 +228,11 @@ export default function LandingPage() {
     if (session?.user?.emailVerified) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="text-muted-foreground">
-            {isGatheringChurchInfo ? "Gathering church info..." : "Redirecting..."}
-          </div>
+          <ChurchLoadingIndicator
+            size="lg"
+            label={isGatheringChurchInfo ? "Gathering church info..." : "Redirecting..."}
+            centered
+          />
         </div>
       );
     }

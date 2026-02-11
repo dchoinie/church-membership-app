@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Settings, Menu, HelpCircle, Loader2, LayoutDashboard, Users, DollarSign, CalendarCheck, BarChart3, FileText, Shield } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { ChurchSwitcher } from "@/components/church-switcher";
 import { Button } from "@/components/ui/button";
 import { usePermissions } from "@/lib/hooks/use-permissions";
@@ -217,7 +218,7 @@ export default function AuthLayout({
   if (isPending) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <ChurchLoadingIndicator size="lg" label="Loading..." centered />
       </div>
     );
   }

@@ -475,3 +475,17 @@
 .animate-gentle-fade {
   animation: gentle-fade 1s ease-out;
 }
+
+/* Church loading indicator - circular progress bar */
+@keyframes church-loading-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+.animate-church-loading-spin {
+  animation: church-loading-spin 1.2s linear infinite;
+}

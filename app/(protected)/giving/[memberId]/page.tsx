@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PlusIcon, PencilIcon, ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
+import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useMember } from "@/lib/hooks/use-member";
 import { useGivingCategories } from "@/lib/hooks/use-giving-categories";
