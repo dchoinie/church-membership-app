@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Loader2, CheckCircle2, CreditCard } from "lucide-react";
 import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
+import { DenominationSelect } from "@/components/ui/denomination-select";
+import { DENOMINATIONS } from "@/lib/denominations";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { authClient } from "@/lib/auth-client";
@@ -42,23 +44,6 @@ interface Church {
   phone?: string | null;
   logoUrl?: string | null;
 }
-
-const DENOMINATIONS = [
-  "Catholic",
-  "Non-Denominational",
-  "Baptist",
-  "Methodist",
-  "ELCA",
-  "LCMS",
-  "WELS",
-  "Anglican",
-  "Episcopal",
-  "Presbyterian",
-  "ELS",
-  "NALC",
-  "LCMC",
-  "Other",
-] as const;
 
 export default function SetupPage() {
   const router = useRouter();
@@ -395,23 +380,13 @@ export default function SetupPage() {
               {/* Denomination */}
               <div className="space-y-2">
                 <Label htmlFor="denomination">Denomination</Label>
-                <Select
+                <DenominationSelect
+                  id="denomination"
                   value={formData.denomination}
-                  onValueChange={(value) => 
+                  onValueChange={(value) =>
                     setFormData({ ...formData, denomination: value, otherDenomination: value === "Other" ? formData.otherDenomination : "" })
                   }
-                >
-                  <SelectTrigger id="denomination" className="w-full">
-                    <SelectValue placeholder="Select denomination" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DENOMINATIONS.map((denom) => (
-                      <SelectItem key={denom} value={denom}>
-                        {denom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
                 {formData.denomination === "Other" && (
                   <div className="mt-2">
                     <Input

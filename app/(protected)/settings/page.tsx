@@ -16,15 +16,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2, CheckCircle2, CreditCard, Settings as SettingsIcon, AlertCircle } from "lucide-react";
 import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
+import { DenominationSelect } from "@/components/ui/denomination-select";
+import { DENOMINATIONS } from "@/lib/denominations";
 import { SUBSCRIPTION_PLANS } from "@/lib/pricing";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 
@@ -49,23 +44,6 @@ interface Church {
   goodsServicesProvided?: boolean | null;
   goodsServicesStatement?: string | null;
 }
-
-const DENOMINATIONS = [
-  "Catholic",
-  "Non-Denominational",
-  "Baptist",
-  "Methodist",
-  "ELCA",
-  "LCMS",
-  "WELS",
-  "Anglican",
-  "Episcopal",
-  "Presbyterian",
-  "ELS",
-  "NALC",
-  "LCMC",
-  "Other",
-] as const;
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -424,23 +402,13 @@ export default function SettingsPage() {
                 {/* Denomination */}
                 <div className="space-y-2">
                   <Label htmlFor="denomination">Denomination</Label>
-                  <Select
+                  <DenominationSelect
+                    id="denomination"
                     value={formData.denomination}
-                    onValueChange={(value) => 
+                    onValueChange={(value) =>
                       setFormData({ ...formData, denomination: value, otherDenomination: value === "Other" ? formData.otherDenomination : "" })
                     }
-                  >
-                    <SelectTrigger id="denomination" className="w-full">
-                      <SelectValue placeholder="Select denomination" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DENOMINATIONS.map((denom) => (
-                        <SelectItem key={denom} value={denom}>
-                          {denom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                   {formData.denomination === "Other" && (
                     <div className="mt-2">
                       <Input
