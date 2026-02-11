@@ -18,6 +18,15 @@ export interface Household {
   members: HouseholdMember[];
 }
 
+export interface HouseholdFilters {
+  q?: string;
+  type?: string;
+  city?: string;
+  state?: string;
+  minMembers?: number;
+  maxMembers?: number;
+}
+
 interface HouseholdsResponse {
   households: Household[];
   pagination?: {
@@ -38,8 +47,23 @@ async function fetcher(url: string) {
   };
 }
 
-export function useHouseholds(page = 1, pageSize = 50) {
-  const key = `/api/families?page=${page}&pageSize=${pageSize}`;
+function buildHouseholdsKey(page: number, pageSize: number, filters?: HouseholdFilters): string {
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  if (filters) {
+    if (filters.q) params.set("q", filters.q);
+    if (filters.type) params.set("type", filters.type);
+    if (filters.city) params.set("city", filters.city);
+    if (filters.state) params.set("state", filters.state);
+    if (filters.minMembers != null) params.set("minMembers", String(filters.minMembers));
+    if (filters.maxMembers != null) params.set("maxMembers", String(filters.maxMembers));
+  }
+  return `/api/families?${params.toString()}`;
+}
+
+export function useHouseholds(page = 1, pageSize = 50, filters?: HouseholdFilters) {
+  const key = buildHouseholdsKey(page, pageSize, filters);
   const { data, error, isLoading, mutate } = useSWR<HouseholdsResponse>(
     key,
     fetcher,

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { PlusIcon, UploadIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon, File } from "lucide-react";
+import { PlusIcon, TrashIcon, PencilIcon, ArrowUpDown, ArrowUp, ArrowDown, DownloadIcon, EyeIcon, File, UsersIcon, UserIcon, ChevronDownIcon, ChevronUpIcon, SearchIcon, Loader2 } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/use-permissions";
-import { useHouseholds } from "@/lib/hooks/use-households";
+import { useHouseholds, type HouseholdFilters } from "@/lib/hooks/use-households";
+import { useIndividualMembers, type IndividualMemberFilters } from "@/lib/hooks/use-individual-members";
 import { apiFetch } from "@/lib/api-client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +66,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface HouseholdMember {
   firstName: string;
@@ -113,16 +117,135 @@ export default function MembershipPage() {
     errors: string[];
   } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [createHouseholdLoading, setCreateHouseholdLoading] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
+  const [individualMembersPage, setIndividualMembersPage] = useState(1);
+
+  // Search/filter state
+  const [householdFilters, setHouseholdFilters] = useState<HouseholdFilters>({});
+  const [memberFilters, setMemberFilters] = useState<IndividualMemberFilters>({});
+  const [householdSearchInput, setHouseholdSearchInput] = useState("");
+  const [memberSearchInput, setMemberSearchInput] = useState("");
+  const [householdFiltersOpen, setHouseholdFiltersOpen] = useState(false);
+  const [memberFiltersOpen, setMemberFiltersOpen] = useState(false);
+
+  // Draft state for advanced filters (only applied on Apply button click)
+  const [householdFiltersDraft, setHouseholdFiltersDraft] = useState<Pick<HouseholdFilters, "type" | "city" | "state" | "minMembers" | "maxMembers">>({});
+  const [memberFiltersDraft, setMemberFiltersDraft] = useState<Pick<IndividualMemberFilters, "participation" | "sex" | "sequence" | "householdName">>({});
+
+  const applyHouseholdSearch = useCallback(() => {
+    setHouseholdFilters((prev) => ({ ...prev, q: householdSearchInput.trim() || undefined }));
+    setCurrentPage(1);
+  }, [householdSearchInput]);
+
+  const applyMemberSearch = useCallback(() => {
+    setMemberFilters((prev) => ({ ...prev, q: memberSearchInput.trim() || undefined }));
+    setIndividualMembersPage(1);
+  }, [memberSearchInput]);
+
+  const clearHouseholdFilters = useCallback(() => {
+    setHouseholdFilters({});
+    setHouseholdSearchInput("");
+    setHouseholdFiltersDraft({});
+    setCurrentPage(1);
+  }, []);
+
+  const clearMemberFilters = useCallback(() => {
+    setMemberFilters({});
+    setMemberSearchInput("");
+    setMemberFiltersDraft({});
+    setIndividualMembersPage(1);
+  }, []);
+
+  const applyHouseholdAdvancedFilters = useCallback(() => {
+    setHouseholdFilters((prev) => ({
+      ...prev,
+      type: householdFiltersDraft.type || undefined,
+      city: householdFiltersDraft.city || undefined,
+      state: householdFiltersDraft.state || undefined,
+      minMembers: householdFiltersDraft.minMembers,
+      maxMembers: householdFiltersDraft.maxMembers,
+    }));
+    setCurrentPage(1);
+  }, [householdFiltersDraft]);
+
+  const clearHouseholdAdvancedFilters = useCallback(() => {
+    setHouseholdFiltersDraft({});
+    setHouseholdFilters((prev) => {
+      const next = { ...prev };
+      delete next.type;
+      delete next.city;
+      delete next.state;
+      delete next.minMembers;
+      delete next.maxMembers;
+      return next;
+    });
+    setCurrentPage(1);
+  }, []);
+
+  const applyMemberAdvancedFilters = useCallback(() => {
+    setMemberFilters((prev) => ({
+      ...prev,
+      participation: memberFiltersDraft.participation?.length ? memberFiltersDraft.participation : undefined,
+      sex: memberFiltersDraft.sex?.length ? memberFiltersDraft.sex : undefined,
+      sequence: memberFiltersDraft.sequence?.length ? memberFiltersDraft.sequence : undefined,
+      householdName: memberFiltersDraft.householdName || undefined,
+    }));
+    setIndividualMembersPage(1);
+  }, [memberFiltersDraft]);
+
+  const clearMemberAdvancedFilters = useCallback(() => {
+    setMemberFiltersDraft({});
+    setMemberFilters((prev) => {
+      const next = { ...prev };
+      delete next.participation;
+      delete next.sex;
+      delete next.sequence;
+      delete next.householdName;
+      return next;
+    });
+    setIndividualMembersPage(1);
+  }, []);
+
+  // Sync draft from applied filters when advanced panel opens or when applied filters change (e.g. after Apply or Clear)
+  useEffect(() => {
+    if (householdFiltersOpen) {
+      setHouseholdFiltersDraft({
+        type: householdFilters.type,
+        city: householdFilters.city,
+        state: householdFilters.state,
+        minMembers: householdFilters.minMembers,
+        maxMembers: householdFilters.maxMembers,
+      });
+    }
+  }, [householdFiltersOpen, householdFilters.type, householdFilters.city, householdFilters.state, householdFilters.minMembers, householdFilters.maxMembers]);
+
+  useEffect(() => {
+    if (memberFiltersOpen) {
+      setMemberFiltersDraft({
+        participation: memberFilters.participation,
+        sex: memberFilters.sex,
+        sequence: memberFilters.sequence,
+        householdName: memberFilters.householdName,
+      });
+    }
+  }, [memberFiltersOpen, memberFilters.participation, memberFilters.sex, memberFilters.sequence, memberFilters.householdName]);
 
   const {
     households,
     pagination,
     isLoading: loading,
     mutate: mutateHouseholds,
-  } = useHouseholds(currentPage, 50);
+  } = useHouseholds(currentPage, 50, householdFilters);
+
+  const {
+    members: individualMembers,
+    pagination: individualMembersPagination,
+    isLoading: individualMembersLoading,
+    mutate: mutateIndividualMembers,
+  } = useIndividualMembers(individualMembersPage, 50, memberFilters);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<"name" | "type" | "members">("name");
@@ -156,6 +279,22 @@ export default function MembershipPage() {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
     }
+  };
+
+  const handleIndividualMembersPageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= individualMembersPagination.totalPages) {
+      setIndividualMembersPage(newPage);
+    }
+  };
+
+  const getParticipationBadgeClass = (participation: string | undefined) => {
+    const p = participation?.toLowerCase();
+    if (p === "active") return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+    if (p === "inactive") return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+    if (p === "deceased") return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+    if (p === "homebound" || p === "military" || p === "school")
+      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+    return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
   };
 
   const getHouseholdDisplayName = (household: Household): string => {
@@ -215,6 +354,7 @@ export default function MembershipPage() {
   });
 
   const onCreateSubmit = async (data: HouseholdFormData) => {
+    setCreateHouseholdLoading(true);
     try {
       const response = await apiFetch("/api/families", {
         method: "POST",
@@ -240,6 +380,8 @@ export default function MembershipPage() {
     } catch (error) {
       console.error("Error creating household:", error);
       alert("Failed to create household");
+    } finally {
+      setCreateHouseholdLoading(false);
     }
   };
 
@@ -350,6 +492,7 @@ export default function MembershipPage() {
 
       if (response.ok) {
         mutateHouseholds();
+        mutateIndividualMembers();
 
         // Clear file input
         setImportFile(null);
@@ -425,10 +568,199 @@ export default function MembershipPage() {
             Manage households and their members
           </p>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
-            If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.
+            If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button in the Households tab.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportMembers}
+            disabled={exporting}
+            className="cursor-pointer"
+          >
+            <DownloadIcon className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Export Members"}
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="households" className="w-full">
+        <TabsList className="w-full md:w-auto overflow-x-auto">
+          <TabsTrigger className="cursor-pointer text-xs md:text-sm" value="households">
+            <UsersIcon className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+            Households
+          </TabsTrigger>
+          <TabsTrigger className="cursor-pointer text-xs md:text-sm" value="individuals">
+            <UserIcon className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+            Individual Members
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="households" className="space-y-4 mt-4">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, address, city, state, zip"
+                  value={householdSearchInput}
+                  onChange={(e) => setHouseholdSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyHouseholdSearch())}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="default" onClick={applyHouseholdSearch} className="cursor-pointer">
+                  Search
+                </Button>
+                <Button variant="outline" onClick={clearHouseholdFilters} className="cursor-pointer">
+                  Clear
+                </Button>
+              </div>
+            </div>
+            <Collapsible open={householdFiltersOpen} onOpenChange={setHouseholdFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="cursor-pointer -ml-2">
+                  {householdFiltersOpen ? <ChevronUpIcon className="h-4 w-4 mr-1" /> : <ChevronDownIcon className="h-4 w-4 mr-1" />}
+                  Advanced filters
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="rounded-lg border bg-muted/30 p-4 mt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Type</label>
+                      <Select
+                        value={householdFiltersDraft.type ?? "all"}
+                        onValueChange={(v) => setHouseholdFiltersDraft((prev) => ({ ...prev, type: v === "all" ? undefined : v }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="single">Single</SelectItem>
+                          <SelectItem value="family">Family</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">City</label>
+                      <Input
+                        placeholder="City"
+                        value={householdFiltersDraft.city ?? ""}
+                        onChange={(e) => setHouseholdFiltersDraft((prev) => ({ ...prev, city: e.target.value || undefined }))}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">State</label>
+                      <Select
+                        value={householdFiltersDraft.state ?? "all"}
+                        onValueChange={(v) => setHouseholdFiltersDraft((prev) => ({ ...prev, state: v === "all" ? undefined : v }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="AL">AL</SelectItem>
+                        <SelectItem value="AK">AK</SelectItem>
+                        <SelectItem value="AZ">AZ</SelectItem>
+                        <SelectItem value="AR">AR</SelectItem>
+                        <SelectItem value="CA">CA</SelectItem>
+                        <SelectItem value="CO">CO</SelectItem>
+                        <SelectItem value="CT">CT</SelectItem>
+                        <SelectItem value="DE">DE</SelectItem>
+                        <SelectItem value="FL">FL</SelectItem>
+                        <SelectItem value="GA">GA</SelectItem>
+                        <SelectItem value="HI">HI</SelectItem>
+                        <SelectItem value="ID">ID</SelectItem>
+                        <SelectItem value="IL">IL</SelectItem>
+                        <SelectItem value="IN">IN</SelectItem>
+                        <SelectItem value="IA">IA</SelectItem>
+                        <SelectItem value="KS">KS</SelectItem>
+                        <SelectItem value="KY">KY</SelectItem>
+                        <SelectItem value="LA">LA</SelectItem>
+                        <SelectItem value="ME">ME</SelectItem>
+                        <SelectItem value="MD">MD</SelectItem>
+                        <SelectItem value="MA">MA</SelectItem>
+                        <SelectItem value="MI">MI</SelectItem>
+                        <SelectItem value="MN">MN</SelectItem>
+                        <SelectItem value="MS">MS</SelectItem>
+                        <SelectItem value="MO">MO</SelectItem>
+                        <SelectItem value="MT">MT</SelectItem>
+                        <SelectItem value="NE">NE</SelectItem>
+                        <SelectItem value="NV">NV</SelectItem>
+                        <SelectItem value="NH">NH</SelectItem>
+                        <SelectItem value="NJ">NJ</SelectItem>
+                        <SelectItem value="NM">NM</SelectItem>
+                        <SelectItem value="NY">NY</SelectItem>
+                        <SelectItem value="NC">NC</SelectItem>
+                        <SelectItem value="ND">ND</SelectItem>
+                        <SelectItem value="OH">OH</SelectItem>
+                        <SelectItem value="OK">OK</SelectItem>
+                        <SelectItem value="OR">OR</SelectItem>
+                        <SelectItem value="PA">PA</SelectItem>
+                        <SelectItem value="RI">RI</SelectItem>
+                        <SelectItem value="SC">SC</SelectItem>
+                        <SelectItem value="SD">SD</SelectItem>
+                        <SelectItem value="TN">TN</SelectItem>
+                        <SelectItem value="TX">TX</SelectItem>
+                        <SelectItem value="UT">UT</SelectItem>
+                        <SelectItem value="VT">VT</SelectItem>
+                        <SelectItem value="VA">VA</SelectItem>
+                        <SelectItem value="WA">WA</SelectItem>
+                        <SelectItem value="WV">WV</SelectItem>
+                        <SelectItem value="WI">WI</SelectItem>
+                        <SelectItem value="WY">WY</SelectItem>
+                        <SelectItem value="DC">DC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Min members</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Min"
+                        value={householdFiltersDraft.minMembers ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value === "" ? undefined : parseInt(e.target.value, 10);
+                          setHouseholdFiltersDraft((prev) => ({ ...prev, minMembers: v != null && !isNaN(v) ? v : undefined }));
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Max members</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Max"
+                        value={householdFiltersDraft.maxMembers ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value === "" ? undefined : parseInt(e.target.value, 10);
+                          setHouseholdFiltersDraft((prev) => ({ ...prev, maxMembers: v != null && !isNaN(v) ? v : undefined }));
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 pt-4 border-t">
+                    <Button type="button" variant="default" onClick={applyHouseholdAdvancedFilters} className="cursor-pointer">
+                      Apply
+                    </Button>
+                    <Button type="button" variant="outline" onClick={clearHouseholdAdvancedFilters} className="cursor-pointer">
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
             {canEditMembers && (
               <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
@@ -619,7 +951,10 @@ export default function MembershipPage() {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" className="cursor-pointer">Create Household</Button>
+                    <Button type="submit" className="cursor-pointer" disabled={createHouseholdLoading}>
+                      {createHouseholdLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Create Household
+                    </Button>
                   </DialogFooter>
                 </form>
               </Form>
@@ -727,19 +1062,9 @@ export default function MembershipPage() {
             </DialogContent>
           </Dialog>
             )}
-            <Button
-              variant="outline"
-              onClick={handleExportMembers}
-              disabled={exporting}
-              className="cursor-pointer"
-            >
-              <DownloadIcon className="mr-2 h-4 w-4" />
-              {exporting ? "Exporting..." : "Export Members"}
-            </Button>
-        </div>
-      </div>
+          </div>
 
-      <Card>
+          <Card>
         <CardHeader>
           <CardTitle className="text-xl md:text-2xl">Households</CardTitle>
         </CardHeader>
@@ -750,7 +1075,7 @@ export default function MembershipPage() {
             </div>
           ) : households.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
-              No households found. Create your first household to get started.
+              No households found.
             </div>
           ) : (
             <>
@@ -961,6 +1286,288 @@ export default function MembershipPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="individuals" className="mt-4 space-y-4">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, phone"
+                  value={memberSearchInput}
+                  onChange={(e) => setMemberSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyMemberSearch())}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="default" onClick={applyMemberSearch} className="cursor-pointer">
+                  Search
+                </Button>
+                <Button variant="outline" onClick={clearMemberFilters} className="cursor-pointer">
+                  Clear
+                </Button>
+              </div>
+            </div>
+            <Collapsible open={memberFiltersOpen} onOpenChange={setMemberFiltersOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="cursor-pointer -ml-2">
+                  {memberFiltersOpen ? <ChevronUpIcon className="h-4 w-4 mr-1" /> : <ChevronDownIcon className="h-4 w-4 mr-1" />}
+                  Advanced filters
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="rounded-lg border bg-muted/30 p-4 mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium block">Participation</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["active", "inactive", "deceased", "homebound", "military", "school"] as const).map((p) => (
+                          <label key={p} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <Checkbox
+                              checked={memberFiltersDraft.participation?.includes(p) ?? false}
+                              onCheckedChange={(checked) => {
+                                const current = memberFiltersDraft.participation ?? [];
+                                const next = checked ? [...current, p] : current.filter((x) => x !== p);
+                                setMemberFiltersDraft((prev) => ({ ...prev, participation: next.length ? next : undefined }));
+                              }}
+                            />
+                            <span className="capitalize">{p}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium block">Sex</label>
+                      <div className="flex flex-col gap-2">
+                        {(["male", "female", "other"] as const).map((s) => (
+                          <label key={s} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <Checkbox
+                              checked={memberFiltersDraft.sex?.includes(s) ?? false}
+                              onCheckedChange={(checked) => {
+                                const current = memberFiltersDraft.sex ?? [];
+                                const next = checked ? [...current, s] : current.filter((x) => x !== s);
+                                setMemberFiltersDraft((prev) => ({ ...prev, sex: next.length ? next : undefined }));
+                              }}
+                            />
+                            <span className="capitalize">{s}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium block">Sequence</label>
+                      <div className="flex flex-col gap-2">
+                        {(["head_of_house", "spouse", "child"] as const).map((s) => (
+                          <label key={s} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <Checkbox
+                              checked={memberFiltersDraft.sequence?.includes(s) ?? false}
+                              onCheckedChange={(checked) => {
+                                const current = memberFiltersDraft.sequence ?? [];
+                                const next = checked ? [...current, s] : current.filter((x) => x !== s);
+                                setMemberFiltersDraft((prev) => ({ ...prev, sequence: next.length ? next : undefined }));
+                              }}
+                            />
+                            <span>
+                              {s === "head_of_house" ? "Head of house" : s === "spouse" ? "Spouse" : "Child"}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium block">Household name</label>
+                      <Input
+                        placeholder="Filter by household name"
+                        value={memberFiltersDraft.householdName ?? ""}
+                        onChange={(e) => setMemberFiltersDraft((prev) => ({ ...prev, householdName: e.target.value || undefined }))}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4 pt-4 border-t">
+                    <Button type="button" variant="default" onClick={applyMemberAdvancedFilters} className="cursor-pointer">
+                      Apply
+                    </Button>
+                    <Button type="button" variant="outline" onClick={clearMemberAdvancedFilters} className="cursor-pointer">
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl md:text-2xl">Individual Members</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {individualMembersLoading ? (
+                <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
+                  Loading members...
+                </div>
+              ) : individualMembers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm md:text-base">
+                  No members found. Add members to households to see them here.
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs md:text-sm">Name</TableHead>
+                          <TableHead className="text-xs md:text-sm">Household</TableHead>
+                          <TableHead className="text-xs md:text-sm">Email</TableHead>
+                          <TableHead className="text-xs md:text-sm">Phone</TableHead>
+                          <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          <TableHead className="text-right text-xs md:text-sm">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {individualMembers.map((member) => (
+                          <TableRow
+                            key={member.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/membership/${member.id}`)}
+                          >
+                            <TableCell className="font-medium text-xs md:text-sm">
+                              {member.firstName}
+                              {member.middleName ? ` ${member.middleName} ` : " "}
+                              {member.lastName}
+                              {member.suffix ? ` ${member.suffix}` : ""}
+                            </TableCell>
+                            <TableCell className="text-xs md:text-sm">
+                              {member.household ? (
+                                <Link
+                                  href={`/membership/household/${member.household.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-primary hover:underline"
+                                >
+                                  {member.household.name || `Household ${member.household.id.slice(0, 8)}`}
+                                </Link>
+                              ) : (
+                                "No household"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs md:text-sm">{member.email1 || "N/A"}</TableCell>
+                            <TableCell className="text-xs md:text-sm">
+                              {member.phoneCell1 || member.phoneHome || "N/A"}
+                            </TableCell>
+                            <TableCell className="text-xs md:text-sm">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getParticipationBadgeClass(member.participation)}`}
+                              >
+                                {member.participation}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="icon"
+                                title="View Member"
+                                className="cursor-pointer"
+                              >
+                                <Link href={`/membership/${member.id}`}>
+                                  <EyeIcon className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {!individualMembersLoading && individualMembersPagination.totalPages > 0 && (
+                    <div className="mt-6 space-y-4">
+                      <div className="text-sm text-muted-foreground text-center">
+                        Showing {((individualMembersPagination.page - 1) * individualMembersPagination.pageSize) + 1} to{" "}
+                        {Math.min(individualMembersPagination.page * individualMembersPagination.pageSize, individualMembersPagination.total)} of{" "}
+                        {individualMembersPagination.total} members
+                      </div>
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleIndividualMembersPageChange(individualMembersPage - 1);
+                              }}
+                              className={
+                                individualMembersPage === 1
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+
+                          {Array.from({ length: individualMembersPagination.totalPages }, (_, i) => i + 1).map(
+                            (pageNum) => {
+                              const showPage =
+                                pageNum === 1 ||
+                                pageNum === individualMembersPagination.totalPages ||
+                                (pageNum >= individualMembersPage - 1 && pageNum <= individualMembersPage + 1);
+
+                              if (!showPage) {
+                                if (
+                                  pageNum === individualMembersPage - 2 ||
+                                  pageNum === individualMembersPage + 2
+                                ) {
+                                  return (
+                                    <PaginationItem key={pageNum}>
+                                      <PaginationEllipsis />
+                                    </PaginationItem>
+                                  );
+                                }
+                                return null;
+                              }
+
+                              return (
+                                <PaginationItem key={pageNum}>
+                                  <PaginationLink
+                                    href="#"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleIndividualMembersPageChange(pageNum);
+                                    }}
+                                    isActive={pageNum === individualMembersPage}
+                                    className="cursor-pointer"
+                                  >
+                                    {pageNum}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            }
+                          )}
+
+                          <PaginationItem>
+                            <PaginationNext
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleIndividualMembersPageChange(individualMembersPage + 1);
+                              }}
+                              className={
+                                individualMembersPage === individualMembersPagination.totalPages
+                                  ? "pointer-events-none opacity-50"
+                                  : "cursor-pointer"
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Household Dialog */}
       {canEditMembers && (

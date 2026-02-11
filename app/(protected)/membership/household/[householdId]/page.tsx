@@ -15,6 +15,7 @@ import {
   TrashIcon,
   TriangleAlertIcon,
   EyeIcon,
+  Loader2,
 } from "lucide-react";
 
 import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
@@ -148,6 +149,7 @@ export default function HouseholdViewPage({
   const { households: allHouseholdsRaw, mutate: mutateHouseholds } = useHouseholds(1, 1000);
   const allHouseholds = allHouseholdsRaw as HouseholdOption[];
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [addMemberLoading, setAddMemberLoading] = useState(false);
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
@@ -303,6 +305,7 @@ export default function HouseholdViewPage({
       return;
     }
 
+    setAddMemberLoading(true);
     try {
       const response = await apiFetch("/api/members", {
         method: "POST",
@@ -324,6 +327,8 @@ export default function HouseholdViewPage({
     } catch (error) {
       console.error("Error creating member:", error);
       alert("Failed to create member");
+    } finally {
+      setAddMemberLoading(false);
     }
   };
 
@@ -899,7 +904,10 @@ export default function HouseholdViewPage({
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" className="cursor-pointer">Add Member</Button>
+                    <Button type="submit" className="cursor-pointer" disabled={addMemberLoading}>
+                      {addMemberLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Add Member
+                    </Button>
                   </DialogFooter>
                 </form>
               </Form>

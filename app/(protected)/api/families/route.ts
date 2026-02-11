@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, count, and } from "drizzle-orm";
+import { eq, count, and, or, ilike, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
@@ -7,6 +7,11 @@ import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText } from "@/lib/sanitize"; // Now safe - sanitizeText is lightweight and doesn't require jsdom
+
+/** Escape % and _ for safe use in ilike patterns */
+function escapeIlikePattern(s: string): string {
+  return s.replace(/[%_\\]/g, (m) => `\\${m}`);
+}
 
 export async function GET(request: Request) {
   try {
@@ -29,21 +34,66 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1", 10);
     const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
+    const q = searchParams.get("q")?.trim().slice(0, 200) || "";
+    const type = searchParams.get("type")?.trim().toLowerCase() || "";
+    const city = searchParams.get("city")?.trim().slice(0, 200) || "";
+    const state = searchParams.get("state")?.trim().slice(0, 10) || "";
+    const minMembersParam = searchParams.get("minMembers");
+    const maxMembersParam = searchParams.get("maxMembers");
+
+    const parsedMin = minMembersParam != null ? parseInt(minMembersParam, 10) : undefined;
+    const parsedMax = maxMembersParam != null ? parseInt(maxMembersParam, 10) : undefined;
+    const validMinMembers =
+      parsedMin != null && !isNaN(parsedMin) && parsedMin >= 0 ? parsedMin : undefined;
+    const validMaxMembers =
+      parsedMax != null && !isNaN(parsedMax) && parsedMax >= 0 ? parsedMax : undefined;
+    const hasMemberCountFilter = validMinMembers != null || validMaxMembers != null;
+
+    const validType = ["single", "family", "other"].includes(type) ? type : undefined;
 
     // Validate pagination parameters
     const validPage = Math.max(1, page);
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
     const offset = (validPage - 1) * validPageSize;
 
-    // Get total count (filtered by churchId)
+    // Build where conditions
+    const conditions: ReturnType<typeof eq>[] = [eq(household.churchId, churchId)];
+
+    if (q) {
+      const pattern = `%${escapeIlikePattern(q)}%`;
+      conditions.push(
+        or(
+          ilike(household.name, pattern),
+          ilike(household.address1, pattern),
+          ilike(household.city, pattern),
+          ilike(household.state, pattern),
+          ilike(household.zip, pattern)
+        )!
+      );
+    }
+    if (validType) conditions.push(eq(household.type, validType as "single" | "family" | "other"));
+    if (city) conditions.push(ilike(household.city, `%${escapeIlikePattern(city)}%`));
+    if (state) conditions.push(eq(household.state, state));
+
+    if (hasMemberCountFilter) {
+      const minVal = validMinMembers ?? 0;
+      const maxVal = validMaxMembers ?? 999999;
+      conditions.push(
+        sql`(SELECT count(*)::int FROM members WHERE members.household_id = household.id AND members.church_id = ${churchId}) BETWEEN ${minVal} AND ${maxVal}`
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get total count (filtered)
     const [totalResult] = await db
       .select({ count: count() })
       .from(household)
-      .where(eq(household.churchId, churchId));
+      .where(whereClause);
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
-    // Get paginated households (filtered by churchId)
+    // Get paginated households
     const paginatedHouseholds = await db
       .select({
         id: household.id,
@@ -54,7 +104,7 @@ export async function GET(request: Request) {
         state: household.state,
       })
       .from(household)
-      .where(eq(household.churchId, churchId))
+      .where(whereClause)
       .limit(validPageSize)
       .offset(offset);
 
