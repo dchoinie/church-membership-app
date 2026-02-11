@@ -141,10 +141,11 @@ export default function ReportsPage() {
   const [filter, setFilter] = useState<"all" | "sent" | "unsent">("all");
   const [showMissingTaxDialog, setShowMissingTaxDialog] = useState(false);
   const [missingTaxFields, setMissingTaxFields] = useState<string[]>([]);
-  const [pendingGeneration, setPendingGeneration] = useState<{ preview: boolean } | null>(null);
+  const [pendingGeneration, setPendingGeneration] = useState<{ preview: boolean; householdId?: string } | null>(null);
   const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [statementToDelete, setStatementToDelete] = useState<{ id: string; householdName: string } | null>(null);
+  const [selectedHouseholdForGeneration, setSelectedHouseholdForGeneration] = useState<string>("");
 
   const givingForm = useForm<GivingReportFormData>({
     defaultValues: {
@@ -209,12 +210,16 @@ export default function ReportsPage() {
     statementsFetcher
   );
 
-  const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false) => {
+  const generateStatements = async (previewOnly: boolean = false, skipValidation: boolean = false, householdId?: string) => {
     setIsGenerating(true);
     try {
+      const body: Record<string, unknown> = { year, preview: previewOnly, skipValidation };
+      if (householdId) {
+        body.householdId = householdId;
+      }
       const response = await apiFetch("/api/giving-statements/generate", {
         method: "POST",
-        body: JSON.stringify({ year, preview: previewOnly, skipValidation }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -241,19 +246,23 @@ export default function ReportsPage() {
       // Check if confirmation is required for missing tax info
       if (data.requiresConfirmation && !skipValidation) {
         setMissingTaxFields(data.missing || []);
-        setPendingGeneration({ preview: previewOnly });
+        setPendingGeneration({ preview: previewOnly, householdId });
         setShowMissingTaxDialog(true);
         setIsGenerating(false);
         return;
       }
 
       if (previewOnly) {
-        // This shouldn't happen if we got here, but handle it just in case
+        // Preview returns PDF for single household; for multiple we'd get JSON
         toast.success("Preview generated");
       } else {
-        toast.success(`Generated ${data.generated} statement(s)`);
+        if (data.generated > 0) {
+          toast.success(`Generated ${data.generated} statement(s)`);
+        }
         if (data.errors && data.errors.length > 0) {
-          toast.warning(`${data.errors.length} statement(s) had errors`);
+          toast.warning(data.generated === 0 
+            ? "No statement generated. The household may have no giving records for this year."
+            : `${data.errors.length} statement(s) had errors`);
         }
         mutateStatements();
       }
@@ -268,7 +277,7 @@ export default function ReportsPage() {
   const handleContinueWithoutTaxInfo = () => {
     setShowMissingTaxDialog(false);
     if (pendingGeneration) {
-      generateStatements(pendingGeneration.preview, true);
+      generateStatements(pendingGeneration.preview, true, pendingGeneration.householdId);
       setPendingGeneration(null);
     }
   };
@@ -1124,6 +1133,64 @@ export default function ReportsPage() {
                       )}
                       Generate All
                     </Button>
+                  </div>
+                </div>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">Or</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label>Generate for Individual Household</Label>
+                  <div className="flex flex-wrap items-end gap-4">
+                    <div className="space-y-2 flex-1 min-w-[200px] max-w-xs">
+                      <Select
+                        value={selectedHouseholdForGeneration}
+                        onValueChange={setSelectedHouseholdForGeneration}
+                        disabled={loadingHouseholds}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingHouseholds ? "Loading households..." : "Select a household..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {households.map((h) => (
+                            <SelectItem key={h.id} value={h.id}>
+                              {h.name || "Unnamed Household"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => selectedHouseholdForGeneration && generateStatements(true, false, selectedHouseholdForGeneration)}
+                        variant="outline"
+                        disabled={isGenerating || !selectedHouseholdForGeneration || loadingHouseholds}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Eye className="mr-2 h-4 w-4" />
+                        )}
+                        Preview
+                      </Button>
+                      <Button
+                        onClick={() => selectedHouseholdForGeneration && generateStatements(false, false, selectedHouseholdForGeneration)}
+                        disabled={isGenerating || !selectedHouseholdForGeneration || loadingHouseholds}
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="mr-2 h-4 w-4" />
+                        )}
+                        Generate
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
