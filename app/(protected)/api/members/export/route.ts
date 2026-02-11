@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decryptMember } from "@/lib/encryption";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | null | undefined): string {
@@ -81,9 +82,11 @@ export async function GET(request: Request) {
       .where(eq(members.churchId, churchId))
       .orderBy(members.lastName, members.firstName);
 
-    // Generate CSV rows with all fields
-    const csvRows = allMembers.map((member) => ({
-      "ID": member.id || "",
+    // Generate CSV rows with all fields (decrypt sensitive fields first)
+    const csvRows = allMembers.map((member) => {
+      const decrypted = decryptMember(member);
+      return {
+      "ID": decrypted.id || "",
       "Church ID": member.churchId || "",
       "Household ID": member.householdId || "",
       "Household Name": member.householdName || "",
@@ -95,7 +98,7 @@ export async function GET(request: Request) {
       "Maiden Name": member.maidenName || "",
       "Title": member.title || "",
       "Sex": member.sex || "",
-      "Date of Birth": member.dateOfBirth || "",
+      "Date of Birth": decrypted.dateOfBirth || "",
       "Email 1": member.email1 || "",
       "Email 2": member.email2 || "",
       "Phone Home": member.phoneHome || "",
@@ -114,7 +117,8 @@ export async function GET(request: Request) {
       "Sequence": member.sequence || "",
       "Created At": member.createdAt?.toISOString() || "",
       "Updated At": member.updatedAt?.toISOString() || "",
-    }));
+      };
+    });
 
     const csvContent = generateCsv(csvRows);
     

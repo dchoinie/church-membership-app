@@ -183,6 +183,13 @@
       "when": 1770420068172,
       "tag": "0025_jazzy_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1770826166570,
+      "tag": "0026_opposite_ultragirl",
+      "breakpoints": true
     }
   ]
 }

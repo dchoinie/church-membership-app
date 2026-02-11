@@ -7,6 +7,7 @@ import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
+import { encrypt, decryptMember } from "@/lib/encryption";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -94,10 +95,10 @@ export async function GET(
     }
 
     return NextResponse.json({ 
-      member: {
+      member: decryptMember({
         ...member,
         headOfHousehold,
-      }
+      }),
     });
   } catch (error) {
     return createErrorResponse(error);
@@ -208,7 +209,10 @@ export async function PUT(
         maidenName: sanitizedData.maidenName,
         title: sanitizedData.title,
         sex: body.sex !== undefined ? body.sex : existingMember.sex,
-        dateOfBirth: body.dateOfBirth !== undefined ? body.dateOfBirth : existingMember.dateOfBirth,
+        dateOfBirth:
+          body.dateOfBirth !== undefined
+            ? (body.dateOfBirth ? encrypt(body.dateOfBirth) : null)
+            : existingMember.dateOfBirth,
         email1: sanitizedData.email1,
         email2: sanitizedData.email2,
         phoneHome: sanitizedData.phoneHome,
@@ -232,7 +236,7 @@ export async function PUT(
       .where(eq(members.id, id))
       .returning();
 
-    return NextResponse.json({ member: updatedMember });
+    return NextResponse.json({ member: decryptMember(updatedMember) });
   } catch (error) {
     return createErrorResponse(error);
   }

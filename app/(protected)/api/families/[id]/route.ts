@@ -7,6 +7,7 @@ import { getAuthContext, requirePermission } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText } from "@/lib/sanitize";
+import { decryptMember } from "@/lib/encryption";
 
 export async function GET(
   request: Request,
@@ -49,7 +50,7 @@ export async function GET(
 
     return NextResponse.json({
       household: h,
-      members: householdMembers,
+      members: householdMembers.map(decryptMember),
     });
   } catch (error) {
     return createErrorResponse(error);

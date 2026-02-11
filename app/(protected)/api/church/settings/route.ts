@@ -5,6 +5,7 @@ import { checkCsrfToken } from "@/lib/csrf";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { encrypt, decryptChurch } from "@/lib/encryption";
 
 export async function PUT(request: Request) {
   try {
@@ -77,7 +78,7 @@ export async function PUT(request: Request) {
       updateData.denomination = body.denomination || null;
     }
     if (body.taxId !== undefined) {
-      updateData.taxId = body.taxId || null;
+      updateData.taxId = body.taxId ? encrypt(body.taxId) : null;
     }
     if (body.is501c3 !== undefined) {
       updateData.is501c3 = body.is501c3;
@@ -105,7 +106,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    return NextResponse.json({ church: updatedChurch });
+    return NextResponse.json({ church: decryptChurch(updatedChurch) });
   } catch (error) {
     return createErrorResponse(error);
   }

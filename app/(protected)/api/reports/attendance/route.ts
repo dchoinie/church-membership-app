@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { attendance, services, members } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(request: Request) {
   try {
@@ -60,9 +61,15 @@ export async function GET(request: Request) {
         ),
       );
 
+    // Decrypt memberDateOfBirth for age calculations
+    const allAttendanceDecrypted = allAttendance.map((a) => ({
+      ...a,
+      memberDateOfBirth: a.memberDateOfBirth ? decrypt(a.memberDateOfBirth) : null,
+    }));
+
     // Calculate overall attendance per service
     const attendancePerService = allServices.map((service) => {
-      const serviceAttendance = allAttendance.filter((a) => a.serviceId === service.id);
+      const serviceAttendance = allAttendanceDecrypted.filter((a) => a.serviceId === service.id);
       const totalAttended = serviceAttendance.filter((a) => a.attended).length;
       const totalCommunion = serviceAttendance.filter((a) => a.tookCommunion).length;
 

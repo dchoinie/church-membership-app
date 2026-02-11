@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decryptMember } from "@/lib/encryption";
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +28,9 @@ export async function GET(request: Request) {
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
+
+    // Decrypt dateOfBirth for age calculations
+    const allMembersDecrypted = allMembers.map(decryptMember);
 
     // Calculate demographics
     const genderBreakdown = {
@@ -62,7 +66,7 @@ export async function GET(request: Request) {
       school: 0,
     };
 
-    allMembers.forEach((member) => {
+    allMembersDecrypted.forEach((member) => {
       // Gender breakdown
       if (member.sex === "male") {
         genderBreakdown.male++;
@@ -153,7 +157,7 @@ export async function GET(request: Request) {
       ageGroups: ageData,
       householdTypes: householdTypeData,
       memberStatus: memberStatusData,
-      totalMembers: allMembers.length,
+      totalMembers: allMembersDecrypted.length,
     });
   } catch (error) {
     return createErrorResponse(error);

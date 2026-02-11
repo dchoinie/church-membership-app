@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { members, services, attendance } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decrypt } from "@/lib/encryption";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | number | null | undefined): string {
@@ -98,8 +99,9 @@ export async function GET(request: Request) {
     let baptizedAdults = 0;
 
     baptizedDuringYear.forEach((member) => {
-      if (member.baptismDate && member.dateOfBirth) {
-        const age = calculateAgeAtDate(member.dateOfBirth, member.baptismDate);
+      const dateOfBirth = member.dateOfBirth ? decrypt(member.dateOfBirth) : null;
+      if (member.baptismDate && dateOfBirth) {
+        const age = calculateAgeAtDate(dateOfBirth, member.baptismDate);
         if (age !== null) {
           if (age < 18) {
             baptizedInfantChildren++;
@@ -139,8 +141,9 @@ export async function GET(request: Request) {
     let confirmationAdults = 0;
 
     confirmationsDuringYear.forEach((member) => {
-      if (member.confirmationDate && member.dateOfBirth) {
-        const age = calculateAgeAtDate(member.dateOfBirth, member.confirmationDate);
+      const dateOfBirth = member.dateOfBirth ? decrypt(member.dateOfBirth) : null;
+      if (member.confirmationDate && dateOfBirth) {
+        const age = calculateAgeAtDate(dateOfBirth, member.confirmationDate);
         if (age !== null) {
           if (age < 18) {
             confirmationJuniors++;

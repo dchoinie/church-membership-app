@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { churches } from "@/db/schema";
 import { user } from "@/auth-schema";
 import { eq } from "drizzle-orm";
+import { decryptChurch } from "@/lib/encryption";
 
 export async function GET(request: Request) {
   try {
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ church });
+    return NextResponse.json({ church: decryptChurch(church) });
   } catch (error) {
     console.error("Error fetching church:", error);
     return NextResponse.json(

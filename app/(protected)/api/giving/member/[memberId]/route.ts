@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { giving, members, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(
   request: Request,
@@ -44,8 +45,13 @@ export async function GET(
         .where(and(eq(members.envelopeNumber, member.envelopeNumber), eq(members.churchId, churchId)));
 
       if (householdMembers.length > 0) {
+        // Decrypt dateOfBirth for sorting (values may be encrypted in DB)
+        const membersWithDecryptedDob = householdMembers.map((m) => ({
+          ...m,
+          dateOfBirth: m.dateOfBirth ? decrypt(m.dateOfBirth) : null,
+        }));
         // Find head of household: oldest male member
-        const males = householdMembers.filter(m => m.sex === "male");
+        const males = membersWithDecryptedDob.filter(m => m.sex === "male");
         
         if (males.length > 0) {
           const sortedMales = males.sort((a, b) => {
@@ -56,7 +62,7 @@ export async function GET(
           targetMemberId = sortedMales[0].id;
         } else {
           // No males, use oldest member overall
-          const sortedAll = householdMembers.sort((a, b) => {
+          const sortedAll = membersWithDecryptedDob.sort((a, b) => {
             if (!a.dateOfBirth) return 1;
             if (!b.dateOfBirth) return -1;
             return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();

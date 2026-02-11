@@ -8,6 +8,7 @@ import { checkMemberLimit } from "@/lib/member-limits";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
+import { encrypt, decryptMember } from "@/lib/encryption";
 
 const VALID_PARTICIPATION_STATUSES = ["active", "deceased", "homebound", "military", "inactive", "school"] as const;
 
@@ -78,7 +79,7 @@ export async function GET(request: Request) {
       .offset(offset);
 
     return NextResponse.json({
-      members: paginatedMembers,
+      members: paginatedMembers.map(decryptMember),
       pagination: {
         page: validPage,
         pageSize: validPageSize,
@@ -215,7 +216,7 @@ export async function POST(request: Request) {
           const validSexValues = ["male", "female", "other"];
           return sexValue && validSexValues.includes(sexValue) ? sexValue as "male" | "female" | "other" : null;
         })(),
-        dateOfBirth: body.dateOfBirth || null,
+        dateOfBirth: body.dateOfBirth ? encrypt(body.dateOfBirth) : null,
         email1: sanitizedData.email1,
         email2: sanitizedData.email2,
         phoneHome: sanitizedData.phoneHome,
@@ -236,7 +237,7 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    return NextResponse.json({ member: newMember }, { status: 201 });
+    return NextResponse.json({ member: decryptMember(newMember) }, { status: 201 });
   } catch (error) {
     return createErrorResponse(error);
   }

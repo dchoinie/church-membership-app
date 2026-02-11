@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { giving, members, services, givingItems, givingCategories } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decrypt } from "@/lib/encryption";
 
 export async function GET(request: Request) {
   try {
@@ -69,9 +70,10 @@ export async function GET(request: Request) {
       });
     });
 
-    // Create giving records with items
+    // Create giving records with items (decrypt memberDateOfBirth)
     const allGiving = allGivingRaw.map(g => ({
       ...g,
+      memberDateOfBirth: g.memberDateOfBirth ? decrypt(g.memberDateOfBirth) : null,
       items: itemsByGivingId[g.id] || [],
     }));
 

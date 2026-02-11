@@ -6,6 +6,7 @@ import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText } from "@/lib/sanitize";
 import { eq } from "drizzle-orm";
+import { decryptChurch } from "@/lib/encryption";
 
 export async function GET(
   request: Request,
@@ -26,7 +27,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ church });
+    return NextResponse.json({ church: decryptChurch(church) });
   } catch (error) {
     return createErrorResponse(error);
   }
@@ -74,7 +75,7 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ church: updatedChurch });
+    return NextResponse.json({ church: decryptChurch(updatedChurch) });
   } catch (error) {
     return createErrorResponse(error);
   }

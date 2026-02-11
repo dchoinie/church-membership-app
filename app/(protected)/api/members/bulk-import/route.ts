@@ -8,6 +8,7 @@ import { checkMemberLimit } from "@/lib/member-limits";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
+import { encrypt } from "@/lib/encryption";
 
 export async function POST(request: Request) {
   try {
@@ -412,7 +413,7 @@ export async function POST(request: Request) {
             return validSexValues.includes(sexValue || "") ? sexValue as "male" | "female" | "other" : null;
           })(),
           dateOfBirth: parsedDateOfBirth
-            ? parsedDateOfBirth.toISOString().split("T")[0]
+            ? encrypt(parsedDateOfBirth.toISOString().split("T")[0])
             : null,
           email1: email1Raw ? sanitizeEmail(email1Raw) : undefined,
           email2: email2Raw ? sanitizeEmail(email2Raw) : undefined,

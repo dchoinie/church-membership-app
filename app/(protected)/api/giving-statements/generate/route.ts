@@ -12,6 +12,7 @@ import {
 } from "@/lib/pdf-generator";
 import { canManageGivingStatements } from "@/lib/permissions-server";
 import { checkCsrfToken } from "@/lib/csrf";
+import { decryptChurch } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Church not found" }, { status: 404 });
     }
 
-    const church = churchData[0];
+    const church = decryptChurch(churchData[0]);
 
     // Validate church tax information (required for IRS compliance)
     const validation = validateChurchTaxInfo(church);

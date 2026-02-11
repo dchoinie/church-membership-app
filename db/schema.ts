@@ -242,7 +242,7 @@ export const members = pgTable(
     maidenName: text("maiden_name"),
     title: text("title"),
     sex: sexEnum("sex"),
-    dateOfBirth: date("date_of_birth"),
+    dateOfBirth: text("date_of_birth"), // Text to support encrypted values
     email1: text("email1").unique(),
     email2: text("email2"),
     phoneHome: text("phone_home"),

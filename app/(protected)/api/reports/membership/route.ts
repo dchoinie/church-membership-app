@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
+import { decryptMember } from "@/lib/encryption";
 
 // Helper function to escape CSV values
 function escapeCsvValue(value: string | null | undefined): string {
@@ -158,8 +159,9 @@ export async function GET(request: Request) {
         }
       }
 
-      // Generate household display names
+      // Generate household display names (decrypt sensitive fields first)
       const membersWithHouseholdNames = allMembers.map((member) => {
+        const decrypted = decryptMember(member);
         let householdName = member.household?.name || null;
         
         // If no household name, generate one from members
@@ -183,7 +185,7 @@ export async function GET(request: Request) {
           .join(" ");
 
         return {
-          ...member,
+          ...decrypted,
           householdName,
           address,
         };
