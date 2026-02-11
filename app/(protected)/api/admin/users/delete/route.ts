@@ -105,6 +105,7 @@ export async function DELETE(request: Request) {
     const nonSuperAdminAdmins = adminUsers.filter(u => !u.isSuperAdmin);
 
     if (
+      userToDelete &&
       nonSuperAdminAdmins.length === 1 &&
       membership.role === "admin" &&
       !userToDelete.isSuperAdmin
