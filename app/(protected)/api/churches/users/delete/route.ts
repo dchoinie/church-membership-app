@@ -37,27 +37,49 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Find the user by email
+    // Find the user by email (may not exist for pending invitations)
     const userToDelete = await db.query.user.findFirst({
       where: eq(user.email, sanitizedEmail),
     });
 
-    if (!userToDelete) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+    // Check if user has membership OR pending invitation for this church
+    let membership: { userId: string; role: string } | null = null;
+    if (userToDelete) {
+      const m = await db.query.userChurches.findFirst({
+        where: and(
+          eq(userChurches.userId, userToDelete.id),
+          eq(userChurches.churchId, churchId),
+        ),
+        columns: { userId: true, role: true },
+      });
+      membership = m ?? null;
     }
 
-    // Verify user belongs to this church via junction table
-    const membership = await db.query.userChurches.findFirst({
-      where: and(
-        eq(userChurches.userId, userToDelete.id),
-        eq(userChurches.churchId, churchId)
-      ),
-    });
-
+    // If no membership, check for pending invitation (invited users shown in list)
     if (!membership) {
+      const invitation = await db.query.invitations.findFirst({
+        where: and(
+          eq(invitations.email, sanitizedEmail),
+          eq(invitations.churchId, churchId),
+        ),
+      });
+
+      if (invitation) {
+        // Pending invitation - just remove it
+        await db
+          .delete(invitations)
+          .where(
+            and(
+              eq(invitations.email, sanitizedEmail),
+              eq(invitations.churchId, churchId),
+            ),
+          );
+        return NextResponse.json({
+          success: true,
+          message: `Invitation removed for ${sanitizedEmail}`,
+        });
+      }
+
       return NextResponse.json(
         { error: "User does not belong to this church" },
         { status: 404 }

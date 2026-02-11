@@ -710,3 +710,93 @@ Note: Reply to this email to respond directly to the customer. Update the ticket
   }
 }
 
+export async function sendSupportTicketConfirmationEmail({
+  ticketId,
+  customerName,
+  customerEmail,
+  subject,
+}: {
+  ticketId: string;
+  customerName: string;
+  customerEmail: string;
+  subject: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      return {
+        success: false,
+        error: "RESEND_API_KEY is not set in environment variables",
+      };
+    }
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: customerEmail,
+      subject: `We've received your support request #${ticketId}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Support Request Received</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">Support Request Received</h1>
+            </div>
+
+            <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px;">
+                Hi ${customerName},
+              </p>
+              <p style="margin: 0 0 24px 0; color: #4b5563; font-size: 16px;">
+                Thank you for reaching out! We've received your support request and our team is reviewing it.
+              </p>
+              <div style="background: #f3f4f6; border-left: 4px solid #667eea; padding: 16px; margin-bottom: 24px; border-radius: 4px;">
+                <p style="margin: 0; color: #1f2937; font-weight: 600; font-size: 18px;">
+                  Ticket ID: #${ticketId}
+                </p>
+                <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">
+                  Subject: ${subject}
+                </p>
+              </div>
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">
+                We'll get back to you as soon as possible. Please reference your ticket ID above if you need to follow up.
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+      text: `
+Hi ${customerName},
+
+Thank you for reaching out! We've received your support request and our team is reviewing it.
+
+Ticket ID: #${ticketId}
+Subject: ${subject}
+
+We'll get back to you as soon as possible. Please reference your ticket ID above if you need to follow up.
+      `.trim(),
+    });
+
+    if (error) {
+      console.error("Error sending support ticket confirmation email:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to send email",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending support ticket confirmation email:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+

@@ -4,7 +4,7 @@ import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText, sanitizeEmail } from "@/lib/sanitize";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { createSupportTicket } from "@/lib/google-sheets";
-import { sendSupportTicketEmail } from "@/lib/email";
+import { sendSupportTicketEmail, sendSupportTicketConfirmationEmail } from "@/lib/email";
 import { createErrorResponse } from "@/lib/error-handler";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -197,6 +197,25 @@ export async function POST(request: Request) {
       console.error("Error sending support ticket email:", error);
     }
 
+    // Send confirmation email to customer (don't fail ticket creation if this fails)
+    let confirmationEmailError: string | null = null;
+    try {
+      const confirmationResult = await sendSupportTicketConfirmationEmail({
+        ticketId,
+        customerName: sanitizedName,
+        customerEmail: sanitizedEmail,
+        subject: sanitizedSubject,
+      });
+
+      if (!confirmationResult.success) {
+        confirmationEmailError = confirmationResult.error || "Failed to send confirmation email";
+        console.error("Failed to send support ticket confirmation email:", confirmationEmailError);
+      }
+    } catch (error) {
+      confirmationEmailError = error instanceof Error ? error.message : "Unknown error";
+      console.error("Error sending support ticket confirmation email:", error);
+    }
+
     // Return success even if Google Sheet or email failed (ticket was created)
     // But include warnings if they failed
     return NextResponse.json({
@@ -206,6 +225,7 @@ export async function POST(request: Request) {
       warnings: [
         googleSheetError && `Google Sheet update failed: ${googleSheetError}`,
         emailError && `Email sending failed: ${emailError}`,
+        confirmationEmailError && `Confirmation email failed: ${confirmationEmailError}`,
       ].filter(Boolean),
     });
   } catch (error) {
