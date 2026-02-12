@@ -17,6 +17,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { authClient } from "@/lib/auth-client";
 import { Loader2 } from "lucide-react";
 import { ChurchSelector } from "@/components/church-selector";
+import { ChurchIcon } from "@/components/ui/church-loading";
+import { cn } from "@/lib/utils";
 
 interface LoginDialogProps {
   open: boolean;
@@ -512,20 +514,28 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
+          <div className="flex flex-col items-center gap-3 pb-2">
+            <ChurchIcon size={48} className="text-primary" />
+            <span className="text-lg font-semibold text-foreground">Simple Church Tools</span>
+          </div>
           <DialogTitle className="text-2xl font-bold">Sign In</DialogTitle>
           <DialogDescription>
             Sign in to your account or join with an invitation code
           </DialogDescription>
         </DialogHeader>
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "invite")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "signin" | "invite")} className="w-full min-h-0 flex flex-col flex-1">
+          <TabsList className="grid w-full grid-cols-2 shrink-0">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="invite">Join with Invitation</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="signin" className="space-y-4 mt-4">
+          <div className={cn(
+            "mt-4 overflow-hidden flex flex-col min-w-0",
+            activeTab === "invite" && "min-h-[360px] max-h-[55vh]"
+          )}>
+            <TabsContent value="signin" className="space-y-4 data-[state=inactive]:hidden">
             {showChurchSelector ? (
               <div className="space-y-4">
                 <ChurchSelector
@@ -601,7 +611,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             )}
           </TabsContent>
 
-          <TabsContent value="invite" className="space-y-4 mt-4">
+            <TabsContent value="invite" className="space-y-4 overflow-y-auto min-h-0 flex-1 data-[state=inactive]:hidden">
             <form onSubmit={handleInviteSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="invite-code">Invitation Code</Label>
@@ -700,6 +710,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
               </Button>
             </form>
           </TabsContent>
+          </div>
         </Tabs>
       </DialogContent>
     </Dialog>

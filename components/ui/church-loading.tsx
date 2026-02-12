@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 
 /* Church icon paths from public/church.svg - inlined for currentColor theming */
-const ChurchIcon = ({ size = 24, className }: { size?: number; className?: string }) => (
+export const ChurchIcon = ({ size = 24, className }: { size?: number; className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width={size}
