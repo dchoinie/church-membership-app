@@ -10,6 +10,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useAttendanceMembers, useAttendanceServices } from "@/lib/hooks/use-attendance";
 import { useServices } from "@/lib/hooks/use-services";
 import { apiFetch } from "@/lib/api-client";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -200,17 +201,17 @@ export default function AttendancePage() {
 
   const validateServiceForm = (data: ServiceFormData): boolean => {
     if (!data.serviceDate) {
-      alert("Please select a service date");
+      toast.error("Please select a service date");
       return false;
     }
     if (!data.serviceType) {
-      alert("Please select a service type");
+      toast.error("Please select a service type");
       return false;
     }
     // If custom is selected, require customServiceType
     if (data.serviceType === "custom") {
       if (!data.customServiceType || data.customServiceType.trim() === "") {
-        alert("Please enter a custom service type name");
+        toast.error("Please enter a custom service type name");
         return false;
       }
     }
@@ -250,7 +251,7 @@ export default function AttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Failed to delete service");
+        toast.error(error.error || "Failed to delete service");
         return;
       }
 
@@ -259,7 +260,7 @@ export default function AttendancePage() {
       setSelectedServiceForDelete(null);
     } catch (error) {
       console.error("Error deleting service:", error);
-      alert("Failed to delete service. Please try again.");
+      toast.error("Failed to delete service. Please try again.");
     } finally {
       setDeleting(false);
     }
@@ -339,7 +340,7 @@ export default function AttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Failed to create service: ${error.error || "Unknown error"}`);
+        toast.error(`Failed to create service: ${error.error || "Unknown error"}`);
         return;
       }
 
@@ -355,7 +356,7 @@ export default function AttendancePage() {
       });
     } catch (error) {
       console.error("Error creating service:", error);
-      alert("Failed to create service");
+      toast.error("Failed to create service");
     } finally {
       setCreatingService(false);
     }
@@ -383,7 +384,7 @@ export default function AttendancePage() {
 
   const handleSubmit = async () => {
     if (!selectedServiceId) {
-      alert("Please select a service");
+      toast.error("Please select a service");
       return;
     }
 
@@ -449,7 +450,7 @@ export default function AttendancePage() {
 
       // If no one attended, show a message
       if (allRecords.length === 0) {
-        alert("No members marked as attended. Please mark at least one member as attended or add a non-member.");
+        toast.error("No members marked as attended. Please mark at least one member as attended or add a non-member.");
         setSubmitting(false);
         return;
       }
@@ -464,14 +465,14 @@ export default function AttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Failed to save attendance: ${error.error || "Unknown error"}`);
+        toast.error(`Failed to save attendance: ${error.error || "Unknown error"}`);
         return;
       }
 
       const result = await response.json();
       
       if (result.failed > 0 && result.errors.length > 0) {
-        alert(`Some records failed to save:\n${result.errors.join("\n")}`);
+        toast.warning(`Some records failed to save: ${result.errors.join(", ")}`);
       }
 
       // Reset form
@@ -489,10 +490,10 @@ export default function AttendancePage() {
       setSelectedServiceId("");
 
       invalidateAttendance();
-      alert(`Successfully saved ${result.success} attendance record(s)`);
+      toast.success(`Successfully saved ${result.success} attendance record(s)`);
     } catch (error) {
       console.error("Error saving attendance:", error);
-      alert("Failed to save attendance");
+      toast.error("Failed to save attendance");
     } finally {
       setSubmitting(false);
     }
@@ -513,7 +514,7 @@ export default function AttendancePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Failed to update attendance: ${error.error || "Unknown error"}`);
+        toast.error(`Failed to update attendance: ${error.error || "Unknown error"}`);
         return;
       }
 
@@ -522,7 +523,7 @@ export default function AttendancePage() {
       invalidateAttendance();
     } catch (error) {
       console.error("Error updating attendance:", error);
-      alert("Failed to update attendance");
+      toast.error("Failed to update attendance");
     } finally {
       setEditSubmitting(false);
     }

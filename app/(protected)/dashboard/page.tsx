@@ -152,7 +152,9 @@ interface RecentStatusChange {
     | "transfer_in"
     | "transfer_out"
     | "received"
-    | "removed";
+    | "removed"
+    | "deceased"
+    | "birthday";
   date: string;
   receivedBy?: string;
   removedBy?: string;
@@ -452,6 +454,8 @@ export default function Dashboard() {
       transfer_out: "Transfer Out",
       received: "Received",
       removed: "Removed",
+      deceased: "Deceased",
+      birthday: "Birthday",
     };
     return types[changeType] || changeType;
   };
@@ -472,6 +476,10 @@ export default function Dashboard() {
         return <UserPlus className="h-4 w-4" />;
       case "removed":
         return <UserMinus className="h-4 w-4" />;
+      case "deceased":
+        return <Cross className="h-4 w-4" />;
+      case "birthday":
+        return <Gift className="h-4 w-4" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
@@ -485,9 +493,11 @@ export default function Dashboard() {
       case "baptism":
       case "transfer_in":
       case "received":
+      case "birthday":
         return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
       case "transfer_out":
       case "removed":
+      case "deceased":
         return "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20";
       default:
         return "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20";
@@ -699,7 +709,7 @@ export default function Dashboard() {
                   <div className="space-y-3">
                     {recentChanges.map((change) => (
                       <Link
-                        key={change.id}
+                        key={`${change.id}-${change.changeType}-${change.date}`}
                         href={`/membership/${change.id}`}
                         className="block p-3 rounded-lg border hover:bg-accent transition-colors"
                       >

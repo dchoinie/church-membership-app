@@ -3,6 +3,7 @@ import { Playfair_Display, Inter, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import AuthLayout from "@/components/auth-layout";
+import { Toaster } from "@/components/ui/sonner";
 
 const playfairDisplay = Playfair_Display({
   variable: "--font-heading",
@@ -39,6 +40,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${playfairDisplay.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
         <AuthLayout>{children}</AuthLayout>
+        <Toaster />
       </body>
     </html>
   );

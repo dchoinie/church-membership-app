@@ -674,13 +674,7 @@ export default function GivingPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Giving</h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
-            Track weekly giving amounts for members
-          </p>
-          <p className="text-muted-foreground mt-2 text-sm md:text-base flex items-center gap-1.5">
-            File exports for giving records (individual families or all records) can ge generated from the reports page
-            <Link href="/reports" className="inline-flex items-center text-primary hover:underline">
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            Track giving amounts for members
           </p>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button.

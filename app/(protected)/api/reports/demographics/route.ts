@@ -40,13 +40,16 @@ export async function GET(request: Request) {
       unknown: 0,
     };
 
-    const ageGroups = {
-      "under 15": 0,
-      "15-18": 0,
-      "19-34": 0,
-      "35-49": 0,
-      "50-64": 0,
-      "65+": 0,
+    const ageGroups: Record<string, number> = {
+      "0-9": 0,
+      "10-19": 0,
+      "20-29": 0,
+      "30-39": 0,
+      "40-49": 0,
+      "50-59": 0,
+      "60-69": 0,
+      "70-79": 0,
+      "80+": 0,
       unknown: 0,
     };
 
@@ -86,18 +89,24 @@ export async function GET(request: Request) {
         const dayDiff = currentDate.getDate() - birthDate.getDate();
         const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
 
-        if (actualAge < 15) {
-          ageGroups["under 15"]++;
-        } else if (actualAge >= 15 && actualAge <= 18) {
-          ageGroups["15-18"]++;
-        } else if (actualAge >= 19 && actualAge <= 34) {
-          ageGroups["19-34"]++;
-        } else if (actualAge >= 35 && actualAge <= 49) {
-          ageGroups["35-49"]++;
-        } else if (actualAge >= 50 && actualAge <= 64) {
-          ageGroups["50-64"]++;
+        if (actualAge <= 9) {
+          ageGroups["0-9"]++;
+        } else if (actualAge <= 19) {
+          ageGroups["10-19"]++;
+        } else if (actualAge <= 29) {
+          ageGroups["20-29"]++;
+        } else if (actualAge <= 39) {
+          ageGroups["30-39"]++;
+        } else if (actualAge <= 49) {
+          ageGroups["40-49"]++;
+        } else if (actualAge <= 59) {
+          ageGroups["50-59"]++;
+        } else if (actualAge <= 69) {
+          ageGroups["60-69"]++;
+        } else if (actualAge <= 79) {
+          ageGroups["70-79"]++;
         } else {
-          ageGroups["65+"]++;
+          ageGroups["80+"]++;
         }
       } else {
         ageGroups.unknown++;
@@ -131,11 +140,12 @@ export async function GET(request: Request) {
       { name: "Other", value: genderBreakdown.other },
     ].filter((item) => item.value > 0);
 
-    const ageData = Object.entries(ageGroups)
-      .filter(([, count]) => count > 0)
-      .map(([ageGroup, count]) => ({
+    const ageGroupOrder = ["0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+", "unknown"];
+    const ageData = ageGroupOrder
+      .filter((ageGroup) => (ageGroups[ageGroup] ?? 0) > 0)
+      .map((ageGroup) => ({
         name: ageGroup === "unknown" ? "Unknown" : ageGroup,
-        value: count,
+        value: ageGroups[ageGroup] ?? 0,
       }));
 
     const householdTypeData = Object.entries(householdTypeBreakdown)

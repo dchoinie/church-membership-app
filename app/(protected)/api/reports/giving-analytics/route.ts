@@ -303,16 +303,11 @@ export async function GET(request: Request) {
       }
     }
 
-    // Age group giving trends
-    const ageGroups: Record<string, { totalAmount: number; recordCount: number; averageAmount: number }> = {
-      "under 15": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "15-18": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "19-34": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "35-49": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "50-64": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "65+": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-      "unknown": { totalAmount: 0, recordCount: 0, averageAmount: 0 },
-    };
+    // Age group giving trends (10-year increments for granularity)
+    const ageGroupKeys = ["0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80+", "unknown"] as const;
+    const ageGroups: Record<string, { totalAmount: number; recordCount: number; averageAmount: number }> = Object.fromEntries(
+      ageGroupKeys.map((key) => [key, { totalAmount: 0, recordCount: 0, averageAmount: 0 }])
+    );
 
     const currentDate = new Date();
     allGiving.forEach((g) => {
@@ -321,12 +316,15 @@ export async function GET(request: Request) {
       
       let ageGroup = "unknown";
       if (age !== null) {
-        if (age < 15) ageGroup = "under 15";
-        else if (age >= 15 && age <= 18) ageGroup = "15-18";
-        else if (age >= 19 && age <= 34) ageGroup = "19-34";
-        else if (age >= 35 && age <= 49) ageGroup = "35-49";
-        else if (age >= 50 && age <= 64) ageGroup = "50-64";
-        else ageGroup = "65+";
+        if (age <= 9) ageGroup = "0-9";
+        else if (age <= 19) ageGroup = "10-19";
+        else if (age <= 29) ageGroup = "20-29";
+        else if (age <= 39) ageGroup = "30-39";
+        else if (age <= 49) ageGroup = "40-49";
+        else if (age <= 59) ageGroup = "50-59";
+        else if (age <= 69) ageGroup = "60-69";
+        else if (age <= 79) ageGroup = "70-79";
+        else ageGroup = "80+";
       }
 
       ageGroups[ageGroup].totalAmount += total;
@@ -378,15 +376,18 @@ export async function GET(request: Request) {
       averageAmount: Math.round(item.averageAmount * 100) / 100,
     }));
 
-    // Format age group data
-    const ageGroupData = Object.entries(ageGroups)
-      .filter(([, data]) => data.recordCount > 0)
-      .map(([ageGroup, data]) => ({
-        name: ageGroup === "unknown" ? "Unknown" : ageGroup,
-        totalAmount: Math.round(data.totalAmount * 100) / 100,
-        recordCount: data.recordCount,
-        averageAmount: Math.round(data.averageAmount * 100) / 100,
-      }));
+    // Format age group data (preserve order)
+    const ageGroupData = ageGroupKeys
+      .filter((ageGroup) => ageGroups[ageGroup].recordCount > 0)
+      .map((ageGroup) => {
+        const data = ageGroups[ageGroup];
+        return {
+          name: ageGroup === "unknown" ? "Unknown" : ageGroup,
+          totalAmount: Math.round(data.totalAmount * 100) / 100,
+          recordCount: data.recordCount,
+          averageAmount: Math.round(data.averageAmount * 100) / 100,
+        };
+      });
 
     return NextResponse.json({
       monthlyTrend,

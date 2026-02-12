@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { useSWRConfig } from "swr";
-import { PencilIcon, SaveIcon, XIcon, TrashIcon } from "lucide-react";
+import { PencilIcon, SaveIcon, XIcon, TrashIcon, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { usePermissions } from "@/lib/hooks/use-permissions";
@@ -163,6 +163,7 @@ export default function MemberDetailPage({
   const { canEditMembers } = usePermissions();
   const [memberId, setMemberId] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { member, isLoading: loading, mutate: mutateMember } = useMember(memberId || null);
   const { households } = useHouseholds(1, 1000);
@@ -292,6 +293,7 @@ export default function MemberDetailPage({
       return;
     }
 
+    setIsSaving(true);
     try {
       const payload = {
         firstName: data.firstName,
@@ -340,6 +342,8 @@ export default function MemberDetailPage({
     } catch (error) {
       console.error("Error updating member:", error);
       alert("Failed to update member");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -440,9 +444,17 @@ export default function MemberDetailPage({
                   <XIcon className="mr-2 h-4 w-4" />
                   Cancel
                 </Button>
-                <Button onClick={form.handleSubmit(onSubmit)} className="cursor-pointer">
-                  <SaveIcon className="mr-2 h-4 w-4" />
-                  Save
+                <Button
+                  onClick={form.handleSubmit(onSubmit)}
+                  disabled={isSaving}
+                  className="cursor-pointer"
+                >
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <SaveIcon className="mr-2 h-4 w-4" />
+                  )}
+                  {isSaving ? "Saving..." : "Save"}
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
