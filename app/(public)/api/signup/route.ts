@@ -13,8 +13,39 @@ export async function POST(request: Request) {
     const { churchName, subdomain, adminName, adminEmail, adminPassword, plan } =
       await request.json();
 
-    // Validate required fields
-    if (!churchName || !subdomain || !adminName || !adminEmail || !adminPassword) {
+    // Check if user is authenticated (has a session) - needed for validation (password optional when authenticated)
+    let authenticatedUserId: string | null = null;
+    try {
+      const requestHeaders = new Headers();
+      request.headers.forEach((value, key) => {
+        requestHeaders.set(key, value);
+      });
+      const cookieHeader = request.headers.get("cookie");
+      if (cookieHeader) {
+        requestHeaders.set("cookie", cookieHeader);
+      }
+
+      const session = await auth.api.getSession({
+        headers: requestHeaders,
+      });
+
+      if (session?.user) {
+        authenticatedUserId = session.user.id;
+      }
+    } catch (error) {
+      // Session check failed, user is not authenticated
+      console.log("Session check failed (user not authenticated):", error);
+    }
+
+    // Validate required fields - password only required for unauthenticated new user signups
+    const passwordRequired = !authenticatedUserId;
+    if (!churchName || !subdomain || !adminName || !adminEmail) {
+      return NextResponse.json(
+        { error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+    if (passwordRequired && !adminPassword) {
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
@@ -56,30 +87,6 @@ export async function POST(request: Request) {
       .eq("email", adminEmail)
       .limit(1)
       .maybeSingle();
-
-    // Check if user is authenticated (has a session)
-    let authenticatedUserId: string | null = null;
-    try {
-      const requestHeaders = new Headers();
-      request.headers.forEach((value, key) => {
-        requestHeaders.set(key, value);
-      });
-      const cookieHeader = request.headers.get("cookie");
-      if (cookieHeader) {
-        requestHeaders.set("cookie", cookieHeader);
-      }
-      
-      const session = await auth.api.getSession({
-        headers: requestHeaders,
-      });
-      
-      if (session?.user) {
-        authenticatedUserId = session.user.id;
-      }
-    } catch (error) {
-      // Session check failed, user is not authenticated
-      console.log("Session check failed (user not authenticated):", error);
-    }
 
     if (existingUser) {
       // If user is authenticated and it's their own email, link church to their account
