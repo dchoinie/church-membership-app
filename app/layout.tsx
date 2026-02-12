@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Inter, Geist_Mono } from "next/font/google";
+import { Source_Serif_4, Inter, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import AuthLayout from "@/components/auth-layout";
 import { Toaster } from "@/components/ui/sonner";
 
-const playfairDisplay = Playfair_Display({
+const sourceSerif = Source_Serif_4({
   variable: "--font-heading",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600", "700", "800", "900"],
+  weight: ["400", "500", "600", "700"],
 });
 
 const inter = Inter({
@@ -38,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${playfairDisplay.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${sourceSerif.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
         <AuthLayout>{children}</AuthLayout>
         <Toaster />
       </body>
