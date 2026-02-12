@@ -43,6 +43,77 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { Badge } from "@/components/ui/badge";
+import { useChurch } from "@/lib/hooks/use-church";
+
+function formatAddress(church: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}): string {
+  const parts = [church.address, church.city, church.state, church.zip].filter(
+    Boolean
+  );
+  return parts.join(", ");
+}
+
+interface ChurchOverviewCardProps {
+  stats: DashboardStats["metrics"] | null;
+  shouldFetch: boolean;
+}
+
+function ChurchOverviewCard({ stats, shouldFetch }: ChurchOverviewCardProps) {
+  const { church, isLoading: churchLoading, error: churchError } = useChurch(shouldFetch);
+
+  return (
+    <Card className="min-w-0 overflow-hidden">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          Church Overview
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {churchLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        ) : churchError ? (
+          <p className="text-sm text-destructive">
+            Failed to load church details. Please refresh the page.
+          </p>
+        ) : church ? (
+          <>
+            {church.name && (
+              <p className="text-lg font-semibold">{church.name}</p>
+            )}
+            {church.denomination && (
+              <p className="text-sm text-muted-foreground">
+                {church.denomination}
+              </p>
+            )}
+            {formatAddress(church) && (
+              <p className="text-sm text-muted-foreground">
+                {formatAddress(church)}
+              </p>
+            )}
+            {stats && (
+              <p className="text-sm">
+                <span className="font-medium">Total Members:</span>{" "}
+                {stats.totalMembers} ({stats.activeMembers} active,{" "}
+                {stats.inactiveMembers} inactive)
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">No church data available.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface Church {
   subscriptionStatus: "active" | "past_due" | "canceled" | "unpaid";
@@ -135,18 +206,6 @@ interface GivingMonthlyTrend {
 
 type TrendsDateRange = "6months" | "ytd" | "3months" | "custom";
 
-function formatAddress(church: {
-  address?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip?: string | null;
-}): string {
-  const parts = [church.address, church.city, church.state, church.zip].filter(
-    Boolean
-  );
-  return parts.join(", ");
-}
-
 export default function Dashboard() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -174,10 +233,6 @@ export default function Dashboard() {
   const shouldFetchDashboard = !isVerifyingSubscription;
   const { data: statsData } = useSWR<DashboardStats>(
     shouldFetchDashboard ? "/api/dashboard/stats" : null,
-    dashboardFetcher,
-  );
-  const { data: churchData } = useSWR<{ church: Church }>(
-    shouldFetchDashboard ? "/api/church" : null,
     dashboardFetcher,
   );
   const { data: changesData } = useSWR<{ changes?: RecentStatusChange[] }>(
@@ -256,7 +311,6 @@ export default function Dashboard() {
   }>(shouldFetchDashboard ? givingKey : null, dashboardFetcher);
 
   const stats = statsData ?? null;
-  const church = churchData?.church ?? null;
   const recentChanges = changesData?.changes ?? [];
   const recentServices = servicesData?.services ?? [];
   const recentGivingByService = givingByServiceData?.services ?? [];
@@ -474,47 +528,10 @@ export default function Dashboard() {
 
       {/* Church Overview and Upcoming Member Events - Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Church Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-4 w-64" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-            ) : (
-              <>
-                {church?.name && (
-                  <p className="text-lg font-semibold">{church.name}</p>
-                )}
-                {church?.denomination && (
-                  <p className="text-sm text-muted-foreground">
-                    {church.denomination}
-                  </p>
-                )}
-                {formatAddress(church ?? {}) && (
-                  <p className="text-sm text-muted-foreground">
-                    {formatAddress(church ?? {})}
-                  </p>
-                )}
-                {stats && (
-                  <p className="text-sm">
-                    <span className="font-medium">Total Members:</span>{" "}
-                    {stats.metrics.totalMembers} (
-                    {stats.metrics.activeMembers} active,{" "}
-                    {stats.metrics.inactiveMembers} inactive)
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <ChurchOverviewCard
+          stats={stats?.metrics ?? null}
+          shouldFetch={shouldFetchDashboard}
+        />
 
         <Card className="min-w-0 overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
@@ -584,7 +601,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground py-8">
-                  No upcoming anniversaries in the next 90 days
+                  No upcoming events in the next 90 days
                 </div>
               )}
             </ScrollArea>
