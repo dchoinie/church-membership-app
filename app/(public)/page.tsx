@@ -439,7 +439,7 @@ export default function LandingPage() {
             </h1>
             
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-in-up-delayed">
-              Manage your members, track giving, monitor attendance, and generate reports—all in one powerful, easy-to-use platform designed specifically for churches.
+              Manage your members, track giving, monitor attendance, view analytics, and generate reports—all in one powerful, easy-to-use platform designed specifically for churches.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up-delayed-2">
@@ -650,7 +650,7 @@ export default function LandingPage() {
                 <div>
                   <span className="font-medium text-sm">Regular Backups</span>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Automated daily backups to protect your data
+                    Automated backups to protect your data
                   </p>
                 </div>
               </div>
@@ -697,7 +697,7 @@ export default function LandingPage() {
                   <div>
                     <span className="font-semibold">Regular Backups</span>
                     <p className="text-sm text-muted-foreground">
-                      Automated daily backups ensure your data is never lost
+                      Automated backups ensure your data is never lost
                     </p>
                   </div>
                 </li>
