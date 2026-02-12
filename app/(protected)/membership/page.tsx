@@ -8,6 +8,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { useHouseholds, type HouseholdFilters } from "@/lib/hooks/use-households";
 import { useIndividualMembers, type IndividualMemberFilters } from "@/lib/hooks/use-individual-members";
 import { apiFetch } from "@/lib/api-client";
+import { parseCSV, buildCSV } from "@/lib/csv";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -115,6 +116,15 @@ export default function MembershipPage() {
     success: number;
     failed: number;
     errors: string[];
+    headers: string[];
+    failedRows: Array<{
+      rowIndex: number;
+      rowData: Record<string, string>;
+      error: string;
+      skipped?: boolean;
+      edited?: Record<string, string>;
+      editing?: boolean;
+    }>;
   } | null>(null);
   const [exporting, setExporting] = useState(false);
   const [createHouseholdLoading, setCreateHouseholdLoading] = useState(false);
@@ -480,6 +490,9 @@ export default function MembershipPage() {
     setImportResults(null);
 
     try {
+      const text = await importFile.text();
+      const { headers, rows } = parseCSV(text);
+
       const formData = new FormData();
       formData.append("file", importFile);
 
@@ -488,35 +501,178 @@ export default function MembershipPage() {
         body: formData,
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok) {
         mutateHouseholds();
         mutateIndividualMembers();
 
-        // Clear file input
-        setImportFile(null);
-        const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
-        if (fileInput) {
-          fileInput.value = "";
-        }
-        
-        // Show success message and close dialog
         const successCount = data.success || 0;
         const failedCount = data.failed || 0;
-        if (failedCount > 0) {
-          alert(`Import completed: ${successCount} successful, ${failedCount} failed. Check console for details.`);
+        const errors: string[] = data.errors || [];
+
+        if (failedCount > 0 && errors.length > 0 && headers.length > 0 && rows.length > 0) {
+          const failedRows: NonNullable<typeof importResults>["failedRows"] = [];
+          const rowRegex = /^Row (\d+):\s*(.+)$/;
+          for (const err of errors) {
+            const match = err.match(rowRegex);
+            if (match) {
+              const rowNum = parseInt(match[1], 10);
+              const rowIndex = rowNum - 1;
+              const errorMsg = match[2];
+              if (rowIndex >= 0 && rowIndex < rows.length) {
+                const rowValues = rows[rowIndex];
+                const rowData: Record<string, string> = {};
+                headers.forEach((h, i) => {
+                  rowData[h] = rowValues[i]?.trim() ?? "";
+                });
+                failedRows.push({ rowIndex, rowData, error: errorMsg });
+              }
+            }
+          }
+          setImportResults({
+            success: successCount,
+            failed: failedCount,
+            errors,
+            headers,
+            failedRows,
+          });
+          setImportFile(null);
+          const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
+          if (fileInput) fileInput.value = "";
         } else {
           alert(`Successfully imported ${successCount} member(s).`);
+          setImportFile(null);
+          const fileInput = document.getElementById("csv-file-input") as HTMLInputElement;
+          if (fileInput) fileInput.value = "";
+          setImportDialogOpen(false);
+          setImportResults(null);
         }
-        setImportDialogOpen(false);
-        setImportResults(null);
       } else {
         alert(data.error || "Failed to import members");
       }
     } catch (error) {
       console.error("Error importing members:", error);
       alert("Failed to import members. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const setFailedRowSkipped = (rowIndex: number, skipped: boolean) => {
+    setImportResults((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        failedRows: prev.failedRows.map((r) =>
+          r.rowIndex === rowIndex ? { ...r, skipped } : r
+        ),
+      };
+    });
+  };
+
+  const setFailedRowEditing = (rowIndex: number, editing: boolean) => {
+    setImportResults((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        failedRows: prev.failedRows.map((r) =>
+          r.rowIndex === rowIndex ? { ...r, editing } : r
+        ),
+      };
+    });
+  };
+
+  const setFailedRowEdited = (rowIndex: number, field: string, value: string) => {
+    setImportResults((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        failedRows: prev.failedRows.map((r) =>
+          r.rowIndex === rowIndex
+            ? { ...r, edited: { ...(r.edited || {}), [field]: value } }
+            : r
+        ),
+      };
+    });
+  };
+
+  const handleRetryFailedRows = async () => {
+    if (!importResults || importResults.failedRows.length === 0) return;
+    const toRetry = importResults.failedRows.filter((r) => !r.skipped);
+    if (toRetry.length === 0) {
+      setImportDialogOpen(false);
+      setImportResults(null);
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const rowsToSend = toRetry.map((r) => {
+        const merged = { ...r.rowData, ...r.edited };
+        return importResults.headers.reduce(
+          (acc, h) => ({ ...acc, [h]: merged[h] ?? "" }),
+          {} as Record<string, string>
+        );
+      });
+      const csvContent = buildCSV(importResults.headers, rowsToSend);
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const formData = new FormData();
+      formData.append("file", blob, "retry-import.csv");
+
+      const response = await apiFetch("/api/members/bulk-import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        mutateHouseholds();
+        mutateIndividualMembers();
+        const successCount = data.success || 0;
+        const failedCount = data.failed || 0;
+        const errors: string[] = data.errors || [];
+        const headers = importResults.headers;
+
+        if (failedCount > 0 && errors.length > 0) {
+          const failedRows: typeof importResults.failedRows = [];
+          const rowRegex = /^Row (\d+):\s*(.+)$/;
+          for (const err of errors) {
+            const match = err.match(rowRegex);
+            if (match) {
+              const rowNum = parseInt(match[1], 10);
+              const rowIndexInRetry = rowNum - 1;
+              const errorMsg = match[2];
+              if (rowIndexInRetry >= 0 && rowIndexInRetry < toRetry.length) {
+                const originalRow = toRetry[rowIndexInRetry];
+                const merged = { ...originalRow.rowData, ...originalRow.edited };
+                failedRows.push({
+                  rowIndex: originalRow.rowIndex,
+                  rowData: merged,
+                  error: errorMsg,
+                });
+              }
+            }
+          }
+          setImportResults({
+            success: importResults.success + successCount,
+            failed: failedCount,
+            errors,
+            headers,
+            failedRows,
+          });
+        } else {
+          alert(`Successfully imported ${importResults.success + successCount} member(s).`);
+          setImportDialogOpen(false);
+          setImportResults(null);
+        }
+      } else {
+        alert(data.error || "Failed to retry import");
+      }
+    } catch (error) {
+      console.error("Error retrying import:", error);
+      alert("Failed to retry import. Please try again.");
     } finally {
       setImporting(false);
     }
@@ -565,7 +721,7 @@ export default function MembershipPage() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Membership</h1>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
-            Manage households and their members
+            Manage households and their members. To create members, click into the household they are a part of. (Members must be part of a household)
           </p>
           <p className="text-muted-foreground mt-2 text-sm md:text-base">
             If you use external spreadsheets for initial data entry, you can upload CSV data using the File Import button in the Households tab.
@@ -1013,17 +1169,225 @@ export default function MembershipPage() {
                 </div>
                 {importResults && (
                   <div className="border-t pt-4">
-                    <h4 className="font-medium mb-2">Import Results:</h4>
+                    <h4 className="font-medium mb-2">Import Results</h4>
                     <p className="text-sm">
                       <span className="text-green-600">
                         Successfully imported: {importResults.success}
                       </span>
-                      <br />
+                      <span className="mx-2">|</span>
                       <span className="text-red-600">
                         Failed: {importResults.failed}
                       </span>
                     </p>
-                    {importResults.errors.length > 0 && (
+                    {importResults.failedRows && importResults.failedRows.length > 0 ? (
+                      <div className="mt-3">
+                        <p className="text-sm font-medium mb-2">
+                          Failed rows — fix the data below or skip to ignore:
+                        </p>
+                        <div className="max-h-48 overflow-y-auto border rounded-md">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-12">Row</TableHead>
+                                <TableHead>First Name</TableHead>
+                                <TableHead>Last Name</TableHead>
+                                <TableHead>Household ID</TableHead>
+                                <TableHead className="min-w-[140px]">Error</TableHead>
+                                <TableHead className="w-24">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {importResults.failedRows.map((fr) => {
+                                const merged = { ...fr.rowData, ...fr.edited };
+                                const getVal = (key: string) =>
+                                  merged[
+                                    importResults.headers.find(
+                                      (h) =>
+                                        h.toLowerCase().replace(/[\s_]+/g, " ") ===
+                                        key.toLowerCase().replace(/\s+/g, " ")
+                                    ) ?? key
+                                  ] ?? "";
+                                const findHeader = (normalized: string) =>
+                                  importResults.headers.find(
+                                    (h) =>
+                                      h.toLowerCase().replace(/[\s_]+/g, " ") ===
+                                      normalized.toLowerCase()
+                                  );
+                                const firstName = getVal("first name") || getVal("firstname");
+                                const lastName = getVal("last name") || getVal("lastname");
+                                const createNew = getVal("create new household")?.toLowerCase() === "true";
+                                const householdIdVal = getVal("household id");
+                                const householdIdDisplay = createNew ? "(new)" : (householdIdVal || "—");
+
+                                if (fr.skipped) {
+                                  return (
+                                    <TableRow key={fr.rowIndex} className="opacity-50 bg-muted/30">
+                                      <TableCell>{fr.rowIndex + 1}</TableCell>
+                                      <TableCell>{firstName || "—"}</TableCell>
+                                      <TableCell>{lastName || "—"}</TableCell>
+                                      <TableCell>{householdIdDisplay}</TableCell>
+                                      <TableCell className="text-red-600 text-xs">
+                                        {fr.error}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          onClick={() => setFailedRowSkipped(fr.rowIndex, false)}
+                                        >
+                                          Undo
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                }
+
+                                if (fr.editing) {
+                                  const fnKey = findHeader("first name") ?? "First Name";
+                                  const lnKey = findHeader("last name") ?? "Last Name";
+                                  const hidKey =
+                                    importResults.headers.find((h) =>
+                                      /household\s*id/i.test(h)
+                                    ) ?? "Household ID";
+                                  const createKey = importResults.headers.find((h) =>
+                                    /create\s*new\s*household/i.test(h)
+                                  );
+                                  const householdEditValue =
+                                    createKey && merged[createKey]?.toLowerCase() === "true"
+                                      ? "true"
+                                      : householdIdVal;
+                                  return (
+                                    <TableRow key={fr.rowIndex}>
+                                      <TableCell>{fr.rowIndex + 1}</TableCell>
+                                      <TableCell>
+                                        <Input
+                                          placeholder="First Name"
+                                          value={firstName}
+                                          onChange={(e) =>
+                                            setFailedRowEdited(fr.rowIndex, fnKey, e.target.value)
+                                          }
+                                          className="h-8 text-sm"
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        <Input
+                                          placeholder="Last Name"
+                                          value={lastName}
+                                          onChange={(e) =>
+                                            setFailedRowEdited(fr.rowIndex, lnKey, e.target.value)
+                                          }
+                                          className="h-8 text-sm"
+                                        />
+                                      </TableCell>
+                                      <TableCell>
+                                        <Input
+                                          placeholder="Household ID or true for new"
+                                          value={householdEditValue}
+                                          onChange={(e) => {
+                                            const v = e.target.value.trim();
+                                            const isNew =
+                                              ["true", "yes", "new"].includes(
+                                                v.toLowerCase()
+                                              );
+                                            if (createKey) {
+                                              setFailedRowEdited(
+                                                fr.rowIndex,
+                                                createKey,
+                                                isNew ? "true" : "false"
+                                              );
+                                            }
+                                            if (hidKey) {
+                                              setFailedRowEdited(
+                                                fr.rowIndex,
+                                                hidKey,
+                                                isNew ? "" : v
+                                              );
+                                            }
+                                          }}
+                                          className="h-8 text-sm"
+                                        />
+                                      </TableCell>
+                                      <TableCell className="text-red-600 text-xs">
+                                        {fr.error}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          onClick={() => setFailedRowEditing(fr.rowIndex, false)}
+                                        >
+                                          Done
+                                        </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                }
+
+                                return (
+                                  <TableRow key={fr.rowIndex}>
+                                    <TableCell>{fr.rowIndex + 1}</TableCell>
+                                    <TableCell>{firstName || "—"}</TableCell>
+                                    <TableCell>{lastName || "—"}</TableCell>
+                                    <TableCell>{householdIdDisplay}</TableCell>
+                                    <TableCell className="text-red-600 text-xs">
+                                      {fr.error}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          onClick={() => setFailedRowSkipped(fr.rowIndex, true)}
+                                        >
+                                          Skip
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs"
+                                          onClick={() => setFailedRowEditing(fr.rowIndex, true)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleRetryFailedRows}
+                            disabled={
+                              importing ||
+                              importResults.failedRows.every((r) => r.skipped)
+                            }
+                          >
+                            {importing ? "Retrying..." : "Retry Failed Rows"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setImportDialogOpen(false);
+                              setImportResults(null);
+                            }}
+                          >
+                            Done (skip remaining)
+                          </Button>
+                        </div>
+                      </div>
+                    ) : importResults.errors.length > 0 ? (
                       <div className="mt-2">
                         <p className="text-sm font-medium text-red-600">Errors:</p>
                         <ul className="text-xs text-muted-foreground list-disc list-inside mt-1 max-h-32 overflow-y-auto">
@@ -1032,7 +1396,7 @@ export default function MembershipPage() {
                           ))}
                         </ul>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
