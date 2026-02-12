@@ -106,8 +106,9 @@ export async function PUT(request: Request) {
       );
     }
 
-    // Check if this is the last admin user for this church and we're trying to change them to viewer
-    if (membership.role === "admin" && validRole === "viewer") {
+    // Safety check: require at least 1 admin user for the church account.
+    // Block demoting an admin to any non-admin role if they would be the last admin.
+    if (membership.role === "admin" && validRole !== "admin") {
       const adminMemberships = await db.query.userChurches.findMany({
         where: and(
           eq(userChurches.churchId, churchId),
@@ -128,7 +129,7 @@ export async function PUT(request: Request) {
 
       if (nonSuperAdminAdmins.length === 1 && !userToUpdate.isSuperAdmin) {
         return NextResponse.json(
-          { error: "Cannot change the last admin user to viewer" },
+          { error: "Cannot change the last admin user to a different role. At least one admin is required for the church account." },
           { status: 400 },
         );
       }
