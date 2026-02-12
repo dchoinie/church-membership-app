@@ -213,6 +213,7 @@ export const household = pgTable(
     country: text("country"),
     alternateAddressBegin: date("alternate_address_begin"),
     alternateAddressEnd: date("alternate_address_end"),
+    weddingAnniversaryDate: date("wedding_anniversary_date"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

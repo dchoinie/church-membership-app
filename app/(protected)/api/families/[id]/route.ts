@@ -112,6 +112,7 @@ export async function PUT(
         country: sanitizedData.country,
         alternateAddressBegin: body.alternateAddressBegin !== undefined ? body.alternateAddressBegin : existingHousehold.alternateAddressBegin,
         alternateAddressEnd: body.alternateAddressEnd !== undefined ? body.alternateAddressEnd : existingHousehold.alternateAddressEnd,
+        weddingAnniversaryDate: body.weddingAnniversaryDate !== undefined ? body.weddingAnniversaryDate : existingHousehold.weddingAnniversaryDate,
         updatedAt: new Date(),
       })
       .where(eq(household.id, id))

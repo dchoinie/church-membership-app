@@ -20,6 +20,7 @@ import {
   Cross,
   Building2,
   TrendingUp,
+  Gift,
 } from "lucide-react";
 import {
   Card,
@@ -109,6 +110,16 @@ interface RecentGivingByService {
   totalAmount: number;
 }
 
+interface UpcomingEvent {
+  type: string;
+  label: string;
+  date: string;
+  memberId?: string;
+  householdId?: string;
+  memberName?: string;
+  householdName?: string;
+}
+
 interface AttendanceMonthlyTrend {
   month: string;
   attendance: number;
@@ -183,6 +194,12 @@ export default function Dashboard() {
     shouldFetchDashboard ? "/api/dashboard/recent-giving-by-service" : null,
     dashboardFetcher,
   );
+  const { data: upcomingEventsData } = useSWR<{
+    events?: UpcomingEvent[];
+  }>(
+    shouldFetchDashboard ? "/api/dashboard/upcoming-member-events" : null,
+    dashboardFetcher,
+  );
 
   // Compute trends date range
   const getTrendsDateRange = (): { startDate: string; endDate: string } => {
@@ -243,6 +260,7 @@ export default function Dashboard() {
   const recentChanges = changesData?.changes ?? [];
   const recentServices = servicesData?.services ?? [];
   const recentGivingByService = givingByServiceData?.services ?? [];
+  const upcomingEvents = upcomingEventsData?.events ?? [];
   const attendanceTrend = attendanceData?.monthlyTrend ?? [];
   const givingTrend = givingData?.monthlyTrend ?? [];
 
@@ -454,48 +472,125 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Church Overview */}
-      <Card className="min-w-0 overflow-hidden">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Church Overview
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-48" />
-              <Skeleton className="h-4 w-64" />
-              <Skeleton className="h-4 w-32" />
-            </div>
-          ) : (
-            <>
-              {church?.name && (
-                <p className="text-lg font-semibold">{church.name}</p>
+      {/* Church Overview and Upcoming Member Events - Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Church Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-64" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            ) : (
+              <>
+                {church?.name && (
+                  <p className="text-lg font-semibold">{church.name}</p>
+                )}
+                {church?.denomination && (
+                  <p className="text-sm text-muted-foreground">
+                    {church.denomination}
+                  </p>
+                )}
+                {formatAddress(church ?? {}) && (
+                  <p className="text-sm text-muted-foreground">
+                    {formatAddress(church ?? {})}
+                  </p>
+                )}
+                {stats && (
+                  <p className="text-sm">
+                    <span className="font-medium">Total Members:</span>{" "}
+                    {stats.metrics.totalMembers} (
+                    {stats.metrics.activeMembers} active,{" "}
+                    {stats.metrics.inactiveMembers} inactive)
+                  </p>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5" />
+              Upcoming Member Events
+            </CardTitle>
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link href="/membership">View All</Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[220px]">
+              {loading || (shouldFetchDashboard && upcomingEventsData === undefined) ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : upcomingEvents.length > 0 ? (
+                <div className="space-y-3">
+                  {upcomingEvents.map((event, idx) => {
+                    const linkHref = event.memberId
+                      ? `/membership/${event.memberId}`
+                      : event.householdId
+                        ? `/membership/household/${event.householdId}`
+                        : undefined;
+                    const displayName =
+                      event.memberName ||
+                      event.householdName ||
+                      "Unknown";
+                    const content = (
+                      <div className="flex flex-col gap-1 p-3 rounded-lg border">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                          >
+                            {event.label}
+                          </Badge>
+                          <span className="font-medium text-sm truncate">
+                            {displayName}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(event.date)}
+                        </p>
+                      </div>
+                    );
+                    return linkHref ? (
+                      <Link
+                        key={`${event.type}-${event.date}-${idx}`}
+                        href={linkHref}
+                        className="block hover:bg-accent transition-colors rounded-lg"
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <div
+                        key={`${event.type}-${event.date}-${idx}`}
+                        className="block"
+                      >
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No upcoming anniversaries in the next 90 days
+                </div>
               )}
-              {church?.denomination && (
-                <p className="text-sm text-muted-foreground">
-                  {church.denomination}
-                </p>
-              )}
-              {formatAddress(church ?? {}) && (
-                <p className="text-sm text-muted-foreground">
-                  {formatAddress(church ?? {})}
-                </p>
-              )}
-              {stats && (
-                <p className="text-sm">
-                  <span className="font-medium">Total Members:</span>{" "}
-                  {stats.metrics.totalMembers} (
-                  {stats.metrics.activeMembers} active,{" "}
-                  {stats.metrics.inactiveMembers} inactive)
-                </p>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recent Activity */}
       <div className="space-y-4">

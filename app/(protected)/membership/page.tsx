@@ -80,6 +80,7 @@ interface Household {
   address1?: string | null;
   city?: string | null;
   state?: string | null;
+  weddingAnniversaryDate?: string | null;
   memberCount: number;
   members: HouseholdMember[];
 }
@@ -92,6 +93,7 @@ interface HouseholdFormData {
   city: string;
   state: string;
   zip: string;
+  weddingAnniversaryDate: string;
 }
 
 interface PaginationInfo {
@@ -272,6 +274,7 @@ export default function MembershipPage() {
       city: "",
       state: "",
       zip: "",
+      weddingAnniversaryDate: "",
     },
   });
 
@@ -399,6 +402,7 @@ export default function MembershipPage() {
           city: data.city || null,
           state: data.state || null,
           zip: data.zip || null,
+          weddingAnniversaryDate: data.weddingAnniversaryDate || null,
         }),
       });
 
@@ -444,16 +448,29 @@ export default function MembershipPage() {
     }
   };
 
+  const formatDateForInput = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "";
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[0];
+    try {
+      const d = new Date(dateStr);
+      return d.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
   const handleEditClick = (household: Household) => {
     setSelectedHousehold(household);
     editForm.reset({
       name: household.name || "",
-        type: household.type || "single",
+      type: household.type || "single",
       address1: household.address1 || "",
       address2: "",
       city: household.city || "",
       state: household.state || "",
       zip: "",
+      weddingAnniversaryDate: formatDateForInput(household.weddingAnniversaryDate),
     });
     setEditDialogOpen(true);
   };
@@ -1745,6 +1762,19 @@ export default function MembershipPage() {
                   )}
                 />
               </div>
+              <FormField
+                control={editForm.control}
+                name="weddingAnniversaryDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Wedding Anniversary</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} value={field.value || ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <DialogFooter>
                 <Button
                   type="button"

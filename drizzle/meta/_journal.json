@@ -190,6 +190,13 @@
       "when": 1770826166570,
       "tag": "0026_opposite_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1770904900833,
+      "tag": "0027_conscious_komodo",
+      "breakpoints": true
     }
   ]
 }

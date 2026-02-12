@@ -1,0 +1,1 @@
+ALTER TABLE "household" ADD COLUMN "wedding_anniversary_date" date;

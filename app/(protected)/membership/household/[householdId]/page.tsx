@@ -11,6 +11,7 @@ import { useHouseholds } from "@/lib/hooks/use-households";
 import { apiFetch } from "@/lib/api-client";
 import {
   ArrowLeftIcon,
+  PencilIcon,
   PlusIcon,
   TrashIcon,
   TriangleAlertIcon,
@@ -98,6 +99,7 @@ interface Household {
   city: string | null;
   state: string | null;
   zip: string | null;
+  weddingAnniversaryDate?: string | null;
 }
 
 interface MemberFormData {
@@ -135,6 +137,16 @@ interface HouseholdOption {
   members: Array<{ firstName: string; lastName: string }>;
 }
 
+interface HouseholdEditFormData {
+  name: string;
+  type: string;
+  address1: string;
+  city: string;
+  state: string;
+  zip: string;
+  weddingAnniversaryDate: string;
+}
+
 export default function HouseholdViewPage({
   params,
 }: {
@@ -153,7 +165,20 @@ export default function HouseholdViewPage({
   const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
   const [deleteHouseholdDialogOpen, setDeleteHouseholdDialogOpen] = useState(false);
   const [transferMemberDialogOpen, setTransferMemberDialogOpen] = useState(false);
+  const [editHouseholdDialogOpen, setEditHouseholdDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<HouseholdMember | null>(null);
+
+  const householdEditForm = useForm<HouseholdEditFormData>({
+    defaultValues: {
+      name: "",
+      type: "single",
+      address1: "",
+      city: "",
+      state: "",
+      zip: "",
+      weddingAnniversaryDate: "",
+    },
+  });
 
   const memberForm = useForm<MemberFormData>({
     defaultValues: {
@@ -194,6 +219,62 @@ export default function HouseholdViewPage({
   useEffect(() => {
     params.then((resolved) => setHouseholdId(resolved.householdId));
   }, [params]);
+
+  const formatDateForInput = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return "";
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[0];
+    try {
+      const d = new Date(dateStr);
+      return d.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
+  const handleEditHouseholdClick = () => {
+    if (!household) return;
+    householdEditForm.reset({
+      name: household.name || "",
+      type: household.type || "single",
+      address1: household.address1 || "",
+      city: household.city || "",
+      state: household.state || "",
+      zip: "",
+      weddingAnniversaryDate: formatDateForInput(household.weddingAnniversaryDate),
+    });
+    setEditHouseholdDialogOpen(true);
+  };
+
+  const onEditHouseholdSubmit = async (data: HouseholdEditFormData) => {
+    if (!householdId) return;
+
+    try {
+      const response = await apiFetch(`/api/families/${householdId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: data.name || null,
+          type: data.type || null,
+          address1: data.address1 || null,
+          city: data.city || null,
+          state: data.state || null,
+          zip: data.zip || null,
+          weddingAnniversaryDate: data.weddingAnniversaryDate || null,
+        }),
+      });
+
+      if (response.ok) {
+        setEditHouseholdDialogOpen(false);
+        invalidateHouseholdAndFamilies();
+      } else {
+        const error = await response.json();
+        alert(error.error || "Failed to update household");
+      }
+    } catch (error) {
+      console.error("Error updating household:", error);
+      alert("Failed to update household");
+    }
+  };
 
   const invalidateHouseholdAndFamilies = () => {
     mutateHousehold();
@@ -503,12 +584,30 @@ export default function HouseholdViewPage({
               {household.type && (
                 <span className="ml-2 capitalize">({household.type})</span>
               )}
+              {household.weddingAnniversaryDate && (
+                <span className="block mt-1 text-sm">
+                  Wedding Anniversary:{" "}
+                  {new Date(household.weddingAnniversaryDate + "T12:00:00").toLocaleDateString("en-US", {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+              )}
             </p>
           )}
         </div>
         <div className="flex gap-2">
           {canEditMembers && (
             <>
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={handleEditHouseholdClick}
+              >
+                <PencilIcon className="mr-2 h-4 w-4" />
+                Edit Household
+              </Button>
               <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="cursor-pointer">
@@ -1142,6 +1241,136 @@ export default function HouseholdViewPage({
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Household Dialog */}
+      {canEditMembers && (
+        <Dialog open={editHouseholdDialogOpen} onOpenChange={setEditHouseholdDialogOpen}>
+          <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Household</DialogTitle>
+              <DialogDescription>
+                Update household information.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...householdEditForm}>
+              <form onSubmit={householdEditForm.handleSubmit(onEditHouseholdSubmit)} className="space-y-4">
+                <FormField
+                  control={householdEditForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Household Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., Smith Family" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={householdEditForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Household Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="single">Single</SelectItem>
+                          <SelectItem value="family">Family</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={householdEditForm.control}
+                  name="address1"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Street address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={householdEditForm.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={householdEditForm.control}
+                    name="state"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>State</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., CA" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={householdEditForm.control}
+                    name="zip"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>ZIP Code</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={householdEditForm.control}
+                  name="weddingAnniversaryDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Wedding Anniversary</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditHouseholdDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Update Household</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete Household Dialog */}
       {canEditMembers && (
