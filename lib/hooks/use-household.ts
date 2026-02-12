@@ -33,7 +33,6 @@ export interface Household {
   ministryGroup?: string | null;
   alternateAddressBegin?: string | null;
   alternateAddressEnd?: string | null;
-  weddingAnniversaryDate?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

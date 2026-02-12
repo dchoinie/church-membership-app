@@ -182,6 +182,19 @@ export async function POST(request: Request) {
           }
         }
 
+        let parsedWeddingAnniversaryDate: Date | null = null;
+        const weddingAnniversaryStr = getValue("wedding anniversary");
+        if (weddingAnniversaryStr) {
+          try {
+            parsedWeddingAnniversaryDate = new Date(weddingAnniversaryStr);
+            if (isNaN(parsedWeddingAnniversaryDate.getTime())) {
+              parsedWeddingAnniversaryDate = null;
+            }
+          } catch {
+            // Invalid date, will be null
+          }
+        }
+
         const dateReceivedStr = getValue("date received");
         if (dateReceivedStr) {
           try {
@@ -425,6 +438,9 @@ export async function POST(request: Request) {
             : null,
           confirmationDate: parsedConfirmationDate
             ? parsedConfirmationDate.toISOString().split("T")[0]
+            : null,
+          weddingAnniversaryDate: parsedWeddingAnniversaryDate
+            ? parsedWeddingAnniversaryDate.toISOString().split("T")[0]
             : null,
           receivedBy: (() => {
             const receivedByValue = getValue("received by")?.toLowerCase();

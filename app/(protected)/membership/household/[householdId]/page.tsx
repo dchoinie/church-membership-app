@@ -99,7 +99,6 @@ interface Household {
   city: string | null;
   state: string | null;
   zip: string | null;
-  weddingAnniversaryDate?: string | null;
 }
 
 interface MemberFormData {
@@ -144,7 +143,6 @@ interface HouseholdEditFormData {
   city: string;
   state: string;
   zip: string;
-  weddingAnniversaryDate: string;
 }
 
 export default function HouseholdViewPage({
@@ -176,7 +174,6 @@ export default function HouseholdViewPage({
       city: "",
       state: "",
       zip: "",
-      weddingAnniversaryDate: "",
     },
   });
 
@@ -220,18 +217,6 @@ export default function HouseholdViewPage({
     params.then((resolved) => setHouseholdId(resolved.householdId));
   }, [params]);
 
-  const formatDateForInput = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return "";
-    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return match[0];
-    try {
-      const d = new Date(dateStr);
-      return d.toISOString().split("T")[0];
-    } catch {
-      return "";
-    }
-  };
-
   const handleEditHouseholdClick = () => {
     if (!household) return;
     householdEditForm.reset({
@@ -241,7 +226,6 @@ export default function HouseholdViewPage({
       city: household.city || "",
       state: household.state || "",
       zip: "",
-      weddingAnniversaryDate: formatDateForInput(household.weddingAnniversaryDate),
     });
     setEditHouseholdDialogOpen(true);
   };
@@ -259,7 +243,6 @@ export default function HouseholdViewPage({
           city: data.city || null,
           state: data.state || null,
           zip: data.zip || null,
-          weddingAnniversaryDate: data.weddingAnniversaryDate || null,
         }),
       });
 
@@ -583,16 +566,6 @@ export default function HouseholdViewPage({
               )}
               {household.type && (
                 <span className="ml-2 capitalize">({household.type})</span>
-              )}
-              {household.weddingAnniversaryDate && (
-                <span className="block mt-1 text-sm">
-                  Wedding Anniversary:{" "}
-                  {new Date(household.weddingAnniversaryDate + "T12:00:00").toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
               )}
             </p>
           )}
@@ -1343,19 +1316,6 @@ export default function HouseholdViewPage({
                     )}
                   />
                 </div>
-                <FormField
-                  control={householdEditForm.control}
-                  name="weddingAnniversaryDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Wedding Anniversary</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} value={field.value || ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <DialogFooter>
                   <Button
                     type="button"

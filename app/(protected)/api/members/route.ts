@@ -224,6 +224,7 @@ export async function POST(request: Request) {
         phoneCell2: sanitizedData.phoneCell2,
         baptismDate: body.baptismDate || null,
         confirmationDate: body.confirmationDate || null,
+        weddingAnniversaryDate: body.weddingAnniversaryDate || null,
         receivedBy: body.receivedBy || null,
         dateReceived: body.dateReceived || null,
         removedBy: body.removedBy || null,

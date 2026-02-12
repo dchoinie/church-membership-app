@@ -132,25 +132,29 @@ export async function GET(request: Request) {
       }
     }
 
-    // Wedding anniversaries (household-level)
-    const householdsWithWedding = await db
+    // Wedding anniversaries (member-level)
+    const membersWithWedding = await db
       .select({
-        id: household.id,
-        name: household.name,
-        weddingAnniversaryDate: household.weddingAnniversaryDate,
+        id: members.id,
+        firstName: members.firstName,
+        lastName: members.lastName,
+        weddingAnniversaryDate: members.weddingAnniversaryDate,
+        householdId: members.householdId,
+        householdName: household.name,
       })
-      .from(household)
+      .from(members)
+      .leftJoin(household, eq(members.householdId, household.id))
       .where(
         and(
-          isNotNull(household.weddingAnniversaryDate),
-          eq(household.churchId, churchId)
+          isNotNull(members.weddingAnniversaryDate),
+          eq(members.churchId, churchId)
         )
       );
 
-    for (const h of householdsWithWedding) {
-      if (!h.weddingAnniversaryDate) continue;
+    for (const m of membersWithWedding) {
+      if (!m.weddingAnniversaryDate) continue;
       const dates = getUpcomingAnniversaryDates(
-        h.weddingAnniversaryDate,
+        m.weddingAnniversaryDate,
         today,
         endDate
       );
@@ -159,8 +163,10 @@ export async function GET(request: Request) {
           type: "wedding_anniversary",
           label: "Wedding Anniversary",
           date: d.toISOString().split("T")[0],
-          householdId: h.id,
-          householdName: h.name ?? undefined,
+          memberId: m.id,
+          memberName: `${m.firstName} ${m.lastName}`,
+          householdId: m.householdId ?? undefined,
+          householdName: m.householdName ?? undefined,
         });
       }
     }

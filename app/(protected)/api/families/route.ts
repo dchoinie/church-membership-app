@@ -102,7 +102,6 @@ export async function GET(request: Request) {
         address1: household.address1,
         city: household.city,
         state: household.state,
-        weddingAnniversaryDate: household.weddingAnniversaryDate,
       })
       .from(household)
       .where(whereClause)
@@ -209,7 +208,6 @@ export async function POST(request: Request) {
         country: sanitizedData.country,
         alternateAddressBegin: body.alternateAddressBegin || null,
         alternateAddressEnd: body.alternateAddressEnd || null,
-        weddingAnniversaryDate: body.weddingAnniversaryDate || null,
       })
       .returning();
 

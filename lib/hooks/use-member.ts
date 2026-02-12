@@ -21,6 +21,7 @@ export interface Member {
   phoneCell2?: string | null;
   baptismDate?: string | null;
   confirmationDate?: string | null;
+  weddingAnniversaryDate?: string | null;
   receivedBy?: string | null;
   dateReceived?: string | null;
   removedBy?: string | null;
@@ -29,6 +30,7 @@ export interface Member {
   membershipCode?: string | null;
   envelopeNumber?: number | null;
   participation?: string;
+  sequence?: string | null;
   createdAt?: string;
   updatedAt?: string;
   headOfHousehold?: {

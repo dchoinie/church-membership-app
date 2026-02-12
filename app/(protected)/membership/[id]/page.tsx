@@ -67,6 +67,7 @@ interface Member {
   phoneCell2: string | null;
   baptismDate: string | null;
   confirmationDate: string | null;
+  weddingAnniversaryDate: string | null;
   receivedBy: string | null;
   dateReceived: string | null;
   removedBy: string | null;
@@ -75,6 +76,7 @@ interface Member {
   membershipCode: string | null;
   envelopeNumber: number | null;
   participation: string;
+  sequence: string | null;
   createdAt: string;
   updatedAt: string;
   headOfHousehold: {
@@ -83,6 +85,29 @@ interface Member {
     lastName: string;
     isCurrentMember: boolean;
   } | null;
+}
+
+/** View-mode field cell with darker label strip for clear separation */
+function FieldDisplay({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  const display = children ?? (value ?? "—");
+  return (
+    <div className="rounded-lg border bg-muted/30 overflow-hidden">
+      <div className="px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/60 dark:bg-muted/80 uppercase tracking-wide">
+        {label}
+      </div>
+      <div className="px-3 py-2.5 text-sm min-h-9 flex items-center">
+        {display}
+      </div>
+    </div>
+  );
 }
 
 interface HouseholdMember {
@@ -114,6 +139,7 @@ interface MemberFormData {
   phoneCell2: string;
   baptismDate: string;
   confirmationDate: string;
+  weddingAnniversaryDate: string;
   receivedBy: string;
   dateReceived: string;
   removedBy: string;
@@ -121,6 +147,7 @@ interface MemberFormData {
   deceasedDate: string;
   membershipCode: string;
   participation: string;
+  sequence: string;
   householdId: string;
   envelopeNumber: string;
 }
@@ -158,6 +185,7 @@ export default function MemberDetailPage({
       phoneCell2: "",
       baptismDate: "",
       confirmationDate: "",
+      weddingAnniversaryDate: "",
       receivedBy: "",
       dateReceived: "",
       removedBy: "",
@@ -165,6 +193,7 @@ export default function MemberDetailPage({
       deceasedDate: "",
       membershipCode: "",
       participation: "active",
+      sequence: "",
       householdId: "",
       envelopeNumber: "",
     },
@@ -221,6 +250,7 @@ export default function MemberDetailPage({
         phoneCell2: (member.phoneCell2 as string) || "",
         baptismDate: formatDateInput(member.baptismDate as string) || "",
         confirmationDate: formatDateInput(member.confirmationDate as string) || "",
+        weddingAnniversaryDate: formatDateInput(member.weddingAnniversaryDate as string) || "",
         receivedBy: (member.receivedBy as string) || "",
         dateReceived: formatDateInput(member.dateReceived as string) || "",
         removedBy: (member.removedBy as string) || "",
@@ -228,6 +258,7 @@ export default function MemberDetailPage({
         deceasedDate: formatDateInput(member.deceasedDate as string) || "",
         membershipCode: (member.membershipCode as string) || "",
         participation: (member.participation as string) || "active",
+        sequence: (member.sequence as string) || "",
         householdId: (member.householdId as string) || "",
         envelopeNumber: member.envelopeNumber ? String(member.envelopeNumber) : "",
       });
@@ -279,6 +310,7 @@ export default function MemberDetailPage({
         phoneCell2: data.phoneCell2 || null,
         baptismDate: data.baptismDate || null,
         confirmationDate: data.confirmationDate || null,
+        weddingAnniversaryDate: data.weddingAnniversaryDate || null,
         receivedBy: data.receivedBy || null,
         dateReceived: data.dateReceived || null,
         removedBy: data.removedBy || null,
@@ -286,6 +318,7 @@ export default function MemberDetailPage({
         deceasedDate: data.deceasedDate || null,
         membershipCode: data.membershipCode || null,
         participation: data.participation || "active",
+        sequence: data.sequence || null,
         householdId: data.householdId || null,
         envelopeNumber: data.envelopeNumber ? parseInt(data.envelopeNumber, 10) : null,
       };
@@ -446,279 +479,57 @@ export default function MemberDetailPage({
             <CardHeader>
               <CardTitle>Personal Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name *</FormLabel>
-                          <FormControl>
-                            <Input {...field} required />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name *</FormLabel>
-                          <FormControl>
-                            <Input {...field} required />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        First Name
-                      </label>
-                      <p className="mt-1 text-sm">{member.firstName}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Last Name
-                      </label>
-                      <p className="mt-1 text-sm">{member.lastName}</p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="middleName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Middle Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="preferredName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Preferred Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    {member.middleName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Middle Name
-                        </label>
-                        <p className="mt-1 text-sm">{member.middleName}</p>
-                      </div>
-                    )}
-                    {member.preferredName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Preferred Name
-                        </label>
-                        <p className="mt-1 text-sm">{member.preferredName}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="suffix"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Suffix</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Jr., Sr., III, etc." />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Title</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Mr., Mrs., Dr., etc." />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    {member.suffix && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Suffix
-                        </label>
-                        <p className="mt-1 text-sm">{member.suffix}</p>
-                      </div>
-                    )}
-                    {member.title && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Title
-                        </label>
-                        <p className="mt-1 text-sm">{member.title}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="maidenName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Maiden Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="sex"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sex</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select sex" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    {member.maidenName && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Maiden Name
-                        </label>
-                        <p className="mt-1 text-sm">{member.maidenName}</p>
-                      </div>
-                    )}
-                    {member.sex && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Sex
-                        </label>
-                        <p className="mt-1 text-sm capitalize">{member.sex}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="dateOfBirth"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date of Birth</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              value={formatDateInput(field.value)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="baptismDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Baptism Date</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              value={formatDateInput(field.value)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Date of Birth
-                      </label>
-                      <p className="mt-1 text-sm">
-                        {formatDate(member.dateOfBirth ?? null)}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Baptism Date
-                      </label>
-                      <p className="mt-1 text-sm">
-                        {formatDate(member.baptismDate ?? null)}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
+            <CardContent>
+              {isEditMode ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <FormField control={form.control} name="firstName" render={({ field }) => (
+                    <FormItem><FormLabel>First Name *</FormLabel><FormControl><Input {...field} required /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="middleName" render={({ field }) => (
+                    <FormItem><FormLabel>Middle Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="lastName" render={({ field }) => (
+                    <FormItem><FormLabel>Last Name *</FormLabel><FormControl><Input {...field} required /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="suffix" render={({ field }) => (
+                    <FormItem><FormLabel>Suffix</FormLabel><FormControl><Input {...field} placeholder="Jr., Sr., III" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="preferredName" render={({ field }) => (
+                    <FormItem><FormLabel>Preferred Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="maidenName" render={({ field }) => (
+                    <FormItem><FormLabel>Maiden Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="title" render={({ field }) => (
+                    <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} placeholder="Mr., Mrs., Dr." /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="sex" render={({ field }) => (
+                    <FormItem><FormLabel>Sex</FormLabel><Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                      <SelectContent><SelectItem value="male">Male</SelectItem><SelectItem value="female">Female</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
+                    </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
+                    <FormItem><FormLabel>Date of Birth</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="baptismDate" render={({ field }) => (
+                    <FormItem><FormLabel>Baptism Date</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <FieldDisplay label="First Name" value={member.firstName} />
+                  <FieldDisplay label="Middle Name" value={member.middleName ?? undefined} />
+                  <FieldDisplay label="Last Name" value={member.lastName} />
+                  <FieldDisplay label="Suffix" value={member.suffix ?? undefined} />
+                  <FieldDisplay label="Preferred Name" value={member.preferredName ?? undefined} />
+                  <FieldDisplay label="Maiden Name" value={member.maidenName ?? undefined} />
+                  <FieldDisplay label="Title" value={member.title ?? undefined} />
+                  <FieldDisplay label="Sex" value={member.sex ? member.sex.charAt(0).toUpperCase() + member.sex.slice(1) : undefined} />
+                  <FieldDisplay label="Date of Birth" value={member.dateOfBirth ? formatDate(member.dateOfBirth) : undefined} />
+                  <FieldDisplay label="Baptism Date" value={member.baptismDate ? formatDate(member.baptismDate) : undefined} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -727,121 +538,34 @@ export default function MemberDetailPage({
             <CardHeader>
               <CardTitle>Contact Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="email1"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email 1</FormLabel>
-                          <FormControl>
-                            <Input type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email2"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email 2</FormLabel>
-                          <FormControl>
-                            <Input type="email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Email 1
-                      </label>
-                      <p className="mt-1 text-sm">{member.email1 || "N/A"}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Email 2
-                      </label>
-                      <p className="mt-1 text-sm">{member.email2 || "N/A"}</p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                {isEditMode ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="phoneHome"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Home</FormLabel>
-                          <FormControl>
-                            <Input type="tel" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phoneCell1"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Cell 1</FormLabel>
-                          <FormControl>
-                            <Input type="tel" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="phoneCell2"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Cell 2</FormLabel>
-                          <FormControl>
-                            <Input type="tel" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Phone Home
-                      </label>
-                      <p className="mt-1 text-sm">{member.phoneHome || "N/A"}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Phone Cell 1
-                      </label>
-                      <p className="mt-1 text-sm">{member.phoneCell1 || "N/A"}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Phone Cell 2
-                      </label>
-                      <p className="mt-1 text-sm">{member.phoneCell2 || "N/A"}</p>
-                    </div>
-                  </>
-                )}
-              </div>
+            <CardContent>
+              {isEditMode ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <FormField control={form.control} name="email1" render={({ field }) => (
+                    <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="email2" render={({ field }) => (
+                    <FormItem><FormLabel>Email 2</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="phoneHome" render={({ field }) => (
+                    <FormItem><FormLabel>Phone Home</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="phoneCell1" render={({ field }) => (
+                    <FormItem><FormLabel>Phone Cell 1</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="phoneCell2" render={({ field }) => (
+                    <FormItem><FormLabel>Phone Cell 2</FormLabel><FormControl><Input type="tel" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <FieldDisplay label="Email" value={member.email1 ?? undefined} />
+                  <FieldDisplay label="Email 2" value={member.email2 ?? undefined} />
+                  <FieldDisplay label="Phone Home" value={member.phoneHome ?? undefined} />
+                  <FieldDisplay label="Phone Cell 1" value={member.phoneCell1 ?? undefined} />
+                  <FieldDisplay label="Phone Cell 2" value={member.phoneCell2 ?? undefined} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -850,358 +574,151 @@ export default function MemberDetailPage({
             <CardHeader>
               <CardTitle>Membership Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               {isEditMode ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="participation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Participation Status</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="deceased">Deceased</SelectItem>
-                            <SelectItem value="homebound">Homebound</SelectItem>
-                            <SelectItem value="military">Military</SelectItem>
-                            <SelectItem value="school">School</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="householdId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Household *</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select household" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {households
-                                .filter((household) => household.name?.toLowerCase() !== "guests")
-                                .map((household) => (
-                                  <SelectItem key={household.id} value={household.id}>
-                                    {getHouseholdDisplayName(household)}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="confirmationDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Confirmation Date</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              value={formatDateInput(field.value)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="receivedBy"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Received By</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select method" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="baptism">Baptism</SelectItem>
-                              <SelectItem value="confirmation">Confirmation</SelectItem>
-                              <SelectItem value="transfer">Transfer</SelectItem>
-                              <SelectItem value="profession">Profession</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="dateReceived"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date Received</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              value={formatDateInput(field.value)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="membershipCode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Membership Code</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="envelopeNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Envelope Number</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} placeholder="Enter envelope number" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="removedBy"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Removed By</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select reason" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="death">Death</SelectItem>
-                              <SelectItem value="excommunication">Excommunication</SelectItem>
-                              <SelectItem value="inactivity">Inactivity</SelectItem>
-                              <SelectItem value="moved_no_transfer">Moved (No Transfer)</SelectItem>
-                              <SelectItem value="released">Released</SelectItem>
-                              <SelectItem value="removed_by_request">Removed by Request</SelectItem>
-                              <SelectItem value="transfer">Transfer</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dateRemoved"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date Removed</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              value={formatDateInput(field.value)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormField
-                    control={form.control}
-                    name="deceasedDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Deceased Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            {...field}
-                            value={formatDateInput(field.value)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 space-y-0">
+                  <FormField control={form.control} name="participation" render={({ field }) => (
+                    <FormItem><FormLabel>Participation Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="deceased">Deceased</SelectItem>
+                          <SelectItem value="homebound">Homebound</SelectItem>
+                          <SelectItem value="military">Military</SelectItem>
+                          <SelectItem value="school">School</SelectItem>
+                        </SelectContent>
+                      </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="sequence" render={({ field }) => (
+                    <FormItem><FormLabel>Role in Household</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="head_of_house">Head of House</SelectItem>
+                          <SelectItem value="spouse">Spouse</SelectItem>
+                          <SelectItem value="child">Child</SelectItem>
+                        </SelectContent>
+                      </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="householdId" render={({ field }) => (
+                    <FormItem><FormLabel>Household *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select household" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {households.filter((h) => h.name?.toLowerCase() !== "guests").map((h) => (
+                            <SelectItem key={h.id} value={h.id}>{getHouseholdDisplayName(h)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="confirmationDate" render={({ field }) => (
+                    <FormItem><FormLabel>Confirmation Date</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="weddingAnniversaryDate" render={({ field }) => (
+                    <FormItem><FormLabel>Wedding Anniversary</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="receivedBy" render={({ field }) => (
+                    <FormItem><FormLabel>Received By</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="adult_confirmation">Adult Confirmation</SelectItem>
+                          <SelectItem value="affirmation_of_faith">Affirmation of Faith</SelectItem>
+                          <SelectItem value="baptism">Baptism</SelectItem>
+                          <SelectItem value="junior_confirmation">Junior Confirmation</SelectItem>
+                          <SelectItem value="transfer">Transfer</SelectItem>
+                          <SelectItem value="with_parents">With Parents</SelectItem>
+                          <SelectItem value="other_denomination">Other Denomination</SelectItem>
+                          <SelectItem value="unknown">Unknown</SelectItem>
+                        </SelectContent>
+                      </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="dateReceived" render={({ field }) => (
+                    <FormItem><FormLabel>Date Received</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="membershipCode" render={({ field }) => (
+                    <FormItem><FormLabel>Membership Code</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="envelopeNumber" render={({ field }) => (
+                    <FormItem><FormLabel>Envelope Number</FormLabel><FormControl><Input type="number" {...field} placeholder="Number" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="removedBy" render={({ field }) => (
+                    <FormItem><FormLabel>Removed By</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="death">Death</SelectItem>
+                          <SelectItem value="excommunication">Excommunication</SelectItem>
+                          <SelectItem value="inactivity">Inactivity</SelectItem>
+                          <SelectItem value="moved_no_transfer">Moved (No Transfer)</SelectItem>
+                          <SelectItem value="released">Released</SelectItem>
+                          <SelectItem value="removed_by_request">Removed by Request</SelectItem>
+                          <SelectItem value="transfer">Transfer</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="dateRemoved" render={({ field }) => (
+                    <FormItem><FormLabel>Date Removed</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="deceasedDate" render={({ field }) => (
+                    <FormItem><FormLabel>Deceased Date</FormLabel><FormControl><Input type="date" {...field} value={formatDateInput(field.value)} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
               ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Participation Status
-                      </label>
-                      <p className="mt-1">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                            member.participation?.toLowerCase() === "active"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : member.participation?.toLowerCase() === "inactive"
-                                ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                                : member.participation?.toLowerCase() === "deceased"
-                                  ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                  : member.participation?.toLowerCase() === "homebound" ||
-                                      member.participation?.toLowerCase() === "military" ||
-                                      member.participation?.toLowerCase() === "school"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                          }`}
-                        >
-                          {member.participation}
-                        </span>
-                      </p>
-                    </div>
-                    {member.householdId && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Household
-                        </label>
-                        <p className="mt-1 text-sm">
-                          <Link
-                            href={`/membership/household/${member.householdId}`}
-                            className="text-primary hover:underline"
-                          >
-                            View Household
-                          </Link>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {member.headOfHousehold && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Head of Household
-                      </label>
-                      <p className="mt-1 text-sm">
-                        {member.headOfHousehold.isCurrentMember ? (
-                          <span className="font-medium">You (this member)</span>
-                        ) : (
-                          <Link
-                            href={`/membership/${member.headOfHousehold.id}`}
-                            className="text-primary hover:underline"
-                          >
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <FieldDisplay label="Participation Status" value={
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                      member.participation?.toLowerCase() === "active"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : member.participation?.toLowerCase() === "inactive"
+                          ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                          : member.participation?.toLowerCase() === "deceased"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                    }`}>{member.participation}</span>
+                  } />
+                  <FieldDisplay label="Role in Household" value={
+                    member.sequence
+                      ? member.sequence.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                      : undefined
+                  } />
+                  <FieldDisplay label="Household" children={
+                    member.householdId ? (
+                      <Link href={`/membership/household/${member.householdId}`} className="text-primary hover:underline">
+                        View Household
+                      </Link>
+                    ) : undefined
+                  } />
+                  <FieldDisplay label="Head of Household" children={
+                    member.headOfHousehold
+                      ? member.headOfHousehold.isCurrentMember
+                        ? <span className="font-medium">This member</span>
+                        : <Link href={`/membership/${member.headOfHousehold.id}`} className="text-primary hover:underline">
                             {member.headOfHousehold.firstName} {member.headOfHousehold.lastName}
                           </Link>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-4">
-                    {member.confirmationDate && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Confirmation Date
-                        </label>
-                        <p className="mt-1 text-sm">
-                          {formatDate(member.confirmationDate ?? null)}
-                        </p>
-                      </div>
-                    )}
-                    {member.receivedBy && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Received By
-                        </label>
-                        <p className="mt-1 text-sm capitalize">{member.receivedBy}</p>
-                      </div>
-                    )}
-                  </div>
-                  {member.dateReceived && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Date Received
-                      </label>
-                      <p className="mt-1 text-sm">
-                        {formatDate(member.dateReceived ?? null)}
-                      </p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-4">
-                    {member.membershipCode && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">
-                          Membership Code
-                        </label>
-                        <p className="mt-1 text-sm">{member.membershipCode}</p>
-                      </div>
-                    )}
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Envelope Number
-                      </label>
-                      <p className="mt-1 text-sm">{member.envelopeNumber || "N/A"}</p>
-                    </div>
-                  </div>
-                  {(member.removedBy || member.dateRemoved) && (
-                    <div className="grid grid-cols-2 gap-4">
-                      {member.removedBy && (
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">
-                            Removed By
-                          </label>
-                          <p className="mt-1 text-sm">{member.removedBy}</p>
-                        </div>
-                      )}
-                      {member.dateRemoved && (
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">
-                            Date Removed
-                          </label>
-                          <p className="mt-1 text-sm">
-                            {formatDate(member.dateRemoved ?? null)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {member.deceasedDate && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">
-                        Deceased Date
-                      </label>
-                      <p className="mt-1 text-sm">
-                        {formatDate(member.deceasedDate ?? null)}
-                      </p>
-                    </div>
-                  )}
-                </>
+                      : undefined
+                  } />
+                  <FieldDisplay label="Confirmation Date" value={member.confirmationDate ? formatDate(member.confirmationDate) : undefined} />
+                  <FieldDisplay label="Wedding Anniversary" value={member.weddingAnniversaryDate ? formatDate(member.weddingAnniversaryDate) : undefined} />
+                  <FieldDisplay label="Received By" value={
+                    member.receivedBy
+                      ? member.receivedBy.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                      : undefined
+                  } />
+                  <FieldDisplay label="Date Received" value={member.dateReceived ? formatDate(member.dateReceived) : undefined} />
+                  <FieldDisplay label="Membership Code" value={member.membershipCode ?? undefined} />
+                  <FieldDisplay label="Envelope Number" value={member.envelopeNumber != null ? String(member.envelopeNumber) : undefined} />
+                  <FieldDisplay label="Removed By" value={
+                    member.removedBy
+                      ? member.removedBy.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                      : undefined
+                  } />
+                  <FieldDisplay label="Date Removed" value={member.dateRemoved ? formatDate(member.dateRemoved) : undefined} />
+                  <FieldDisplay label="Deceased Date" value={member.deceasedDate ? formatDate(member.deceasedDate) : undefined} />
+                </div>
               )}
             </CardContent>
           </Card>

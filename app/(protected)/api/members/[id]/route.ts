@@ -46,6 +46,7 @@ export async function GET(
         phoneCell2: members.phoneCell2,
         baptismDate: members.baptismDate,
         confirmationDate: members.confirmationDate,
+        weddingAnniversaryDate: members.weddingAnniversaryDate,
         receivedBy: members.receivedBy,
         dateReceived: members.dateReceived,
         removedBy: members.removedBy,
@@ -54,6 +55,7 @@ export async function GET(
         membershipCode: members.membershipCode,
         envelopeNumber: members.envelopeNumber,
         participation: members.participation,
+        sequence: members.sequence,
         createdAt: members.createdAt,
         updatedAt: members.updatedAt,
       })
@@ -220,6 +222,7 @@ export async function PUT(
         phoneCell2: sanitizedData.phoneCell2,
         baptismDate: body.baptismDate !== undefined ? body.baptismDate : existingMember.baptismDate,
         confirmationDate: body.confirmationDate !== undefined ? body.confirmationDate : existingMember.confirmationDate,
+        weddingAnniversaryDate: body.weddingAnniversaryDate !== undefined ? body.weddingAnniversaryDate : existingMember.weddingAnniversaryDate,
         receivedBy: body.receivedBy !== undefined ? body.receivedBy : existingMember.receivedBy,
         dateReceived: body.dateReceived !== undefined ? body.dateReceived : existingMember.dateReceived,
         removedBy: body.removedBy !== undefined ? body.removedBy : existingMember.removedBy,
@@ -232,6 +235,7 @@ export async function PUT(
               ? body.participation.toLowerCase()
               : existingMember.participation)
           : existingMember.participation,
+        sequence: body.sequence !== undefined ? body.sequence : existingMember.sequence,
       })
       .where(eq(members.id, id))
       .returning();
