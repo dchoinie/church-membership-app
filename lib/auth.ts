@@ -172,8 +172,7 @@ export const auth = betterAuth({
                 });
             } catch (error) {
                 console.error("Error sending password reset email:", error);
-                // Don't throw - betterauth will handle the error appropriately
-                throw error;
+                throw error; // Re-throw so better-auth knows email failed and handles appropriately
             }
         },
     },

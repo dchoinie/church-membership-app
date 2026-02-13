@@ -8,7 +8,7 @@ const connectionString = process.env.POSTGRES_URL_NON_POOLING;
 
 if (!connectionString) {
   throw new Error(
-    "DATABASE_URL is not set. Update your environment variables with the Supabase connection string.",
+    "POSTGRES_URL_NON_POOLING is not set. Update your environment variables with the Postgres connection string.",
   );
 }
 

@@ -15,10 +15,12 @@ const PUBLIC_ROUTES = [
   "/verify-email",
   "/privacy",
   "/terms",
+  "/about",
   "/api/auth",
   "/api/signup",
   "/api/invite",
   "/api/invite-signup",
+  "/api/contact", // Contact form on marketing site
   "/api/stripe/webhook",
   "/api/user", // User API routes use better-auth, not Supabase
 ];
@@ -69,6 +71,8 @@ export async function middleware(request: NextRequest) {
       rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
     } else if (pathname.includes("/bulk")) {
       rateLimitConfig = RATE_LIMITS.BULK;
+    } else if (pathname.includes("/contact") && request.method !== "GET") {
+      rateLimitConfig = RATE_LIMITS.CONTACT;
     }
     // Read-only auth endpoints and other API routes use the default API rate limit (more lenient)
 

@@ -12,6 +12,7 @@
     "db:studio": "drizzle-kit studio --port 4983",
     "db:push": "drizzle-kit push",
     "db:test": "tsx scripts/test-db-connection.ts",
+    "db:clear-users": "tsx scripts/clear-users-accounts.ts",
     "create-super-admin": "tsx scripts/create-super-admin.ts",
     "setup-default-categories": "tsx scripts/setup-default-giving-categories.ts",
     "test:e2e": "playwright test",

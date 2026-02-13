@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { createCheckoutSession } from "@/lib/stripe";
 import { getPriceId } from "@/lib/pricing";
 import { checkCsrfToken } from "@/lib/csrf";
+import { requireAdmin } from "@/lib/api-helpers";
+import { db } from "@/db";
+import { churches } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { createErrorResponse } from "@/lib/error-handler";
 
 export async function POST(request: Request) {
   try {
     // Check CSRF token
     const csrfError = await checkCsrfToken(request);
     if (csrfError) return csrfError;
+
+    // Require admin - only church admins can create checkout sessions
+    const { churchId: userChurchId } = await requireAdmin(request);
 
     const { 
       customerId, 
@@ -40,6 +48,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // Security: Verify churchId matches authenticated user's church
+    if (churchId !== userChurchId) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    // Security: Verify customerId matches church's Stripe customer (prevents subscription theft)
+    const church = await db.query.churches.findFirst({
+      where: eq(churches.id, churchId),
+      columns: { stripeCustomerId: true },
+    });
+
+    if (!church?.stripeCustomerId || church.stripeCustomerId !== customerId) {
+      return NextResponse.json(
+        { error: "Invalid church or customer" },
+        { status: 403 }
+      );
+    }
+
     // Prepare checkout options
     const checkoutOptions: {
       allowPromotionCodes?: boolean;
@@ -67,11 +96,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Error creating checkout session:", error);
-    return NextResponse.json(
-      { error: "Failed to create checkout session" },
-      { status: 500 }
-    );
+    return createErrorResponse(error);
   }
 }
 
