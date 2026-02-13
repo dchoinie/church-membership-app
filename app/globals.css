@@ -489,3 +489,8 @@
 .animate-church-loading-spin {
   animation: church-loading-spin 1.2s linear infinite;
 }
+
+/* Hide reCAPTCHA v3 badge - legal text shown near contact form instead */
+.grecaptcha-badge {
+  visibility: hidden;
+}

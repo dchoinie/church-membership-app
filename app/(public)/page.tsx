@@ -785,7 +785,30 @@ export default function LandingPage() {
                 />
               </div>
               
-              {/* reCAPTCHA v3 runs invisibly in the background - no UI needed */}
+              {/* reCAPTCHA v3 runs invisibly in the background - badge hidden, legal text required by Google */}
+              {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+                <p className="text-xs text-muted-foreground">
+                  This site is protected by reCAPTCHA and the Google{" "}
+                  <a
+                    href="https://policies.google.com/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    Privacy Policy
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="https://policies.google.com/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    Terms of Service
+                  </a>{" "}
+                  apply.
+                </p>
+              )}
               {!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
                 <div className="rounded-md bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">
                   reCAPTCHA is not configured. Please set NEXT_PUBLIC_RECAPTCHA_SITE_KEY in your environment variables.
