@@ -43,10 +43,12 @@ function SidebarContent({
   pathname,
   onNavigate,
   church,
+  hideNavLinks,
 }: {
   pathname: string;
   onNavigate: () => void;
   church: Church | null;
+  hideNavLinks?: boolean;
 }) {
   const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
@@ -60,7 +62,12 @@ function SidebarContent({
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4 overflow-y-auto">
-        {permissionsLoading ? (
+        {hideNavLinks ? (
+          // Setup mode - no nav links until subscription is active
+          <div className="mt-auto px-3">
+            <UserMenu />
+          </div>
+        ) : permissionsLoading ? (
           // Show loading state - don't show any nav items until permissions are loaded
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -237,11 +244,11 @@ export default function AuthLayout({
   if (isSetupRoute && isAuthenticated && session?.user?.emailVerified) {
     return (
       <div className="flex md:h-screen md:max-h-screen md:overflow-hidden flex-col md:flex-row">
-        {/* Mobile Header */}
+        {/* Mobile Header - church name only, no link (setup blocks nav until subscription active) */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
-          <Link href="/dashboard" className="text-lg font-semibold text-sidebar-foreground hover:text-sidebar-accent-foreground transition-colors">
+          <span className="text-lg font-semibold text-sidebar-foreground">
             {church?.name || "Simple Church Tools"}
-          </Link>
+          </span>
           <Button
             variant="ghost"
             size="icon"
@@ -260,14 +267,14 @@ export default function AuthLayout({
               <SheetTitle>Navigation Menu</SheetTitle>
             </SheetHeader>
             <div className="flex h-full flex-col">
-              <SidebarContent pathname={pathname} onNavigate={() => setMobileMenuOpen(false)} church={church} />
+              <SidebarContent pathname={pathname} onNavigate={() => setMobileMenuOpen(false)} church={church} hideNavLinks />
             </div>
           </SheetContent>
         </Sheet>
 
         {/* Desktop Sidebar */}
         <aside className="hidden md:flex bg-sidebar text-sidebar-foreground border-r border-sidebar-border w-64 shrink-0 flex-col max-h-screen overflow-hidden">
-          <SidebarContent pathname={pathname} onNavigate={() => {}} church={church} />
+          <SidebarContent pathname={pathname} onNavigate={() => {}} church={church} hideNavLinks />
         </aside>
 
         {/* Main Content */}

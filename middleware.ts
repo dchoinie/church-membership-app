@@ -184,13 +184,21 @@ export async function middleware(request: NextRequest) {
     // Allow /setup route and public routes through without setup check
     const isSetupRoute = pathname === SETUP_ROUTE;
     const isDashboardRoute = pathname === "/dashboard";
-    
-    // Allow dashboard through even if setup isn't complete - it handles checkout success polling
-    // This prevents redirect loops when user returns from Stripe checkout
-    if (church && !isPublicRoute && !isSetupRoute && !isDashboardRoute && !pathname.startsWith("/api/")) {
-      // Check if setup is complete
-      if (!isSetupComplete(church)) {
-        // Setup not complete - redirect to /setup
+    const isReturningFromCheckout =
+      request.nextUrl.searchParams.get("checkout") === "success";
+
+    // Block access to protected routes unless setup is complete (active subscription).
+    // Exception: /dashboard?checkout=success - user returning from Stripe checkout;
+    // dashboard polls for webhook and redirects once subscription is active.
+    const canAccessWithoutSetup = isDashboardRoute && isReturningFromCheckout;
+
+    if (
+      church &&
+      !isPublicRoute &&
+      !isSetupRoute &&
+      !pathname.startsWith("/api/")
+    ) {
+      if (!isSetupComplete(church) && !canAccessWithoutSetup) {
         const setupUrl = new URL(SETUP_ROUTE, request.url);
         return NextResponse.redirect(setupUrl);
       }

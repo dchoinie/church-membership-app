@@ -203,15 +203,27 @@ export default function SetupPage() {
   const handleSaveSetup = async (): Promise<boolean> => {
     if (!church) return false;
 
+    // Validate required fields
+    const denominationValue =
+      formData.denomination === "Other"
+        ? formData.otherDenomination
+        : formData.denomination;
+    const missingRequired: string[] = [];
+    if (!formData.address?.trim()) missingRequired.push("Address");
+    if (!formData.city?.trim()) missingRequired.push("City");
+    if (!formData.state?.trim()) missingRequired.push("State");
+    if (!formData.zip?.trim()) missingRequired.push("ZIP Code");
+    if (!denominationValue?.trim()) missingRequired.push("Denomination");
+
+    if (missingRequired.length > 0) {
+      setError(`Please fill in all required fields: ${missingRequired.join(", ")}`);
+      return false;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
-      // Determine denomination value
-      const denominationValue = formData.denomination === "Other" 
-        ? formData.otherDenomination 
-        : formData.denomination;
-
       const response = await apiFetch("/api/setup", {
         method: "PUT",
         body: JSON.stringify({
@@ -337,49 +349,53 @@ export default function SetupPage() {
 
               {/* Address */}
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
+                <Label htmlFor="address">Address <span className="text-destructive">*</span></Label>
                 <Input
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   placeholder="Street address"
+                  required
                 />
               </div>
 
               {/* City, State, Zip */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
+                  <Label htmlFor="city">City <span className="text-destructive">*</span></Label>
                   <Input
                     id="city"
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                     placeholder="City"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="state">State</Label>
+                  <Label htmlFor="state">State <span className="text-destructive">*</span></Label>
                   <Input
                     id="state"
                     value={formData.state}
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                     placeholder="State"
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="zip">ZIP Code</Label>
+                  <Label htmlFor="zip">ZIP Code <span className="text-destructive">*</span></Label>
                   <Input
                     id="zip"
                     value={formData.zip}
                     onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
                     placeholder="ZIP"
+                    required
                   />
                 </div>
               </div>
 
               {/* Denomination */}
               <div className="space-y-2">
-                <Label htmlFor="denomination">Denomination</Label>
+                <Label htmlFor="denomination">Denomination <span className="text-destructive">*</span></Label>
                 <DenominationSelect
                   id="denomination"
                   value={formData.denomination}
@@ -394,6 +410,7 @@ export default function SetupPage() {
                       value={formData.otherDenomination}
                       onChange={(e) => setFormData({ ...formData, otherDenomination: e.target.value })}
                       placeholder="Enter denomination name"
+                      required
                     />
                   </div>
                 )}
