@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
+import { user } from "@/auth-schema";
 import { eq } from "drizzle-orm";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -797,6 +798,239 @@ We'll get back to you as soon as possible. Please reference your ticket ID above
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
     };
+  }
+}
+
+/** Get all super admin emails for alerts */
+async function getSuperAdminEmails(): Promise<string[]> {
+  const superAdmins = await db.query.user.findMany({
+    where: eq(user.isSuperAdmin, true),
+    columns: { email: true },
+  });
+  return superAdmins.map((u) => u.email).filter(Boolean);
+}
+
+async function sendSuperAdminAlertToEmails(
+  subject: string,
+  html: string,
+  text: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!process.env.RESEND_API_KEY) {
+      return { success: false, error: "RESEND_API_KEY is not set" };
+    }
+
+    const superAdminEmails = await getSuperAdminEmails();
+    if (superAdminEmails.length === 0) {
+      return { success: true };
+    }
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+    const { error } = await resend.emails.send({
+      from: fromEmail,
+      to: superAdminEmails,
+      subject,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error("Error sending super admin alert:", error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending super admin alert:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Send super admin alert when a new church is created.
+ * Fire-and-forget: does not throw; logs errors.
+ */
+export async function sendSuperAdminNewChurchAlert({
+  churchName,
+  subdomain,
+  adminName,
+  adminEmail,
+  plan,
+}: {
+  churchName: string;
+  subdomain: string;
+  adminName: string;
+  adminEmail: string;
+  plan: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const churchUrl = `${appUrl.replace(/\/$/, "")}/${subdomain}`;
+
+  const subject = `[Admin Alert] New church created: ${churchName}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">New Church Created</h1>
+        </div>
+        <div style="background: #fff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #4b5563; margin-top: 0;">A new church has been created:</p>
+          <div style="background: #f9fafb; padding: 16px; border-radius: 6px; margin: 16px 0;">
+            <p style="margin: 0 0 8px 0;"><strong>Church:</strong> ${churchName}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Subdomain:</strong> ${subdomain}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Plan:</strong> ${plan}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Admin:</strong> ${adminName} &lt;${adminEmail}&gt;</p>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">
+            <a href="${churchUrl}" style="color: #667eea;">View church</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+  const text = `
+New Church Created
+
+A new church has been created:
+
+Church: ${churchName}
+Subdomain: ${subdomain}
+Plan: ${plan}
+Admin: ${adminName} <${adminEmail}>
+
+View church: ${churchUrl}
+  `.trim();
+
+  const result = await sendSuperAdminAlertToEmails(subject, html, text);
+  if (!result.success) {
+    console.error("Super admin new church alert failed:", result.error);
+  }
+}
+
+/**
+ * Send super admin alert when a new user signs up (creates a church).
+ * Fire-and-forget: does not throw; logs errors.
+ */
+export async function sendSuperAdminNewUserAlert({
+  churchName,
+  subdomain,
+  adminName,
+  adminEmail,
+  plan,
+}: {
+  churchName: string;
+  subdomain: string;
+  adminName: string;
+  adminEmail: string;
+  plan: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const churchUrl = `${appUrl.replace(/\/$/, "")}/${subdomain}`;
+
+  const subject = `[Admin Alert] New user signup: ${adminName} (${churchName})`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">New User Signup</h1>
+        </div>
+        <div style="background: #fff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #4b5563; margin-top: 0;">A new user has signed up and created a church:</p>
+          <div style="background: #f9fafb; padding: 16px; border-radius: 6px; margin: 16px 0;">
+            <p style="margin: 0 0 8px 0;"><strong>User:</strong> ${adminName} &lt;${adminEmail}&gt;</p>
+            <p style="margin: 0 0 8px 0;"><strong>Church:</strong> ${churchName}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Subdomain:</strong> ${subdomain}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Plan:</strong> ${plan}</p>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">
+            <a href="${churchUrl}" style="color: #667eea;">View church</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+  const text = `
+New User Signup
+
+A new user has signed up and created a church:
+
+User: ${adminName} <${adminEmail}>
+Church: ${churchName}
+Subdomain: ${subdomain}
+Plan: ${plan}
+
+View church: ${churchUrl}
+  `.trim();
+
+  const result = await sendSuperAdminAlertToEmails(subject, html, text);
+  if (!result.success) {
+    console.error("Super admin new user alert failed:", result.error);
+  }
+}
+
+/**
+ * Send super admin alert when a user joins via invitation.
+ * Fire-and-forget: does not throw; logs errors.
+ */
+export async function sendSuperAdminInviteJoinAlert({
+  userName,
+  userEmail,
+  churchName,
+  churchId,
+}: {
+  userName: string;
+  userEmail: string;
+  churchName: string;
+  churchId: string;
+}): Promise<void> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  const subject = `[Admin Alert] User joined via invite: ${userName} → ${churchName}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 24px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 20px;">User Joined via Invite</h1>
+        </div>
+        <div style="background: #fff; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p style="color: #4b5563; margin-top: 0;">A user has accepted an invitation and joined a church:</p>
+          <div style="background: #f9fafb; padding: 16px; border-radius: 6px; margin: 16px 0;">
+            <p style="margin: 0 0 8px 0;"><strong>User:</strong> ${userName} &lt;${userEmail}&gt;</p>
+            <p style="margin: 0 0 8px 0;"><strong>Church:</strong> ${churchName}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Church ID:</strong> ${churchId}</p>
+          </div>
+          <p style="color: #6b7280; font-size: 14px;">
+            <a href="${appUrl}" style="color: #667eea;">Admin dashboard</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+  const text = `
+User Joined via Invite
+
+A user has accepted an invitation and joined a church:
+
+User: ${userName} <${userEmail}>
+Church: ${churchName}
+Church ID: ${churchId}
+
+Admin dashboard: ${appUrl}
+  `.trim();
+
+  const result = await sendSuperAdminAlertToEmails(subject, html, text);
+  if (!result.success) {
+    console.error("Super admin invite join alert failed:", result.error);
   }
 }
 

@@ -7,6 +7,10 @@ import { createServiceClient } from "@/utils/supabase/service";
 import { addUserToChurch } from "@/lib/tenant-db";
 import { db } from "@/db";
 import { givingCategories } from "@/db/schema";
+import {
+  sendSuperAdminNewChurchAlert,
+  sendSuperAdminNewUserAlert,
+} from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -280,6 +284,25 @@ export async function POST(request: Request) {
       // Don't fail the signup if email fails - user can resend from verify-email page
       // But log it prominently so we can investigate
       console.error("WARNING: Signup succeeded but verification email failed. User can resend from verify-email page.");
+    }
+
+    // Super admin alerts (fire-and-forget; do not block response)
+    sendSuperAdminNewChurchAlert({
+      churchName,
+      subdomain: normalizedSubdomain,
+      adminName,
+      adminEmail,
+      plan: selectedPlan,
+    }).catch((err) => console.error("Super admin new church alert error:", err));
+
+    if (!existingUser || !authenticatedUserId || authenticatedUserId !== existingUser.id) {
+      sendSuperAdminNewUserAlert({
+        churchName,
+        subdomain: normalizedSubdomain,
+        adminName,
+        adminEmail,
+        plan: selectedPlan,
+      }).catch((err) => console.error("Super admin new user alert error:", err));
     }
 
     // Return response WITHOUT session cookies - user must verify email first

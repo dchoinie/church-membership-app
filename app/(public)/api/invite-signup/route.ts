@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { invitations } from "@/db/schema";
+import { churches, invitations } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { user } from "@/auth-schema";
 import { addUserToChurch } from "@/lib/tenant-db";
+import { sendSuperAdminInviteJoinAlert } from "@/lib/email";
 
 export async function POST(request: Request) {
   try {
@@ -68,6 +69,20 @@ export async function POST(request: Request) {
           .update(user)
           .set({ emailVerified: true })
           .where(eq(user.id, userId));
+      }
+
+      // Super admin alert for invite join (fire-and-forget)
+      if (userId && invite.churchId) {
+        const church = await db.query.churches.findFirst({
+          where: eq(churches.id, invite.churchId),
+          columns: { name: true },
+        });
+        sendSuperAdminInviteJoinAlert({
+          userName: name,
+          userEmail: email,
+          churchName: church?.name ?? "Unknown Church",
+          churchId: invite.churchId,
+        }).catch((err) => console.error("Super admin invite join alert error:", err));
       }
 
       // Return the original auth response which includes the session cookie
