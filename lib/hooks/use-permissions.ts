@@ -19,6 +19,7 @@ interface Permissions {
   canViewReports: boolean;
   canViewAnalytics: boolean;
   canManageUsers: boolean;
+  isSuperAdmin: boolean;
   role: string | null;
   subscriptionPlan: SubscriptionPlan | null;
   isLoading: boolean;
@@ -28,12 +29,14 @@ interface Permissions {
 const permissionsCache = new Map<string, {
   role: string | null;
   subscriptionPlan: SubscriptionPlan | null;
+  isSuperAdmin: boolean;
 }>();
 
 export function usePermissions(): Permissions {
   const { data: session } = authClient.useSession();
   const [role, setRole] = useState<string | null>(null);
   const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlan | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const fetchPromiseRef = useRef<Promise<void> | null>(null);
 
@@ -42,6 +45,7 @@ export function usePermissions(): Permissions {
       if (!session?.user) {
         setRole(null);
         setSubscriptionPlan(null);
+        setIsSuperAdmin(false);
         setIsLoading(false);
         return;
       }
@@ -54,6 +58,7 @@ export function usePermissions(): Permissions {
       if (cached) {
         setRole(cached.role);
         setSubscriptionPlan(cached.subscriptionPlan);
+        setIsSuperAdmin(cached.isSuperAdmin);
         setIsLoading(false);
         return;
       }
@@ -65,6 +70,7 @@ export function usePermissions(): Permissions {
         if (updatedCache) {
           setRole(updatedCache.role);
           setSubscriptionPlan(updatedCache.subscriptionPlan);
+          setIsSuperAdmin(updatedCache.isSuperAdmin);
           setIsLoading(false);
         }
         return;
@@ -81,10 +87,12 @@ export function usePermissions(): Permissions {
 
           let fetchedRole: string | null = null;
           let fetchedPlan: SubscriptionPlan | null = null;
+          let fetchedIsSuperAdmin = false;
 
           if (userResponse.ok) {
             const userData = await userResponse.json();
             fetchedRole = userData.user?.role || null;
+            fetchedIsSuperAdmin = userData.user?.isSuperAdmin || false;
           }
 
           if (churchResponse.ok) {
@@ -96,10 +104,12 @@ export function usePermissions(): Permissions {
           permissionsCache.set(cacheKey, {
             role: fetchedRole,
             subscriptionPlan: fetchedPlan,
+            isSuperAdmin: fetchedIsSuperAdmin,
           });
 
           setRole(fetchedRole);
           setSubscriptionPlan(fetchedPlan);
+          setIsSuperAdmin(fetchedIsSuperAdmin);
         } catch (error) {
           console.error("Error fetching permissions:", error);
         } finally {
@@ -124,6 +134,7 @@ export function usePermissions(): Permissions {
     canViewReports: canViewReports(userRole, plan),
     canViewAnalytics: canViewAnalytics(userRole, plan),
     canManageUsers: canManageUsers(userRole),
+    isSuperAdmin,
     role: userRole,
     subscriptionPlan: plan,
     isLoading,

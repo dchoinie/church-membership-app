@@ -1,12 +1,70 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
+function ViewAsChurchLink({ churchId, subdomain }: { churchId: string; subdomain: string }) {
+  const [href, setHref] = useState(`https://${subdomain}.simplechurchtools.com/dashboard?churchId=${churchId}`);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hn = window.location.hostname;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      const host =
+        hn === "localhost" || hn === "127.0.0.1"
+          ? `${subdomain}.localhost${port}`
+          : (() => {
+              const parts = hn.split(".");
+              parts[0] = subdomain;
+              return parts.join(".") + port;
+            })();
+      setHref(`${window.location.protocol}//${host}/dashboard?churchId=${churchId}`);
+    }
+  }, [churchId, subdomain]);
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 rounded-md border p-3 hover:bg-muted/50 transition-colors"
+    >
+      <UserCog className="h-4 w-4" />
+      View as Church (Super Admin Override)
+    </a>
+  );
+}
+
+function ChurchAppLink({ subdomain }: { subdomain: string }) {
+  const [href, setHref] = useState(`https://${subdomain}.simplechurchtools.com`);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hn = window.location.hostname;
+      const port = window.location.port ? `:${window.location.port}` : "";
+      const host =
+        hn === "localhost" || hn === "127.0.0.1"
+          ? `${subdomain}.localhost${port}`
+          : (() => {
+              const parts = hn.split(".");
+              parts[0] = subdomain;
+              return parts.join(".") + port;
+            })();
+      setHref(`${window.location.protocol}//${host}`);
+    }
+  }, [subdomain]);
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 rounded-md border p-3 hover:bg-muted/50 transition-colors"
+    >
+      <ExternalLink className="h-4 w-4" />
+      Open Church App
+    </a>
+  );
+}
 import { apiFetch } from "@/lib/api-client";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,8 +75,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeft,
+  Trash2,
+  ExternalLink,
+  CreditCard,
+  UserCog,
+} from "lucide-react";
 import Link from "next/link";
+
+interface ChurchSubscription {
+  subscribedAt: string;
+  canceledAt: string | null;
+  currentPeriodEnd: string | null;
+  status: string;
+}
 
 interface Church {
   id: string;
@@ -30,7 +102,10 @@ interface Church {
   subscriptionStatus: string;
   subscriptionPlan: string;
   trialEndsAt: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   createdAt: string;
+  subscription?: ChurchSubscription | null;
 }
 
 export default function ChurchDetailPage() {
@@ -39,7 +114,6 @@ export default function ChurchDetailPage() {
   const churchId = params.id as string;
   const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteType, setDeleteType] = useState<"church" | "giving" | "members" | "attendance" | null>(null);
@@ -64,40 +138,6 @@ export default function ChurchDetailPage() {
       setError(err instanceof Error ? err.message : "Failed to load church");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!church) return;
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const formData = new FormData(e.currentTarget);
-      const response = await apiFetch(`/api/admin/churches/${churchId}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: formData.get("name"),
-          email: formData.get("email"),
-          phone: formData.get("phone"),
-          address: formData.get("address"),
-          subscriptionStatus: formData.get("subscriptionStatus"),
-          subscriptionPlan: formData.get("subscriptionPlan"),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update church");
-      }
-
-      router.refresh();
-      fetchChurch();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update church");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -192,100 +232,126 @@ export default function ChurchDetailPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Church Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Church Name</Label>
-              <Input
-                id="name"
-                name="name"
-                defaultValue={church.name}
-                required
-              />
+      <Card>
+        <CardHeader>
+          <CardTitle>Church Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Church Name
+              </dt>
+              <dd className="mt-1 text-sm">{church.name}</dd>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={church.email || ""}
-              />
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Subdomain
+              </dt>
+              <dd className="mt-1 text-sm">
+                {church.subdomain}.simplechurchtools.com
+              </dd>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                defaultValue={church.phone || ""}
-              />
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Email</dt>
+              <dd className="mt-1 text-sm">{church.email ?? "—"}</dd>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                name="address"
-                defaultValue={church.address || ""}
-              />
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Phone
+              </dt>
+              <dd className="mt-1 text-sm">{church.phone ?? "—"}</dd>
             </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Address
+              </dt>
+              <dd className="mt-1 text-sm">{church.address ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Subscription Status
+              </dt>
+              <dd className="mt-1 text-sm capitalize">
+                {church.subscriptionStatus}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Plan</dt>
+              <dd className="mt-1 text-sm capitalize">
+                {church.subscriptionPlan}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">
+                Created
+              </dt>
+              <dd className="mt-1 text-sm">
+                {church.createdAt
+                  ? new Date(church.createdAt).toLocaleDateString()
+                  : "—"}
+              </dd>
+            </div>
+          </dl>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="subscriptionStatus">Subscription Status</Label>
-                <select
-                  id="subscriptionStatus"
-                  name="subscriptionStatus"
-                  defaultValue={church.subscriptionStatus}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="active">Active</option>
-                  <option value="past_due">Past Due</option>
-                  <option value="canceled">Canceled</option>
-                  <option value="unpaid">Unpaid</option>
-                </select>
+          {church.subscription && (
+            <div className="rounded-md border p-4 space-y-2">
+              <p className="text-sm font-medium">Subscription Details</p>
+              <div className="text-sm text-muted-foreground grid gap-1">
+                {church.subscription.subscribedAt && (
+                  <p>
+                    Subscribed:{" "}
+                    {new Date(
+                      church.subscription.subscribedAt
+                    ).toLocaleDateString()}
+                  </p>
+                )}
+                {church.subscription.canceledAt && (
+                  <p>
+                    Cancelled:{" "}
+                    {new Date(
+                      church.subscription.canceledAt
+                    ).toLocaleDateString()}
+                  </p>
+                )}
+                {church.subscription.currentPeriodEnd && (
+                  <p>
+                    Period ends:{" "}
+                    {new Date(
+                      church.subscription.currentPeriodEnd
+                    ).toLocaleDateString()}
+                  </p>
+                )}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="subscriptionPlan">Plan</Label>
-                <select
-                  id="subscriptionPlan"
-                  name="subscriptionPlan"
-                  defaultValue={church.subscriptionPlan}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="basic">Basic</option>
-                  <option value="premium">Premium</option>
-                </select>
-              </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-
-            <Button type="submit" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      </form>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Common links for debugging and support
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <ChurchAppLink subdomain={church.subdomain} />
+          {church.stripeCustomerId && (
+            <a
+              href={`https://dashboard.stripe.com/customers/${church.stripeCustomerId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-md border p-3 hover:bg-muted/50 transition-colors"
+            >
+              <CreditCard className="h-4 w-4" />
+              View in Stripe
+            </a>
+          )}
+          <ViewAsChurchLink churchId={church.id} subdomain={church.subdomain} />
+        </CardContent>
+      </Card>
 
       {/* Super Admin Actions */}
       <Card className="border-destructive">

@@ -14,7 +14,6 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Get session
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -23,16 +22,13 @@ export default async function AdminLayout({
     redirect("/");
   }
 
-  // Check if user is super admin
   const userRecord = await db.query.user.findFirst({
     where: eq(user.id, session.user.id),
   });
 
   if (!userRecord || !userRecord.isSuperAdmin) {
-    // Not a super admin - redirect to dashboard
     redirect("/dashboard");
   }
 
-  // Super admin - allow access
   return <>{children}</>;
 }

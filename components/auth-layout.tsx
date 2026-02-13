@@ -3,9 +3,10 @@
 import { useEffect, useState, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Settings, Menu, HelpCircle, Loader2, LayoutDashboard, Users, DollarSign, CalendarCheck, BarChart3, FileText, Shield } from "lucide-react";
+import { Settings, Menu, HelpCircle, Loader2, LayoutDashboard, Users, DollarSign, CalendarCheck, BarChart3, FileText, Shield, ShieldCheck } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { UserMenu } from "@/components/user-menu";
+import { AdminSidebar } from "@/components/admin-sidebar";
 import { ChurchLoadingIndicator } from "@/components/ui/church-loading";
 import { ChurchSwitcher } from "@/components/church-switcher";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const navItems = [
 
 const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms", "/about"];
 const setupRoutes = ["/setup"];
+const adminRoutesPrefix = "/admin";
 
 // Sidebar content component
 function SidebarContent({
@@ -50,7 +52,7 @@ function SidebarContent({
   church: Church | null;
   hideNavLinks?: boolean;
 }) {
-  const { canManageUsers, isLoading: permissionsLoading } = usePermissions();
+  const { canManageUsers, isSuperAdmin, isLoading: permissionsLoading } = usePermissions();
   const churchName = church?.name || "Simple Church Tools";
   
   return (
@@ -123,6 +125,20 @@ function SidebarContent({
                   Manage Admin Access
                 </Link>
               )}
+              {isSuperAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={onNavigate}
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
+                    pathname === "/admin" || pathname.startsWith("/admin/")
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+                      : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <ShieldCheck className="size-4" />
+                  Super Admin
+                </Link>
+              )}
               <Link
                 href="/support"
                 onClick={onNavigate}
@@ -152,16 +168,14 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const { data: session, isPending } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isPublicRoute = publicRoutes.includes(pathname);
+  const isAdminRoute = pathname === adminRoutesPrefix || pathname.startsWith(adminRoutesPrefix + "/");
   const isAuthenticated = !!session?.user;
-  // Use !isPublicRoute only - tying to isAuthenticated causes flicker when session
-  // refetches (tab focus, etc.) and briefly returns undefined; church hook gets
-  // disabled, cache key becomes null, and we flash "Simple Church Tools" before
-  // church data restores
-  const { church } = useChurch(!isPublicRoute);
+  // Disable church fetch for admin routes (no church context) and public routes
+  const { church } = useChurch(!isPublicRoute && !isAdminRoute);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -239,7 +253,50 @@ export default function AuthLayout({
   if (isPublicRoute) {
     return <PageTransition>{children}</PageTransition>;
   }
-  
+
+  // Admin routes - show admin sidebar (Dashboard, Churches, User avatar/logout only)
+  if (isAdminRoute && isAuthenticated) {
+    return (
+      <div className="flex md:h-screen md:max-h-screen md:overflow-hidden flex-col md:flex-row">
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-sidebar-border bg-sidebar shrink-0">
+          <span className="text-lg font-semibold text-sidebar-foreground">
+            Super Admin
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(true)}
+            className="text-sidebar-foreground"
+          >
+            <Menu className="size-5" />
+            <span className="sr-only">Open menu</span>
+          </Button>
+        </div>
+
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar text-sidebar-foreground border-sidebar-border">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Admin Menu</SheetTitle>
+            </SheetHeader>
+            <div className="flex h-full flex-col">
+              <AdminSidebar />
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <aside className="hidden md:flex bg-sidebar text-sidebar-foreground border-r border-sidebar-border w-64 shrink-0 flex-col max-h-screen overflow-hidden">
+          <AdminSidebar />
+        </aside>
+
+        <main className="w-full md:flex-1 md:overflow-y-auto bg-background md:min-h-0">
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:py-8">
+            <PageTransition>{children}</PageTransition>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // Setup route - show sidebar but allow access even without active subscription
   if (isSetupRoute && isAuthenticated && session?.user?.emailVerified) {
     return (

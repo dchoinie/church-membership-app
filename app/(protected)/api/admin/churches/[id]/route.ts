@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { churches } from "@/db/schema";
+import { churches, subscriptions } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
 import { checkCsrfToken } from "@/lib/csrf";
 import { sanitizeText } from "@/lib/sanitize";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { decryptChurch } from "@/lib/encryption";
 
 export async function GET(
@@ -27,7 +27,38 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ church: decryptChurch(church) });
+    // Get subscription record for this church (most recent by updatedAt)
+    const [subscription] = await db
+      .select({
+        createdAt: subscriptions.createdAt,
+        updatedAt: subscriptions.updatedAt,
+        status: subscriptions.status,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+      })
+      .from(subscriptions)
+      .where(eq(subscriptions.churchId, id))
+      .orderBy(desc(subscriptions.updatedAt))
+      .limit(1);
+
+    const churchData = decryptChurch(church);
+    const response = {
+      church: {
+        ...churchData,
+        subscription: subscription
+          ? {
+              subscribedAt: subscription.createdAt,
+              canceledAt:
+                subscription.status === "canceled" && subscription.updatedAt
+                  ? subscription.updatedAt
+                  : null,
+              currentPeriodEnd: subscription.currentPeriodEnd,
+              status: subscription.status,
+            }
+          : null,
+      },
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     return createErrorResponse(error);
   }
