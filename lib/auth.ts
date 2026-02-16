@@ -53,9 +53,13 @@ const getBaseURL = () => {
 
 export const getCookieDomain = () => {
     if (process.env.NODE_ENV === "development") {
+        // E2E tests on Windows use lvh.me (*.localhost often doesn't resolve)
+        const authUrl = process.env.BETTER_AUTH_URL || process.env.BETTER_AUTH_DEV_URL || "";
+        if (authUrl.includes("lvh.me")) {
+            return ".lvh.me";
+        }
         // For localhost subdomains, use .localhost with dot prefix
-        // This allows cookies to be shared across *.localhost subdomains
-        return ".localhost"
+        return ".localhost";
     }
     
     // For production, use the root domain with dot prefix for subdomain support
@@ -90,14 +94,21 @@ export const getCookieDomain = () => {
 }
 
 const getStaticDevOrigins = (): string[] => {
-    const port = process.env.BETTER_AUTH_DEV_URL?.includes(":")
-        ? (process.env.BETTER_AUTH_DEV_URL.split(":")[1] || "3000")
-        : "3000";
-    return [
+    const authUrl = process.env.BETTER_AUTH_URL || process.env.BETTER_AUTH_DEV_URL || "http://localhost:3000";
+    let port = "3000";
+    try {
+        const u = new URL(authUrl.startsWith("http") ? authUrl : `http://${authUrl}`);
+        port = u.port || "3000";
+    } catch { /* keep default */ }
+    const origins = [
         `http://localhost:${port}`,
         `http://127.0.0.1:${port}`,
         `http://*.localhost:${port}`,
     ];
+    if (authUrl.includes("lvh.me")) {
+        origins.push(`http://lvh.me:${port}`, `http://*.lvh.me:${port}`);
+    }
+    return origins;
 };
 
 /**
@@ -114,7 +125,7 @@ const getTrustedOrigins = (): string[] | ((request: Request) => Promise<string[]
                 try {
                     const u = new URL(origin);
                     const host = u.hostname.toLowerCase();
-                    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
+                    if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost") || host === "lvh.me" || host.endsWith(".lvh.me")) {
                         return [...base, origin];
                     }
                 } catch {

@@ -141,10 +141,13 @@ export default function AddChurchPage() {
       setTimeout(() => {
         const baseUrl = window.location.origin;
         const isLocalhost = baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1");
+        const isLvhMe = baseUrl.includes("lvh.me");
 
         let subdomainUrl: string;
-        if (isLocalhost) {
-          const port = window.location.port ? `:${window.location.port}` : "";
+        const port = window.location.port ? `:${window.location.port}` : "";
+        if (isLvhMe) {
+          subdomainUrl = `http://${data.subdomain}.lvh.me${port}/dashboard`;
+        } else if (isLocalhost) {
           subdomainUrl = `http://${data.subdomain}.localhost${port}/dashboard`;
         } else {
           const url = new URL(baseUrl);

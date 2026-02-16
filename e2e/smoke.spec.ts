@@ -4,7 +4,7 @@ test.describe('Smoke Tests', () => {
   test('should load the root page', async ({ page }) => {
     await page.goto('/', { waitUntil: 'networkidle' });
     // Check for the main heading - use getByRole for more specific matching
-    await expect(page.getByRole('heading', { name: /Complete Church Management/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /Essential Church Management/i })).toBeVisible({ timeout: 10000 });
   });
 
   test('should open sign in modal when clicking Sign In button', async ({ page }) => {

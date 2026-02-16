@@ -43,6 +43,11 @@ export function extractSubdomain(hostname: string): string | null {
   if (parts.length === 2 && parts[1] === "localhost") {
     return parts[0];
   }
+
+  // Handle subdomain.lvh.me (resolves to 127.0.0.1 on Windows for E2E)
+  if (parts.length === 3 && parts[1] === "lvh" && parts[2] === "me") {
+    return parts[0];
+  }
   
   // For subdomain.domain.com, return the subdomain
   // For domain.com, return null (root domain)

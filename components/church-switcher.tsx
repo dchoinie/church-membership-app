@@ -75,10 +75,13 @@ export function ChurchSwitcher() {
       // Build subdomain URL
       const baseUrl = window.location.origin;
       const isLocalhost = baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1");
+      const isLvhMe = baseUrl.includes("lvh.me");
 
       let subdomainUrl: string;
-      if (isLocalhost) {
-        const port = window.location.port ? `:${window.location.port}` : "";
+      const port = window.location.port ? `:${window.location.port}` : "";
+      if (isLvhMe) {
+        subdomainUrl = `http://${church.subdomain}.lvh.me${port}${pathname}`;
+      } else if (isLocalhost) {
         subdomainUrl = `http://${church.subdomain}.localhost${port}${pathname}`;
       } else {
         const url = new URL(baseUrl);

@@ -249,12 +249,15 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           // Build subdomain URL - redirect directly to /dashboard or /setup
           const baseUrl = window.location.origin;
           const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+          const isLvhMe = baseUrl.includes('lvh.me');
           
           const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
           let subdomainUrl: string;
+          const port = window.location.port ? `:${window.location.port}` : '';
           
-          if (isLocalhost) {
-            const port = window.location.port ? `:${window.location.port}` : '';
+          if (isLvhMe) {
+            subdomainUrl = `http://${subdomain}.lvh.me${port}${targetPath}`;
+          } else if (isLocalhost) {
             subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
           } else {
             // Extract root domain (remove any existing subdomain like 'www')
@@ -361,12 +364,15 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       // Build subdomain URL - redirect directly to /dashboard or /setup
       const baseUrl = window.location.origin;
       const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+      const isLvhMe = baseUrl.includes('lvh.me');
       
       const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
       let subdomainUrl: string;
+      const port = window.location.port ? `:${window.location.port}` : '';
       
-      if (isLocalhost) {
-        const port = window.location.port ? `:${window.location.port}` : '';
+      if (isLvhMe) {
+        subdomainUrl = `http://${church.subdomain}.lvh.me${port}${targetPath}`;
+      } else if (isLocalhost) {
         subdomainUrl = `http://${church.subdomain}.localhost${port}${targetPath}`;
       } else {
         // Extract root domain (remove any existing subdomain like 'www')
@@ -471,12 +477,15 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           // Build subdomain URL - redirect directly to /dashboard or /setup
           const baseUrl = window.location.origin;
           const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+          const isLvhMe = baseUrl.includes('lvh.me');
           
           const targetPath = hasActiveSubscription ? "/dashboard" : "/setup";
           let subdomainUrl: string;
+          const port = window.location.port ? `:${window.location.port}` : '';
           
-          if (isLocalhost) {
-            const port = window.location.port ? `:${window.location.port}` : '';
+          if (isLvhMe) {
+            subdomainUrl = `http://${subdomain}.lvh.me${port}${targetPath}`;
+          } else if (isLocalhost) {
             subdomainUrl = `http://${subdomain}.localhost${port}${targetPath}`;
           } else {
             // Extract root domain (remove any existing subdomain like 'www')
