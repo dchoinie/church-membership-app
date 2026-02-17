@@ -1,9 +1,12 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Privacy Policy | Simple Church Tools",
   description: "Privacy Policy for Simple Church Tools",
-};
+  path: "/privacy",
+  keywords: ["privacy policy", "privacy", "data protection"],
+});
 
 export default function PrivacyPolicyPage() {
   return (

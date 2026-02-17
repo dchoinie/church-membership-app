@@ -1,10 +1,14 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import { Church, Heart, Users, Target } from "lucide-react";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "About Us | Simple Church Tools",
-  description: "Learn about Simple Church Tools and our mission to serve small churches with modern, efficient management solutions.",
-};
+  description:
+    "Learn about Simple Church Tools and our mission to serve small churches with modern, efficient management solutions.",
+  path: "/about",
+  keywords: ["church software", "about", "small church", "church management"],
+});
 
 export default function AboutPage() {
   return (

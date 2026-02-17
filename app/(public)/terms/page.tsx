@@ -1,9 +1,12 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Terms of Service | Simple Church Tools",
   description: "Terms of Service for Simple Church Tools",
-};
+  path: "/terms",
+  keywords: ["terms of service", "terms", "legal"],
+});
 
 export default function TermsOfServicePage() {
   return (
