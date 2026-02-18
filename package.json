@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate-sitemap": "tsx scripts/generate-sitemap.ts",
     "dev": "next dev --turbopack",
     "dev:e2e": "next dev",
     "build": "next build",

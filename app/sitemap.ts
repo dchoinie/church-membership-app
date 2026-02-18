@@ -1,32 +1,14 @@
 import { getBaseUrl } from "@/lib/seo";
+import { SITEMAP_ENTRIES } from "@/lib/sitemap-config";
 
 export default function sitemap() {
   const baseUrl = getBaseUrl();
+  const now = new Date();
 
-  return [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: "weekly" as const,
-      priority: 1,
-    },
-    {
-      url: `${baseUrl}/about`,
-      lastModified: new Date(),
-      changeFrequency: "monthly" as const,
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/terms`,
-      lastModified: new Date(),
-      changeFrequency: "monthly" as const,
-      priority: 0.5,
-    },
-    {
-      url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: "monthly" as const,
-      priority: 0.5,
-    },
-  ];
+  return SITEMAP_ENTRIES.map((entry) => ({
+    url: entry.path === "/" ? baseUrl : `${baseUrl}${entry.path}`,
+    lastModified: now,
+    changeFrequency: entry.changeFrequency,
+    priority: entry.priority,
+  }));
 }
