@@ -299,6 +299,115 @@ This password reset link will expire in 1 hour. If you didn't request a password
   return data;
 }
 
+export async function send2FAResetEmail({
+  email,
+  resetUrl,
+  userName,
+  churchId,
+  adminTriggered,
+}: {
+  email: string;
+  resetUrl: string;
+  userName?: string;
+  churchId?: string | null;
+  adminTriggered?: boolean;
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not set in environment variables");
+  }
+
+  const church = await getChurchDetails(churchId);
+  const churchName = church?.name || "Simple Church Tools";
+  const logoUrl = church?.logoUrl;
+  const primaryColor = church?.primaryColor;
+  const gradientStyle = getGradientStyle(primaryColor);
+  const buttonColor = getButtonColor(primaryColor);
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const isUsingTestDomain = fromEmail.includes("@resend.dev");
+
+  const introText = adminTriggered
+    ? "Your two-factor authentication has been reset by an administrator. Sign in to set up 2FA again."
+    : "We received a request to reset your two-factor authentication. Click the button below to complete the reset, then sign in to set up 2FA again.";
+
+  const buttonText = adminTriggered ? "Sign In" : "Reset 2FA";
+
+  const { data, error } = await resend.emails.send({
+    from: fromEmail,
+    to: email,
+    subject: `Reset Your Two-Factor Authentication - ${churchName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reset Two-Factor Authentication</title>
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: ${gradientStyle}; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+            ${logoUrl ? `<img src="${logoUrl}" alt="${churchName}" style="max-height: 60px; margin-bottom: 10px;" />` : ""}
+            <h1 style="color: white; margin: 0; font-size: 24px;">${churchName}</h1>
+          </div>
+          
+          <div style="background: #ffffff; padding: 40px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #1f2937; margin-top: 0;">Reset Two-Factor Authentication</h2>
+            
+            <p style="color: #4b5563; font-size: 16px;">
+              ${userName ? `Hello ${userName},` : "Hello,"}
+            </p>
+            
+            <p style="color: #4b5563; font-size: 16px;">
+              ${introText}
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetUrl}" 
+                 style="display: inline-block; background: ${buttonColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">
+                ${buttonText}
+              </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+              Or copy and paste this link into your browser:
+            </p>
+            <p style="color: ${buttonColor}; font-size: 12px; word-break: break-all; background: #f3f4f6; padding: 12px; border-radius: 4px;">
+              ${resetUrl}
+            </p>
+            
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              ${adminTriggered ? "If you didn't request this reset, please contact your administrator." : "This link will expire in 1 hour. If you didn't request a 2FA reset, you can safely ignore this email."}
+            </p>
+          </div>
+        </body>
+      </html>
+    `,
+    text: `
+Reset Two-Factor Authentication - ${churchName}
+
+${userName ? `Hello ${userName},` : "Hello,"}
+
+${introText}
+
+${buttonText}: ${resetUrl}
+
+${adminTriggered ? "If you didn't request this reset, please contact your administrator." : "This link will expire in 1 hour. If you didn't request a 2FA reset, you can safely ignore this email."}
+    `.trim(),
+  });
+
+  if (error) {
+    if (error.message?.includes("only send testing emails to your own email address")) {
+      const helpfulMessage = isUsingTestDomain
+        ? `Resend Test Domain Limitation: When using "onboarding@resend.dev", you can only send emails to your own verified email address.`
+        : `Failed to send email: ${error.message}`;
+      throw new Error(helpfulMessage);
+    }
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function sendVerificationEmail({
   email,
   verificationUrl,

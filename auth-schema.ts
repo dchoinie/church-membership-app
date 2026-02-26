@@ -81,6 +81,20 @@ export const twoFactor = pgTable(
   (table) => [index("two_factor_user_id_idx").on(table.userId)]
 );
 
+export const twoFactorResetToken = pgTable(
+  "two_factor_reset_token",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [index("two_factor_reset_token_user_id_idx").on(table.userId)]
+);
+
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),

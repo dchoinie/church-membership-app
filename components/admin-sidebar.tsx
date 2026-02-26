@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Building2, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, Building2, Users, LogOut, Plus } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -134,6 +134,17 @@ export function AdminSidebar() {
         >
           <Building2 className="size-4" />
           Churches
+        </Link>
+        <Link
+          href="/admin/users"
+          className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm transition-colors ${
+            pathname === "/admin/users"
+              ? "bg-sidebar-primary text-sidebar-primary-foreground font-semibold"
+              : "font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          }`}
+        >
+          <Users className="size-4" />
+          Users
         </Link>
         <div className="mt-auto pt-4 border-t border-sidebar-border px-3">
           <AdminUserMenu />

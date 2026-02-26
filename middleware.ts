@@ -12,6 +12,8 @@ const PUBLIC_ROUTES = [
   "/",
   "/forgot-password",
   "/reset-password",
+  "/forgot-2fa",
+  "/reset-2fa",
   "/verify-email",
   "/privacy",
   "/terms",
@@ -67,7 +69,7 @@ export async function middleware(request: NextRequest) {
       (pathname.includes("/invite") && request.method !== "GET")
     ) {
       rateLimitConfig = RATE_LIMITS.AUTH;
-    } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password")) {
+    } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password") || pathname.includes("/2fa-reset")) {
       rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
     } else if (pathname.includes("/bulk")) {
       rateLimitConfig = RATE_LIMITS.BULK;

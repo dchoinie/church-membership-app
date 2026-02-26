@@ -211,6 +211,13 @@
       "when": 1772125601614,
       "tag": "0029_add_two_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1772137786780,
+      "tag": "0030_add_two_factor_reset_token",
+      "breakpoints": true
     }
   ]
 }

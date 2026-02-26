@@ -681,6 +681,15 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                         : "Signing you in...")
                     : "Sign In"}
                 </Button>
+                <p className="text-center text-sm text-muted-foreground">
+                  <Link
+                    href="/forgot-2fa"
+                    className="text-primary hover:underline font-medium"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    Lost access to 2FA? Reset it
+                  </Link>
+                </p>
               </form>
             )}
           </TabsContent>
