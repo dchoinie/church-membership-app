@@ -588,7 +588,10 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+      <DialogContent
+        className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <div className="flex flex-col items-center gap-3 pb-2">
             <ChurchIcon size={48} className="text-primary" />
