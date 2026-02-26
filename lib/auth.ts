@@ -116,10 +116,10 @@ const getStaticDevOrigins = (): string[] => {
  * subdomain (e.g. church1.localhost:3000) is not rejected. Wildcard "http://*.localhost:3000"
  * may not match in all better-auth versions.
  */
-const getTrustedOrigins = (): string[] | ((request: Request) => Promise<string[]>) => {
+const getTrustedOrigins = (): string[] | ((request?: Request) => Promise<string[]>) => {
     if (process.env.NODE_ENV === "development") {
-        return async (request: Request) => {
-            const origin = request.headers.get("origin") || request.headers.get("referer")?.split("?")[0]?.replace(/\/$/, "");
+        return async (request?: Request) => {
+            const origin = request?.headers.get("origin") || request?.headers.get("referer")?.split("?")[0]?.replace(/\/$/, "");
             const base = getStaticDevOrigins();
             if (origin) {
                 try {

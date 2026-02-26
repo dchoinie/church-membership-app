@@ -55,7 +55,7 @@ function getStripeSecretKey(): string {
 const stripeSecretKey = getStripeSecretKey();
 
 export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-12-15.clover",
+  apiVersion: "2026-01-28.clover",
   typescript: true,
 });
 
