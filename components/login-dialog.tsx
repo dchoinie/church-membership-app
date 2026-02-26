@@ -47,6 +47,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const [showChurchSelector, setShowChurchSelector] = useState(false);
+  const [requires2FASetupForRedirect, setRequires2FASetupForRedirect] = useState(false);
   const [availableChurches, setAvailableChurches] = useState<Array<{
     id: string;
     name: string;
@@ -232,13 +233,34 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         
         if (churchResponse.ok) {
           const responseData = await churchResponse.json();
-          const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId, multipleChurches, churches } = responseData;
+          const { subdomain, churchId, subscriptionStatus, stripeSubscriptionId, multipleChurches, churches, requires2FASetup } = responseData;
           
           // If user has multiple churches, show selector instead of auto-redirecting
           if (multipleChurches && churches && churches.length > 1) {
             setAvailableChurches(churches);
             setShowChurchSelector(true);
             setIsSubmitting(false);
+            return;
+          }
+          
+          // New users must complete 2FA setup before accessing dashboard
+          if (requires2FASetup) {
+            const baseUrl = window.location.origin;
+            const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+            const isLvhMe = baseUrl.includes('lvh.me');
+            const port = window.location.port ? `:${window.location.port}` : '';
+            let setup2faUrl: string;
+            if (isLvhMe) {
+              setup2faUrl = `http://${subdomain}.lvh.me${port}/setup-2fa`;
+            } else if (isLocalhost) {
+              setup2faUrl = `http://${subdomain}.localhost${port}/setup-2fa`;
+            } else {
+              const url = new URL(baseUrl);
+              const rootHostname = url.hostname.split('.').slice(-2).join('.');
+              setup2faUrl = `https://${subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}/setup-2fa`;
+            }
+            onOpenChange(false);
+            window.location.href = setup2faUrl;
             return;
           }
           
@@ -358,6 +380,27 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     setIsSubmitting(true);
     setLoadingPhase("gathering-church-info");
     try {
+      // New users must complete 2FA setup before accessing dashboard
+      if (requires2FASetupForRedirect) {
+        const baseUrl = window.location.origin;
+        const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+        const isLvhMe = baseUrl.includes('lvh.me');
+        const port = window.location.port ? `:${window.location.port}` : '';
+        let setup2faUrl: string;
+        if (isLvhMe) {
+          setup2faUrl = `http://${church.subdomain}.lvh.me${port}/setup-2fa`;
+        } else if (isLocalhost) {
+          setup2faUrl = `http://${church.subdomain}.localhost${port}/setup-2fa`;
+        } else {
+          const url = new URL(baseUrl);
+          const rootHostname = url.hostname.split('.').slice(-2).join('.');
+          setup2faUrl = `https://${church.subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}/setup-2fa`;
+        }
+        onOpenChange(false);
+        window.location.href = setup2faUrl;
+        return;
+      }
+
       // Check subscription status to determine redirect path
       const hasActiveSubscription = church.subscriptionStatus === "active";
       
@@ -460,14 +503,36 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         
         if (churchResponse.ok) {
           const responseData = await churchResponse.json();
-          const { subdomain, subscriptionStatus, multipleChurches, churches } = responseData;
+          const { subdomain, subscriptionStatus, multipleChurches, churches, requires2FASetup } = responseData;
           
           // If user has multiple churches, show selector instead of auto-redirecting
           if (multipleChurches && churches && churches.length > 1) {
             setAvailableChurches(churches);
+            setRequires2FASetupForRedirect(requires2FASetup ?? false);
             setShowChurchSelector(true);
             setIsSubmitting(false);
             onOpenChange(false);
+            return;
+          }
+          
+          // New users must complete 2FA setup before accessing dashboard
+          if (requires2FASetup) {
+            const baseUrl = window.location.origin;
+            const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+            const isLvhMe = baseUrl.includes('lvh.me');
+            const port = window.location.port ? `:${window.location.port}` : '';
+            let setup2faUrl: string;
+            if (isLvhMe) {
+              setup2faUrl = `http://${subdomain}.lvh.me${port}/setup-2fa`;
+            } else if (isLocalhost) {
+              setup2faUrl = `http://${subdomain}.localhost${port}/setup-2fa`;
+            } else {
+              const url = new URL(baseUrl);
+              const rootHostname = url.hostname.split('.').slice(-2).join('.');
+              setup2faUrl = `https://${subdomain}.${rootHostname}${url.port ? `:${url.port}` : ''}/setup-2fa`;
+            }
+            onOpenChange(false);
+            window.location.href = setup2faUrl;
             return;
           }
           

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Source_Serif_4, Inter, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
@@ -23,10 +24,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+function getMetadataBase(): URL {
+  const url = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const withProtocol = url.startsWith("http://") || url.startsWith("https://")
+    ? url
+    : `https://${url}`;
+  try {
+    return new URL(withProtocol);
+  } catch {
+    return new URL("http://localhost:3000");
+  }
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  ),
+  metadataBase: getMetadataBase(),
   title: "Simple Church Tools",
   description: "Church management system for membership, giving, and attendance.",
   icons: {
@@ -42,7 +53,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sourceSerif.variable} ${inter.variable} ${geistMono.variable} antialiased`}>
-        <AuthLayout>{children}</AuthLayout>
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+          <AuthLayout>{children}</AuthLayout>
+        </Suspense>
         <Toaster />
       </body>
     </html>

@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { twoFactor } from "better-auth/plugins/two-factor";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
@@ -167,6 +168,17 @@ const getProductionTrustedOrigins = (): string[] => {
 export const auth = betterAuth({
     baseURL: getBaseURL(),
     secret: process.env.BETTER_AUTH_SECRET, // Required for production
+    appName: "Simple Church Tools", // TOTP issuer in authenticator apps
+    plugins: [twoFactor()],
+    user: {
+        additionalFields: {
+            requires2FASetup: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+            },
+        },
+    },
     database: drizzleAdapter(db, {
         provider: "pg",
     }),

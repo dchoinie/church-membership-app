@@ -1,4 +1,5 @@
 import { createAuthClient } from "better-auth/react"
+import { twoFactorClient } from "better-auth/client/plugins"
 
 const getBaseURL = () => {
     // In browser, use current origin to support subdomains dynamically
@@ -30,5 +31,14 @@ const getBaseURL = () => {
 
 export const authClient = createAuthClient({
     /** The base URL of the server (optional if you're using the same domain) */
-    baseURL: getBaseURL()
+    baseURL: getBaseURL(),
+    plugins: [
+        twoFactorClient({
+            onTwoFactorRedirect() {
+                if (typeof window !== "undefined") {
+                    window.location.href = "/setup-2fa?verify=1";
+                }
+            },
+        }),
+    ],
 })

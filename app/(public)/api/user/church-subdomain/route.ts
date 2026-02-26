@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { churches } from "@/db/schema";
+import { user } from "@/auth-schema";
 import { getUserChurches } from "@/lib/tenant-db";
 import { eq, inArray } from "drizzle-orm";
 
@@ -19,6 +20,12 @@ export async function GET(request: Request) {
         { status: 401 }
       );
     }
+
+    // Get 2FA status from user table (session may not include custom fields)
+    const userRecord = await db.query.user.findFirst({
+      where: eq(user.id, session.user.id),
+      columns: { requires2FASetup: true, twoFactorEnabled: true },
+    });
 
     // Get user's churches from junction table
     const userChurchesList = await getUserChurches(session.user.id);
@@ -82,6 +89,8 @@ export async function GET(request: Request) {
         stripeSubscriptionId: activeChurch.stripeSubscriptionId,
         multipleChurches: true,
         churches: churchesWithRoles,
+        requires2FASetup: userRecord?.requires2FASetup ?? false,
+        twoFactorEnabled: userRecord?.twoFactorEnabled ?? false,
       });
     }
 
@@ -92,6 +101,8 @@ export async function GET(request: Request) {
       subscriptionStatus: activeChurch.subscriptionStatus,
       stripeSubscriptionId: activeChurch.stripeSubscriptionId,
       multipleChurches: false,
+      requires2FASetup: userRecord?.requires2FASetup ?? false,
+      twoFactorEnabled: userRecord?.twoFactorEnabled ?? false,
     });
   } catch (error) {
     console.error("Error fetching user's church subdomain:", error);

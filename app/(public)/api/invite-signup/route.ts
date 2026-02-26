@@ -64,10 +64,11 @@ export async function POST(request: Request) {
 
       // For invited users, automatically mark email as verified
       // They've already been invited via email, so no need for separate verification
+      // Require 2FA setup before dashboard access (new users must complete MFA)
       if (userId) {
         await db
           .update(user)
-          .set({ emailVerified: true })
+          .set({ emailVerified: true, requires2FASetup: true })
           .where(eq(user.id, userId));
       }
 

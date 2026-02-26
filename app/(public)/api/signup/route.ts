@@ -7,6 +7,8 @@ import { createServiceClient } from "@/utils/supabase/service";
 import { addUserToChurch } from "@/lib/tenant-db";
 import { db } from "@/db";
 import { givingCategories } from "@/db/schema";
+import { user } from "@/auth-schema";
+import { eq } from "drizzle-orm";
 import {
   sendSuperAdminNewChurchAlert,
   sendSuperAdminNewUserAlert,
@@ -260,6 +262,9 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+
+      // Require 2FA setup before dashboard access (new users must complete MFA)
+      await db.update(user).set({ requires2FASetup: true }).where(eq(user.id, userId));
     }
 
     // Send verification email

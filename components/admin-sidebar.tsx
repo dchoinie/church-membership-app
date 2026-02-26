@@ -1,8 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Building2, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, LogOut, Plus } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -24,10 +24,15 @@ function getRootDomain(): string {
 }
 
 function AdminUserMenu() {
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user;
 
   if (!user) return null;
+
+  const handleAddChurch = () => {
+    router.push("/add-church");
+  };
 
   const handleSignOut = async () => {
     try {
@@ -77,6 +82,14 @@ function AdminUserMenu() {
             </p>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={handleAddChurch}
+          className="cursor-pointer"
+        >
+          <Plus className="size-4" />
+          <span>Add Church</span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

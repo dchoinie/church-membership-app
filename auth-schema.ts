@@ -20,6 +20,8 @@ export const user = pgTable(
     image: text("image"),
     role: userRoleEnum("role").notNull().default("viewer"),
     isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
+    requires2FASetup: boolean("requires_2fa_setup").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -65,6 +67,19 @@ export const account = pgTable("account", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    secret: text("secret"),
+    backupCodes: text("backup_codes"),
+  },
+  (table) => [index("two_factor_user_id_idx").on(table.userId)]
+);
 
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),

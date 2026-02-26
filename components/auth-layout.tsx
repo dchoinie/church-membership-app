@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, startTransition } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Settings, Menu, HelpCircle, Loader2, LayoutDashboard, Users, DollarSign, CalendarCheck, BarChart3, FileText, Shield, ShieldCheck } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -37,7 +37,7 @@ const navItems = [
 ];
 
 const publicRoutes = ["/", "/login", "/forgot-password", "/reset-password", "/verify-email", "/privacy", "/terms", "/about"];
-const setupRoutes = ["/setup"];
+const setupRoutes = ["/setup", "/setup-2fa"];
 const adminRoutesPrefix = "/admin";
 
 // Sidebar content component
@@ -169,6 +169,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "";
+  const searchParams = useSearchParams();
   const { data: session, isPending } = authClient.useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isPublicRoute = publicRoutes.includes(pathname);
@@ -199,12 +200,27 @@ export default function AuthLayout({
     };
   }, [isPublicRoute, isAuthenticated]);
 
+  // Redirect to 2FA setup if user must complete MFA before dashboard access
+  const userWith2FA = session?.user as { requires2FASetup?: boolean; twoFactorEnabled?: boolean } | undefined;
+  const requires2FASetup = userWith2FA?.requires2FASetup === true;
+  const twoFactorEnabled = userWith2FA?.twoFactorEnabled === true;
+  const isSetup2FARoute = pathname === "/setup-2fa";
+  const mustComplete2FA = isAuthenticated && requires2FASetup && !twoFactorEnabled && !isSetup2FARoute;
+
+  useEffect(() => {
+    if (mustComplete2FA) {
+      window.location.href = "/setup-2fa";
+    }
+  }, [mustComplete2FA]);
+
   // Redirect to login if not authenticated and not on public route
+  // Exception: /setup-2fa?verify=1 - user has pending 2FA verification, allow without full session
+  const isSetup2FAVerify = pathname === "/setup-2fa" && searchParams.get("verify") === "1";
   // Only redirect after session has finished loading (isPending === false)
   // This prevents redirect loops when session cookie is still propagating after login
   // Always redirect to root domain for login (consistent with design goal - all logins happen on root domain)
   useEffect(() => {
-    if (isPending || isAuthenticated || isPublicRoute) return;
+    if (isPending || isAuthenticated || isPublicRoute || isSetup2FAVerify) return;
 
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
     const isLocalhost = currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1");
@@ -240,13 +256,18 @@ export default function AuthLayout({
   }, [isPending, isAuthenticated, isPublicRoute, pathname]);
 
   // Show loading state only while session is being fetched
-  // Middleware handles all redirects, so we just wait for session to load
-  if (isPending) {
+  // Exception: setup-2fa verify mode - render immediately (user has pending 2FA)
+  if (isPending && !isSetup2FAVerify) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <ChurchLoadingIndicator size="lg" label="Loading..." centered />
       </div>
     );
+  }
+
+  // Setup-2FA verify-only mode - minimal layout, no sidebar
+  if (isSetup2FAVerify) {
+    return <PageTransition>{children}</PageTransition>;
   }
 
   // Public routes (login, signup, etc.) - no sidebar

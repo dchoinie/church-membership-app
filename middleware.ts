@@ -91,8 +91,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith(route)
   );
 
-  // Handle root domain - allow root path, API routes, admin routes, and public routes
-  if (!subdomain && pathname !== "/" && !pathname.startsWith("/api/") && !pathname.startsWith("/admin") && !isPublicRoute) {
+  // Handle root domain - allow root path, API routes, admin routes, public routes, and setup-2fa
+  if (!subdomain && pathname !== "/" && pathname !== "/setup-2fa" && !pathname.startsWith("/api/") && !pathname.startsWith("/admin") && !isPublicRoute) {
     // Redirect unknown routes on root domain to home
     const homeUrl = new URL("/", request.url);
     return NextResponse.redirect(homeUrl);
