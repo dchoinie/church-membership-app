@@ -138,6 +138,7 @@ interface HouseholdEditFormData {
   name: string;
   type: string;
   address1: string;
+  address2: string;
   city: string;
   state: string;
   zip: string;
@@ -169,6 +170,7 @@ export default function HouseholdViewPage({
       name: "",
       type: "single",
       address1: "",
+      address2: "",
       city: "",
       state: "",
       zip: "",
@@ -221,6 +223,7 @@ export default function HouseholdViewPage({
       name: household.name || "",
       type: household.type || "single",
       address1: household.address1 || "",
+      address2: household.address2 || "",
       city: household.city || "",
       state: household.state || "",
       zip: household.zip || "",
@@ -238,6 +241,7 @@ export default function HouseholdViewPage({
           name: data.name || null,
           type: data.type || null,
           address1: data.address1 || null,
+          address2: data.address2 || null,
           city: data.city || null,
           state: data.state || null,
           zip: data.zip || null,
@@ -522,6 +526,7 @@ export default function HouseholdViewPage({
               {household.address1 && (
                 <>
                   {household.address1}
+                  {household.address2 && `, ${household.address2}`}
                   {household.city && `, ${household.city}`}
                   {household.state && ` ${household.state}`}
                   {household.zip && ` ${household.zip}`}
@@ -1234,6 +1239,19 @@ export default function HouseholdViewPage({
                       <FormLabel>Address</FormLabel>
                       <FormControl>
                         <Input {...field} placeholder="Street address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={householdEditForm.control}
+                  name="address2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address 2</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Apartment, suite, etc." />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

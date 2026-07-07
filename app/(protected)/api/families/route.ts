@@ -100,6 +100,7 @@ export async function GET(request: Request) {
         name: household.name,
         type: household.type,
         address1: household.address1,
+        address2: household.address2,
         city: household.city,
         state: household.state,
         zip: household.zip,
