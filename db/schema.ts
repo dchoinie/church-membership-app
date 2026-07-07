@@ -16,6 +16,7 @@ import { userRoleEnum, user } from "@/auth-schema";
 export const householdTypeEnum = pgEnum("household_type_enum", [
   "family",
   "single",
+  "married_couple",
   "other",
 ]);
 

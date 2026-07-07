@@ -331,6 +331,7 @@ export default function MembershipPage() {
     if (household.address1) parts.push(household.address1);
     if (household.city) parts.push(household.city);
     if (household.state) parts.push(household.state);
+    if (household.zip) parts.push(household.zip);
     return parts.length > 0 ? parts.join(", ") : "N/A";
   };
 
@@ -460,10 +461,10 @@ export default function MembershipPage() {
       name: household.name || "",
       type: household.type || "single",
       address1: household.address1 || "",
-      address2: "",
+      address2: household.address2 || "",
       city: household.city || "",
       state: household.state || "",
-      zip: "",
+      zip: household.zip || "",
     });
     setEditDialogOpen(true);
   };
@@ -797,6 +798,7 @@ export default function MembershipPage() {
                           <SelectItem value="all">All</SelectItem>
                           <SelectItem value="single">Single</SelectItem>
                           <SelectItem value="family">Family</SelectItem>
+                          <SelectItem value="married_couple">Married Couple</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
@@ -965,6 +967,7 @@ export default function MembershipPage() {
                           <SelectContent>
                             <SelectItem value="single">Single</SelectItem>
                             <SelectItem value="family">Family</SelectItem>
+                            <SelectItem value="married_couple">Married Couple</SelectItem>
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
@@ -1514,7 +1517,7 @@ export default function MembershipPage() {
                       </TableCell>
                       <TableCell className="text-xs md:text-sm">
                         {household.type ? (
-                          <span className="capitalize">{household.type}</span>
+                          <span className="capitalize">{household.type.replace(/_/g, " ")}</span>
                         ) : (
                           "N/A"
                         )}
@@ -1976,6 +1979,7 @@ export default function MembershipPage() {
                       <SelectContent>
                         <SelectItem value="single">Single</SelectItem>
                         <SelectItem value="family">Family</SelectItem>
+                        <SelectItem value="married_couple">Married Couple</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>

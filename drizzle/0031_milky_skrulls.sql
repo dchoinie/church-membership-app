@@ -1,0 +1,1 @@
+ALTER TYPE "public"."household_type_enum" ADD VALUE 'married_couple' BEFORE 'other';

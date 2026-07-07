@@ -14,7 +14,6 @@ import {
   PencilIcon,
   PlusIcon,
   TrashIcon,
-  TriangleAlertIcon,
   EyeIcon,
   Loader2,
 } from "lucide-react";
@@ -71,7 +70,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface Member {
@@ -225,7 +223,7 @@ export default function HouseholdViewPage({
       address1: household.address1 || "",
       city: household.city || "",
       state: household.state || "",
-      zip: "",
+      zip: household.zip || "",
     });
     setEditHouseholdDialogOpen(true);
   };
@@ -280,31 +278,6 @@ export default function HouseholdViewPage({
       return `${members[0].preferredName || members[0].firstName} & ${members[1].preferredName || members[1].firstName} ${members[1].lastName}`;
     }
     return `${members[0].preferredName || members[0].firstName} ${members[0].lastName} (+${members.length - 1})`;
-  };
-
-  const checkEnvelopeNumbers = (): boolean => {
-    if (members.length === 0 || members.length === 1) {
-      return true; // No conflict if 0 or 1 member
-    }
-    
-    const envelopeNumbers = members.map((m) => m.envelopeNumber);
-    const hasNulls = envelopeNumbers.some((num) => num === null || num === undefined);
-    const hasNumbers = envelopeNumbers.some((num) => num !== null && num !== undefined);
-    
-    // If there's a mix of null and non-null values, show alert
-    if (hasNulls && hasNumbers) {
-      return false;
-    }
-    
-    // If all are null, no conflict
-    if (!hasNumbers) {
-      return true;
-    }
-    
-    // Check if all envelope numbers are the same
-    const nonNullNumbers = envelopeNumbers.filter((num): num is number => num !== null && num !== undefined);
-    const firstEnvelope = nonNullNumbers[0];
-    return nonNullNumbers.every((num) => num === firstEnvelope);
   };
 
   const getHouseholdOptionDisplayName = (h: HouseholdOption): string => {
@@ -539,19 +512,8 @@ export default function HouseholdViewPage({
     );
   }
 
-  const hasEnvelopeNumberConflict = !checkEnvelopeNumbers();
-
   return (
     <div className="space-y-6">
-      {hasEnvelopeNumberConflict && (
-        <Alert variant="destructive">
-          <TriangleAlertIcon />
-          <AlertTitle>Envelope Number Mismatch</AlertTitle>
-          <AlertDescription>
-            Not all members in this household have the same envelope number. Please review and update the envelope numbers to ensure consistency.
-          </AlertDescription>
-        </Alert>
-      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">{getHouseholdDisplayName()}</h1>
@@ -562,10 +524,11 @@ export default function HouseholdViewPage({
                   {household.address1}
                   {household.city && `, ${household.city}`}
                   {household.state && ` ${household.state}`}
+                  {household.zip && ` ${household.zip}`}
                 </>
               )}
               {household.type && (
-                <span className="ml-2 capitalize">({household.type})</span>
+                <span className="ml-2 capitalize">({household.type.replace(/_/g, " ")})</span>
               )}
             </p>
           )}
@@ -1255,6 +1218,7 @@ export default function HouseholdViewPage({
                         <SelectContent>
                           <SelectItem value="single">Single</SelectItem>
                           <SelectItem value="family">Family</SelectItem>
+                          <SelectItem value="married_couple">Married Couple</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>

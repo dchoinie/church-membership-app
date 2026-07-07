@@ -218,6 +218,13 @@
       "when": 1772137786780,
       "tag": "0030_add_two_factor_reset_token",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783434274436,
+      "tag": "0031_milky_skrulls",
+      "breakpoints": true
     }
   ]
 }

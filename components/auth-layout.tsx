@@ -111,7 +111,7 @@ function SidebarContent({
                   Church Settings
                 </Link>
               )}
-              {canManageUsers && (
+              {(canManageUsers || isSuperAdmin) && (
                 <Link
                   href="/manage-admin-access"
                   onClick={onNavigate}
