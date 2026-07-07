@@ -81,6 +81,7 @@ interface Household {
   address1?: string | null;
   city?: string | null;
   state?: string | null;
+  zip?: string | null;
   memberCount: number;
   members: HouseholdMember[];
 }

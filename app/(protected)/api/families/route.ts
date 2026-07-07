@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       parsedMax != null && !isNaN(parsedMax) && parsedMax >= 0 ? parsedMax : undefined;
     const hasMemberCountFilter = validMinMembers != null || validMaxMembers != null;
 
-    const validType = ["single", "family", "other"].includes(type) ? type : undefined;
+    const validType = ["single", "family", "married_couple", "other"].includes(type) ? type : undefined;
 
     // Validate pagination parameters
     const validPage = Math.max(1, page);
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         )!
       );
     }
-    if (validType) conditions.push(eq(household.type, validType as "single" | "family" | "other"));
+    if (validType) conditions.push(eq(household.type, validType as "single" | "family" | "married_couple" | "other"));
     if (city) conditions.push(ilike(household.city, `%${escapeIlikePattern(city)}%`));
     if (state) conditions.push(eq(household.state, state));
 
@@ -102,6 +102,7 @@ export async function GET(request: Request) {
         address1: household.address1,
         city: household.city,
         state: household.state,
+        zip: household.zip,
       })
       .from(household)
       .where(whereClause)
