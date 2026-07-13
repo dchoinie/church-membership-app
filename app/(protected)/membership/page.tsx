@@ -259,9 +259,9 @@ export default function MembershipPage() {
     mutate: mutateIndividualMembers,
   } = useIndividualMembers(individualMembersPage, 50, memberFilters);
 
-  // Sorting state
-  const [sortBy, setSortBy] = useState<"name" | "type" | "members">("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Sorting state (server-side; drives the actual query order, not just display)
+  const sortBy = householdFilters.sortBy ?? "name";
+  const sortDirection = householdFilters.sortDirection ?? "asc";
 
   const createForm = useForm<HouseholdFormData>({
     defaultValues: {
@@ -338,33 +338,18 @@ export default function MembershipPage() {
   };
 
   const handleSort = (column: "name" | "type" | "members") => {
-    if (sortBy === column) {
-      // Toggle direction if clicking the same column
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      // Set new column and default to ascending
-      setSortBy(column);
-      setSortDirection("asc");
-    }
+    setHouseholdFilters((prev) => {
+      const currentSortBy = prev.sortBy ?? "name";
+      const currentSortDirection = prev.sortDirection ?? "asc";
+      return {
+        ...prev,
+        sortBy: column,
+        // Toggle direction if clicking the same column, otherwise default to ascending
+        sortDirection: currentSortBy === column && currentSortDirection === "asc" ? "desc" : "asc",
+      };
+    });
+    setCurrentPage(1);
   };
-
-  const sortedHouseholds = [...households].sort((a, b) => {
-    let comparison = 0;
-    
-    if (sortBy === "name") {
-      const nameA = getHouseholdDisplayName(a).toLowerCase();
-      const nameB = getHouseholdDisplayName(b).toLowerCase();
-      comparison = nameA.localeCompare(nameB);
-    } else if (sortBy === "type") {
-      const typeA = (a.type || "").toLowerCase();
-      const typeB = (b.type || "").toLowerCase();
-      comparison = typeA.localeCompare(typeB);
-    } else if (sortBy === "members") {
-      comparison = a.memberCount - b.memberCount;
-    }
-    
-    return sortDirection === "asc" ? comparison : -comparison;
-  });
 
   const onCreateSubmit = async (data: HouseholdFormData) => {
     setCreateHouseholdLoading(true);
@@ -1508,7 +1493,7 @@ export default function MembershipPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedHouseholds.map((household) => (
+                  {households.map((household) => (
                     <TableRow
                       key={household.id}
                       className="cursor-pointer"

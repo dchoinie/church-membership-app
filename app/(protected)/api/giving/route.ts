@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       .from(giving)
       .innerJoin(members, eq(giving.memberId, members.id))
       .where(whereCondition)
-      .orderBy(desc(giving.dateGiven), desc(giving.createdAt))
+      .orderBy(desc(giving.dateGiven), desc(giving.createdAt), desc(giving.id))
       .limit(validPageSize)
       .offset(offset);
 

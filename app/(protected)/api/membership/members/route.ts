@@ -111,7 +111,7 @@ export async function GET(request: Request) {
       .from(members)
       .leftJoin(household, eq(members.householdId, household.id))
       .where(whereClause)
-      .orderBy(asc(members.lastName), asc(members.firstName))
+      .orderBy(asc(members.lastName), asc(members.firstName), asc(members.id))
       .limit(validPageSize)
       .offset(offset);
 

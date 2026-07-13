@@ -44,9 +44,13 @@ export async function GET(request: Request) {
     // Get active church from subdomain
     const churchId = await getTenantFromRequest(request);
     
-    // Get per-church role if churchId is available
-    let role: string = userRecord.role; // Default to global role
-    if (churchId && !userRecord.isSuperAdmin) {
+    // Default to "admin" for super admins (they bypass all permission checks
+    // on the backend) and to the global role otherwise.
+    let role: string = userRecord.isSuperAdmin ? "admin" : userRecord.role;
+
+    // Prefer the user's actual per-church role when a membership row exists,
+    // even for super admins, so the UI reflects their real church role.
+    if (churchId) {
       const churchRole = await getUserChurchRole(session.user.id, churchId);
       if (churchRole) {
         role = churchRole as string;

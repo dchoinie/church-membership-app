@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, count } from "drizzle-orm";
 
 import { db } from "@/db";
 import { attendance, services } from "@/db/schema";
@@ -37,15 +37,15 @@ export async function GET(request: Request) {
       .leftJoin(attendance, eq(services.id, attendance.serviceId))
       .where(eq(services.churchId, churchId))
       .groupBy(services.id, services.serviceDate, services.serviceType, services.serviceTime, services.createdAt, services.updatedAt)
-      .orderBy(desc(services.serviceDate))
+      .orderBy(desc(services.serviceDate), desc(services.id))
       .limit(validPageSize)
       .offset(offset);
 
-    // Get total count of services that have attendance records (filtered by churchId)
+    // Get total count of all services for this church (must match the data query's
+    // where clause exactly, or pagination metadata won't line up with what's returned)
     const [totalResult] = await db
-      .select({ count: sql<number>`count(distinct ${services.id})::int` })
+      .select({ count: count() })
       .from(services)
-      .innerJoin(attendance, eq(services.id, attendance.serviceId))
       .where(eq(services.churchId, churchId));
 
     const total = totalResult?.count || 0;

@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         twoFactorExempt: user.twoFactorExempt,
       })
       .from(user)
-      .orderBy(desc(user.createdAt))
+      .orderBy(desc(user.createdAt), desc(user.id))
       .limit(validPageSize)
       .offset(offset);
 

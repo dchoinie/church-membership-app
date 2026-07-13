@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, count, and, or, ilike, sql } from "drizzle-orm";
+import { eq, count, and, or, ilike, sql, asc, desc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { household, members } from "@/db/schema";
@@ -51,6 +51,12 @@ export async function GET(request: Request) {
 
     const validType = ["single", "family", "married_couple", "other"].includes(type) ? type : undefined;
 
+    const sortByParam = searchParams.get("sortBy") || "name";
+    const validSortBy = ["name", "type", "members"].includes(sortByParam) ? sortByParam : "name";
+    const sortDirectionParam = searchParams.get("sortDirection") || "asc";
+    const validSortDirection = sortDirectionParam === "desc" ? "desc" : "asc";
+    const orderDirection = validSortDirection === "desc" ? desc : asc;
+
     // Validate pagination parameters
     const validPage = Math.max(1, page);
     const validPageSize = Math.max(1, Math.min(100, pageSize)); // Max 100 per page
@@ -93,6 +99,16 @@ export async function GET(request: Request) {
     const total = totalResult.count;
     const totalPages = Math.ceil(total / validPageSize);
 
+    // Member count per household, used both for display and for sorting by "members"
+    const memberCountExpr = sql<number>`(SELECT count(*)::int FROM members WHERE members.household_id = household.id AND members.church_id = ${churchId})`;
+
+    const orderByClauses =
+      validSortBy === "type"
+        ? [orderDirection(household.type), asc(household.name), asc(household.id)]
+        : validSortBy === "members"
+          ? [orderDirection(memberCountExpr), asc(household.name), asc(household.id)]
+          : [orderDirection(household.name), asc(household.id)];
+
     // Get paginated households
     const paginatedHouseholds = await db
       .select({
@@ -107,6 +123,7 @@ export async function GET(request: Request) {
       })
       .from(household)
       .where(whereClause)
+      .orderBy(...orderByClauses)
       .limit(validPageSize)
       .offset(offset);
 

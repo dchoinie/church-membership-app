@@ -25,6 +25,8 @@ export interface HouseholdFilters {
   state?: string;
   minMembers?: number;
   maxMembers?: number;
+  sortBy?: "name" | "type" | "members";
+  sortDirection?: "asc" | "desc";
 }
 
 interface HouseholdsResponse {
@@ -58,6 +60,8 @@ function buildHouseholdsKey(page: number, pageSize: number, filters?: HouseholdF
     if (filters.state) params.set("state", filters.state);
     if (filters.minMembers != null) params.set("minMembers", String(filters.minMembers));
     if (filters.maxMembers != null) params.set("maxMembers", String(filters.maxMembers));
+    if (filters.sortBy) params.set("sortBy", filters.sortBy);
+    if (filters.sortDirection) params.set("sortDirection", filters.sortDirection);
   }
   return `/api/families?${params.toString()}`;
 }

@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       })
       .from(members)
       .where(eq(members.churchId, churchId))
-      .orderBy(asc(members.lastName), asc(members.firstName))
+      .orderBy(asc(members.lastName), asc(members.firstName), asc(members.id))
       .limit(validPageSize)
       .offset(offset);
 
