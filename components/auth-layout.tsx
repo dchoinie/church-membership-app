@@ -201,11 +201,12 @@ export default function AuthLayout({
   }, [isPublicRoute, isAuthenticated]);
 
   // Redirect to 2FA setup if user must complete MFA before dashboard access
-  const userWith2FA = session?.user as { requires2FASetup?: boolean; twoFactorEnabled?: boolean } | undefined;
+  const userWith2FA = session?.user as { requires2FASetup?: boolean; twoFactorEnabled?: boolean; twoFactorExempt?: boolean } | undefined;
   const requires2FASetup = userWith2FA?.requires2FASetup === true;
   const twoFactorEnabled = userWith2FA?.twoFactorEnabled === true;
+  const twoFactorExempt = userWith2FA?.twoFactorExempt === true;
   const isSetup2FARoute = pathname === "/setup-2fa";
-  const mustComplete2FA = isAuthenticated && requires2FASetup && !twoFactorEnabled && !isSetup2FARoute;
+  const mustComplete2FA = isAuthenticated && requires2FASetup && !twoFactorEnabled && !twoFactorExempt && !isSetup2FARoute;
 
   useEffect(() => {
     if (mustComplete2FA) {

@@ -177,6 +177,11 @@ export const auth = betterAuth({
                 required: false,
                 defaultValue: false,
             },
+            twoFactorExempt: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+            },
         },
     },
     database: drizzleAdapter(db, {

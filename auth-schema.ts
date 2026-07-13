@@ -22,6 +22,7 @@ export const user = pgTable(
     isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
     twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     requires2FASetup: boolean("requires_2fa_setup").default(false).notNull(),
+    twoFactorExempt: boolean("two_factor_exempt").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

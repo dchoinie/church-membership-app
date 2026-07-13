@@ -30,6 +30,7 @@ export async function GET(request: Request) {
         name: user.name,
         createdAt: user.createdAt,
         twoFactorEnabled: user.twoFactorEnabled,
+        twoFactorExempt: user.twoFactorExempt,
       })
       .from(user)
       .orderBy(desc(user.createdAt))

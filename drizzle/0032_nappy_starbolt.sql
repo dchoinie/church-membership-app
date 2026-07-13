@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "two_factor_exempt" boolean DEFAULT false NOT NULL;

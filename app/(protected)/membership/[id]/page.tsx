@@ -428,7 +428,15 @@ export default function MemberDetailPage({
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/membership">Back</Link>
+                  <Link
+                    href={
+                      member.householdId
+                        ? `/membership/household/${member.householdId}`
+                        : "/membership"
+                    }
+                  >
+                    Back
+                  </Link>
                 </Button>
               </>
             ) : (

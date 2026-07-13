@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -39,6 +40,7 @@ interface UserRow {
   name: string | null;
   createdAt: string;
   twoFactorEnabled: boolean;
+  twoFactorExempt: boolean;
 }
 
 interface PaginationInfo {
@@ -56,6 +58,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [confirmUserId, setConfirmUserId] = useState<string | null>(null);
+  const [updatingExemptId, setUpdatingExemptId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers(page);
@@ -105,6 +108,34 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleExempt = async (userId: string, exempt: boolean) => {
+    setUpdatingExemptId(userId);
+    // Optimistic update so the switch responds immediately
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, twoFactorExempt: exempt } : u))
+    );
+    try {
+      const response = await fetch("/api/admin/users/toggle-2fa-exempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, exempt }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update 2FA requirement");
+      }
+    } catch (err) {
+      // Revert on failure
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, twoFactorExempt: !exempt } : u))
+      );
+      setError(err instanceof Error ? err.message : "Failed to update 2FA requirement");
+    } finally {
+      setUpdatingExemptId(null);
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString();
@@ -141,7 +172,8 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-3xl font-bold">Users</h1>
           <p className="text-muted-foreground mt-2">
-            Manage all users. Reset 2FA for users who have lost access to their authenticator.
+            Manage all users. Reset 2FA for users who have lost access to their authenticator,
+            or turn off the 2FA requirement for a user entirely.
           </p>
         </div>
       </div>
@@ -155,13 +187,14 @@ export default function AdminUsersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>2FA</TableHead>
+                <TableHead>2FA Required</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -177,6 +210,20 @@ export default function AdminUsersPage() {
                       ) : (
                         <Badge variant="outline">Disabled</Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={!u.twoFactorExempt}
+                        disabled={updatingExemptId === u.id}
+                        onCheckedChange={(checked) =>
+                          handleToggleExempt(u.id, !checked)
+                        }
+                        aria-label={
+                          u.twoFactorExempt
+                            ? "2FA not required for this user"
+                            : "2FA required for this user"
+                        }
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
