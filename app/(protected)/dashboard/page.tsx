@@ -423,7 +423,13 @@ export default function Dashboard() {
 
   const formatDate = (dateString: string) => {
     try {
-      const date = new Date(dateString);
+      // Date-only strings ("YYYY-MM-DD") must be parsed as local dates, not UTC -
+      // new Date("YYYY-MM-DD") parses as UTC midnight, which toLocaleDateString then
+      // renders a day early in any timezone behind UTC.
+      const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const date = match
+        ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+        : new Date(dateString);
       return date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
