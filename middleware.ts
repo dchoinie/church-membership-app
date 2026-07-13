@@ -62,6 +62,18 @@ export async function middleware(request: NextRequest) {
     if (pathname.includes("/signup") && request.method !== "GET") {
       rateLimitConfig = RATE_LIMITS.SIGNUP;
     }
+    // Password reset endpoints must be checked BEFORE the generic /auth check below -
+    // better-auth's built-in reset flow lives at /api/auth/request-password-reset and
+    // /api/auth/reset-password, both of which contain "/auth" and would otherwise be
+    // caught by the AUTH branch, silently draining the same bucket as sign-in attempts.
+    else if (
+      pathname.includes("/request-password-reset") ||
+      pathname.includes("/reset-password") ||
+      pathname.includes("/forgot-password") ||
+      pathname.includes("/2fa-reset")
+    ) {
+      rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
+    }
     // Authentication actions (sign-in, etc.) should use strict AUTH rate limit
     // Only apply strict limits to POST/PUT/DELETE requests to auth endpoints
     else if (
@@ -69,8 +81,6 @@ export async function middleware(request: NextRequest) {
       (pathname.includes("/invite") && request.method !== "GET")
     ) {
       rateLimitConfig = RATE_LIMITS.AUTH;
-    } else if (pathname.includes("/forgot-password") || pathname.includes("/reset-password") || pathname.includes("/2fa-reset")) {
-      rateLimitConfig = RATE_LIMITS.PASSWORD_RESET;
     } else if (pathname.includes("/bulk")) {
       rateLimitConfig = RATE_LIMITS.BULK;
     } else if (pathname.includes("/contact") && request.method !== "GET") {
