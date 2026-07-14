@@ -13,7 +13,6 @@ import {
   Settings,
   ArrowRight,
   Loader2,
-  CheckCircle2,
   Activity,
   UserPlus,
   UserMinus,
@@ -147,14 +146,11 @@ interface RecentStatusChange {
   firstName: string;
   lastName: string;
   changeType:
-    | "confirmation"
-    | "baptism"
     | "transfer_in"
     | "transfer_out"
     | "received"
     | "removed"
-    | "deceased"
-    | "birthday";
+    | "deceased";
   date: string;
   receivedBy?: string;
   removedBy?: string;
@@ -454,14 +450,11 @@ export default function Dashboard() {
     changeType: RecentStatusChange["changeType"],
   ): string => {
     const types: Record<string, string> = {
-      confirmation: "Confirmation",
-      baptism: "Baptism",
       transfer_in: "Transfer In",
       transfer_out: "Transfer Out",
       received: "Received",
       removed: "Removed",
       deceased: "Deceased",
-      birthday: "Birthday",
     };
     return types[changeType] || changeType;
   };
@@ -470,10 +463,6 @@ export default function Dashboard() {
     changeType: RecentStatusChange["changeType"],
   ) => {
     switch (changeType) {
-      case "confirmation":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "baptism":
-        return <Cross className="h-4 w-4" />;
       case "transfer_in":
         return <UserPlus className="h-4 w-4" />;
       case "transfer_out":
@@ -484,8 +473,6 @@ export default function Dashboard() {
         return <UserMinus className="h-4 w-4" />;
       case "deceased":
         return <Cross className="h-4 w-4" />;
-      case "birthday":
-        return <Gift className="h-4 w-4" />;
       default:
         return <Activity className="h-4 w-4" />;
     }
@@ -495,11 +482,8 @@ export default function Dashboard() {
     changeType: RecentStatusChange["changeType"],
   ): string => {
     switch (changeType) {
-      case "confirmation":
-      case "baptism":
       case "transfer_in":
       case "received":
-      case "birthday":
         return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
       case "transfer_out":
       case "removed":

@@ -5,7 +5,6 @@ import { db } from "@/db";
 import { members, household } from "@/db/schema";
 import { getAuthContext } from "@/lib/api-helpers";
 import { createErrorResponse } from "@/lib/error-handler";
-import { decrypt } from "@/lib/encryption";
 
 // Date 90 days ago (inclusive) - only show changes within last 90 days
 function getNinetyDaysAgo(): string {
@@ -14,85 +13,13 @@ function getNinetyDaysAgo(): string {
   return d.toISOString().split("T")[0];
 }
 
-// Check if a birthday (YYYY-MM-DD) fell within the last 90 days
-function birthdayInLast90Days(dateOfBirthStr: string, ninetyDaysAgo: string): { inRange: boolean; occurrenceDate: string | null } {
-  const match = dateOfBirthStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return { inRange: false, occurrenceDate: null };
-  const [, , month, day] = match;
-  const monthNum = parseInt(month, 10);
-  const dayNum = parseInt(day, 10);
-  if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return { inRange: false, occurrenceDate: null };
-
-  const today = new Date();
-  const start = new Date(ninetyDaysAgo);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(today);
-  end.setHours(23, 59, 59, 999);
-
-  const currentYear = today.getFullYear();
-  const thisYearBirthday = new Date(currentYear, monthNum - 1, dayNum);
-  const lastYearBirthday = new Date(currentYear - 1, monthNum - 1, dayNum);
-
-  if (thisYearBirthday >= start && thisYearBirthday <= end) {
-    return { inRange: true, occurrenceDate: thisYearBirthday.toISOString().split("T")[0] };
-  }
-  if (lastYearBirthday >= start && lastYearBirthday <= end) {
-    return { inRange: true, occurrenceDate: lastYearBirthday.toISOString().split("T")[0] };
-  }
-  return { inRange: false, occurrenceDate: null };
-}
-
 export async function GET(request: Request) {
   try {
     const { churchId } = await getAuthContext(request);
     const ninetyDaysAgo = getNinetyDaysAgo();
 
-    // Get confirmations within last 90 days
-    const confirmations = await db
-      .select({
-        id: members.id,
-        firstName: members.firstName,
-        lastName: members.lastName,
-        confirmationDate: members.confirmationDate,
-        householdId: members.householdId,
-        householdName: household.name,
-      })
-      .from(members)
-      .leftJoin(household, eq(members.householdId, household.id))
-      .where(
-        and(
-          isNotNull(members.confirmationDate),
-          gte(members.confirmationDate, ninetyDaysAgo),
-          eq(members.churchId, churchId),
-        ),
-      )
-      .orderBy(desc(members.confirmationDate))
-      .limit(10);
-
-    // Get baptisms within last 90 days
-    const baptisms = await db
-      .select({
-        id: members.id,
-        firstName: members.firstName,
-        lastName: members.lastName,
-        baptismDate: members.baptismDate,
-        householdId: members.householdId,
-        householdName: household.name,
-      })
-      .from(members)
-      .leftJoin(household, eq(members.householdId, household.id))
-      .where(
-        and(
-          isNotNull(members.baptismDate),
-          gte(members.baptismDate, ninetyDaysAgo),
-          eq(members.churchId, churchId),
-        ),
-      )
-      .orderBy(desc(members.baptismDate))
-      .limit(10);
-
-    // Get transfers in (date received) within last 90 days
-    const transfersIn = await db
+    // Get members added (date received) within last 90 days
+    const added = await db
       .select({
         id: members.id,
         firstName: members.firstName,
@@ -108,7 +35,6 @@ export async function GET(request: Request) {
         and(
           isNotNull(members.dateReceived),
           gte(members.dateReceived, ninetyDaysAgo),
-          eq(members.receivedBy, "transfer"),
           eq(members.churchId, churchId),
         ),
       )
@@ -137,48 +63,6 @@ export async function GET(request: Request) {
       .orderBy(desc(members.deceasedDate))
       .limit(10);
 
-    // Get members with dateOfBirth for birthday check (last 90 days)
-    const membersWithBirthday = await db
-      .select({
-        id: members.id,
-        firstName: members.firstName,
-        lastName: members.lastName,
-        dateOfBirth: members.dateOfBirth,
-        householdId: members.householdId,
-        householdName: household.name,
-      })
-      .from(members)
-      .leftJoin(household, eq(members.householdId, household.id))
-      .where(
-        and(
-          isNotNull(members.dateOfBirth),
-          eq(members.churchId, churchId),
-        ),
-      );
-
-    const birthdays = membersWithBirthday
-      .map((m) => {
-        let dob = "";
-        try {
-          dob = m.dateOfBirth ? decrypt(m.dateOfBirth) : "";
-        } catch {
-          return null;
-        }
-        if (!dob) return null;
-        const { inRange, occurrenceDate } = birthdayInLast90Days(dob, ninetyDaysAgo);
-        if (!inRange || !occurrenceDate) return null;
-        return {
-          id: m.id,
-          firstName: m.firstName,
-          lastName: m.lastName,
-          date: occurrenceDate,
-          householdName: m.householdName,
-        };
-      })
-      .filter((b): b is NonNullable<typeof b> => b !== null)
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 10);
-
     // Get date removed within last 90 days (all removed types: transfer out, death, etc.)
     const dateRemoved = await db
       .select({
@@ -202,32 +86,19 @@ export async function GET(request: Request) {
       .orderBy(desc(members.dateRemoved))
       .limit(10);
 
-    // Combine: transfer in, date removed, confirmation, baptism, deceased, birthday
+    // Combine: added (date received), deceased, date removed
     const allChanges = [
-      ...confirmations.map((c) => ({
-        id: c.id,
-        firstName: c.firstName,
-        lastName: c.lastName,
-        changeType: "confirmation" as const,
-        date: c.confirmationDate || "",
-        householdName: c.householdName,
-      })),
-      ...baptisms.map((b) => ({
-        id: b.id,
-        firstName: b.firstName,
-        lastName: b.lastName,
-        changeType: "baptism" as const,
-        date: b.baptismDate || "",
-        householdName: b.householdName,
-      })),
-      ...transfersIn.map((t) => ({
-        id: t.id,
-        firstName: t.firstName,
-        lastName: t.lastName,
-        changeType: "transfer_in" as const,
-        date: t.dateReceived || "",
-        receivedBy: t.receivedBy || undefined,
-        householdName: t.householdName,
+      ...added.map((a) => ({
+        id: a.id,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        changeType:
+          a.receivedBy === "transfer"
+            ? ("transfer_in" as const)
+            : ("received" as const),
+        date: a.dateReceived || "",
+        receivedBy: a.receivedBy || undefined,
+        householdName: a.householdName,
       })),
       ...deceased.map((d) => ({
         id: d.id,
@@ -236,14 +107,6 @@ export async function GET(request: Request) {
         changeType: "deceased" as const,
         date: d.deceasedDate || "",
         householdName: d.householdName,
-      })),
-      ...birthdays.map((b) => ({
-        id: b.id,
-        firstName: b.firstName,
-        lastName: b.lastName,
-        changeType: "birthday" as const,
-        date: b.date,
-        householdName: b.householdName,
       })),
       ...dateRemoved.map((r) => ({
         id: r.id,
