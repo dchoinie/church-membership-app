@@ -298,6 +298,13 @@ export const auth = betterAuth({
         autoSignInAfterVerification: false,
     },
     trustedOrigins: getTrustedOrigins(),
+    session: {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+        updateAge: 60 * 60 * 24, // refresh once per day of activity
+        cookieCache: {
+            enabled: false, // avoid relying on better-auth's default 5-minute cookie cache
+        },
+    },
     advanced: {
         useSecureCookies: process.env.NODE_ENV === "production",
         crossSubDomainCookies: process.env.NODE_ENV === "development"

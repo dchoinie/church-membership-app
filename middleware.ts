@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { getSessionCookie } from "better-auth/cookies";
 import { extractSubdomain, getChurchBySubdomain } from "@/lib/tenant-context";
 import { isSetupComplete } from "@/lib/setup-helpers";
 import { rateLimit, RATE_LIMITS, type RateLimitConfig } from "@/lib/rate-limit";
@@ -171,14 +172,11 @@ export async function middleware(request: NextRequest) {
     if (church && pathname === "/") {
       const loginParam = request.nextUrl.searchParams.get("login");
       if (loginParam !== "true") {
-        // Check for better-auth session cookie before redirecting
-        // Better-auth uses cookies like "better-auth.session_token" or similar
-        const hasBetterAuthSession = request.cookies.has("better-auth.session_token") || 
-                                     request.cookies.has("better-auth.session") ||
-                                     Array.from(request.cookies.getAll()).some(cookie => 
-                                       cookie.name.startsWith("better-auth.")
-                                     );
-        
+        // Check for better-auth session cookie before redirecting.
+        // Uses better-auth's own helper so this stays correct regardless of the
+        // "__Secure-" prefix better-auth adds in production (useSecureCookies).
+        const hasBetterAuthSession = getSessionCookie(request) !== null;
+
         // Only redirect authenticated users
         if (hasBetterAuthSession) {
           // Only redirect if not coming from auth-layout redirect
